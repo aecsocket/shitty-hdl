@@ -4,29 +4,27 @@ use shitty_hdl_derive::module;
 
 use crate::{In, Out, Shape, Val};
 
-use crate as shitty_hdl;
-
-#[module]
-pub fn memory<Data: Shape, Addr: Shape>(_: PhantomData<(Data, Addr)>) {}
+#[module(crate = crate, builder)]
+pub fn memory<Data: Shape, Addr: Shape>(depth: u64, _: PhantomData<(Data, Addr)>) {}
 
 impl<Data: Shape, Addr: Shape> memory<Data, Addr> {
-    pub fn read_port(&mut self) -> ReadPort<Data, Addr> {
+    pub fn read_lane(&mut self) -> ReadLane<Data, Addr> {
         todo!();
     }
 
-    pub fn write_port(&mut self) -> WritePort<Data, Addr> {
+    pub fn write_lane(&mut self) -> WriteLane<Data, Addr> {
         todo!();
     }
 }
 
-pub struct ReadPort<Data: Shape, Addr: Shape> {
+pub struct ReadLane<Data: Shape, Addr: Shape> {
     pub enable: Out<bool>,
     pub addr: Out<Addr>,
     pub data: In<Data>,
     _phantom: PhantomData<(Data, Addr)>,
 }
 
-impl<Data: Shape, Addr: Shape> ReadPort<Data, Addr> {
+impl<Data: Shape, Addr: Shape> ReadLane<Data, Addr> {
     pub async fn read(&self, addr: impl Val<Addr>) -> ReadVal<Data> {
         todo!();
     }
@@ -65,14 +63,14 @@ impl<T: Shape, Lhs, Rhs> Val<T> for Add<T, Lhs, Rhs> {}
 
 // crate::val::impl_val!(ReadVal[Data], Data);
 
-pub struct WritePort<Data: Shape, Addr: Shape> {
+pub struct WriteLane<Data: Shape, Addr: Shape> {
     pub enable: Out<bool>,
     pub addr: Out<Addr>,
     pub data: Out<Data>,
     _phantom: PhantomData<(Data, Addr)>,
 }
 
-impl<Data: Shape, Addr: Shape> WritePort<Data, Addr> {
+impl<Data: Shape, Addr: Shape> WriteLane<Data, Addr> {
     pub async fn write(&self, addr: impl Val<Addr>, data: impl Val<Data>) {
         todo!();
     }

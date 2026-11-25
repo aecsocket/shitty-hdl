@@ -11,6 +11,8 @@ syn = { version = "3.0.9" }
 quote = { version = "1.0.47" }
 proc-macro2 = { version = "1.0.107" }
 shitty-hdl-derive = { path = "derive/" }
+bon = { version = "3.10.3" }
+darling = { version = "0.24.1" }
 
 [package]
 name = "shitty-hdl"
@@ -19,3 +21,4 @@ edition.workspace = true
 
 [dependencies]
 shitty-hdl-derive = { workspace = true }
+bon = { workspace = true }

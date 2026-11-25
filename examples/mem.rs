@@ -16,9 +16,9 @@ pub fn heap(
     write_data: In<Word>,
     mut peak_addr: Out<Addr>,
 ) {
-    let mut mem = memory::<Word, Addr>();
-    let mut read = mem.read_port();
-    let mut write = mem.write_port();
+    let mut mem = memory::<Word, Addr>().depth(8).call();
+    let mut read = mem.read_lane();
+    let mut write = mem.write_lane();
 
     comb(|| {
         read.enable <<= do_read;

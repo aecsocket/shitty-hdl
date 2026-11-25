@@ -13,6 +13,7 @@ pub use shitty_hdl_derive::{Shape, module};
 #[doc(hidden)]
 pub mod __ {
     pub use crate::{Module, Shape, SignalFlow, eq, ge, gt, if_, le, lt, ne};
+    pub use bon;
 }
 
 //

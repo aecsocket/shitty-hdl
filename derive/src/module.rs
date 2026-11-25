@@ -1,14 +1,28 @@
+use darling::{FromMeta, util::Flag};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{BinOp, Error, Expr, FnArg, ItemFn, Pat, Result, Stmt, Type, parse_quote};
 
-pub fn derive(_attr: TokenStream, input_: TokenStream) -> TokenStream {
+#[derive(Default, FromMeta)]
+#[darling(derive_syn_parse)]
+struct Options {
+    builder: Flag,
+    #[darling(rename = "crate")]
+    crate_: Option<syn::Path>,
+}
+
+pub fn derive(attr: TokenStream, input: TokenStream) -> TokenStream {
+    derive_(attr, input).unwrap_or_else(|error| error.to_compile_error())
+}
+
+fn derive_(attr: TokenStream, input_: TokenStream) -> Result<TokenStream> {
+    let function = syn::parse2::<ItemFn>(input_)?;
+    let mut options = syn::parse2::<Options>(attr)?;
+    options
+        .crate_
+        .get_or_insert_with(|| parse_quote! { shitty_hdl });
+    let crate_ = &options.crate_;
     let mut errors = Vec::new();
-    let crate_ = quote! { shitty_hdl };
-    let function = match syn::parse2::<ItemFn>(input_) {
-        Ok(function) => function,
-        Err(error) => return error.to_compile_error(),
-    };
 
     let (impl_generics, ty_generics, where_clause) = function.sig.generics.split_for_impl();
     let asyncness = function.sig.asyncness;
@@ -20,19 +34,26 @@ pub fn derive(_attr: TokenStream, input_: TokenStream) -> TokenStream {
         call_params,
         elaborate_params,
         port_fields,
-    } = make_in_outs(function.sig.inputs.iter(), &mut errors);
+    } = make_in_outs(&options, function.sig.inputs.iter(), &mut errors);
 
     // rewrite control flow (`if`, `else`, `while` etc.) in the body,
     // and save that as the statements for the elaborate fn;
     // the real fn with name `ident` will just make the port.
-    let elaborate_stmts = make_elaborate_stmts(function.block.stmts, &mut errors);
+    let elaborate_stmts = make_elaborate_stmts(&options, function.block.stmts, &mut errors);
+
+    let builder = if options.builder.is_present() {
+        quote! { #[#crate_::__::bon::builder(crate = #crate_::__::bon)] }
+    } else {
+        quote! {}
+    };
 
     let errors = errors.iter().map(syn::Error::to_compile_error);
     let vis = function.vis;
     let ident = function.sig.ident;
-    quote! {
+    Ok(quote! {
         #(#errors)*
 
+        #builder
         #vis fn #ident #ty_generics (
             #(#call_params,)*
         ) #where_clause -> #ident #ty_generics {
@@ -53,7 +74,7 @@ pub fn derive(_attr: TokenStream, input_: TokenStream) -> TokenStream {
         }
 
         impl #impl_generics #crate_::__::Module for #ident #ty_generics #where_clause {}
-    }
+    })
 }
 
 struct InOuts {
@@ -63,6 +84,7 @@ struct InOuts {
 }
 
 fn make_in_outs<'a>(
+    options: &Options,
     inputs: impl Iterator<Item = &'a FnArg>,
     errors: &mut Vec<syn::Error>,
 ) -> InOuts {
@@ -75,8 +97,7 @@ fn make_in_outs<'a>(
         Phantom,
     }
 
-    let crate_ = quote! { shitty_hdl };
-
+    let crate_ = &options.crate_;
     let mut call_params = Vec::new();
     let mut elaborate_params = Vec::new();
     let mut port_fields = Vec::new();
@@ -156,9 +177,12 @@ fn make_in_outs<'a>(
     }
 }
 
-fn make_elaborate_stmts(original: Vec<Stmt>, errors: &mut Vec<syn::Error>) -> Vec<Stmt> {
-    let crate_ = quote! { shitty_hdl };
-
+fn make_elaborate_stmts(
+    options: &Options,
+    original: Vec<Stmt>,
+    errors: &mut Vec<syn::Error>,
+) -> Vec<Stmt> {
+    let crate_ = &options.crate_;
     let mut stmts = Vec::new();
     for stmt in original {
         let Stmt::Expr(expr, semi) = stmt else {
@@ -169,7 +193,7 @@ fn make_elaborate_stmts(original: Vec<Stmt>, errors: &mut Vec<syn::Error>) -> Ve
         let stmt = match expr {
             Expr::If(if_) => {
                 // `if x { then }` -> `if_(x, || then)`
-                let cond = match translate_cond(*if_.cond) {
+                let cond = match translate_cond(options, *if_.cond) {
                     Ok(cond) => cond,
                     Err(err) => {
                         errors.push(err);
@@ -188,9 +212,8 @@ fn make_elaborate_stmts(original: Vec<Stmt>, errors: &mut Vec<syn::Error>) -> Ve
     stmts
 }
 
-fn translate_cond(expr: Expr) -> Result<Expr> {
-    let crate_ = quote! { shitty_hdl };
-
+fn translate_cond(options: &Options, expr: Expr) -> Result<Expr> {
+    let crate_ = &options.crate_;
     let Expr::Binary(bin) = &expr else {
         return Ok(expr);
     };

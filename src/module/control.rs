@@ -1,23 +1,30 @@
 use std::marker::PhantomData;
 
-use crate::{expr::IntoExpr, value::Shape};
+use crate::{
+    expr::{Expr, IntoExpr},
+    value::Shape,
+};
 
-pub fn if_<R: Shape>(cond: impl IntoExpr<Out = bool>, then: impl FnOnce() -> R) -> If<R> {
+pub fn if_<R: IntoExpr>(_cond: impl IntoExpr<Out = bool>, _then: impl FnOnce() -> R) -> If<R::Out> {
     If {
         _phantom: PhantomData,
     }
 }
 
-pub struct If<R> {
-    _phantom: PhantomData<R>,
+pub struct If<T: Shape> {
+    _phantom: PhantomData<T>,
 }
 
-impl<R: Shape> If<R> {
-    pub fn else_if(self, cond: impl IntoExpr<Out = bool>, then: impl FnOnce() -> R) -> If<R> {
+impl<T: Shape> If<T> {
+    pub fn else_if<R: IntoExpr<Out = T>>(
+        self,
+        _cond: impl IntoExpr<Out = bool>,
+        _then: impl FnOnce() -> R,
+    ) -> Self {
         self
     }
 
-    pub fn else_(self, then: impl FnOnce() -> R) -> R {
-        todo!();
+    pub fn else_<R: IntoExpr<Out = T>>(self, _then: impl FnOnce() -> R) -> Expr<T> {
+        todo!("lower hardware conditional into an expression")
     }
 }

@@ -4,7 +4,7 @@
 use shitty_hdl::prelude::*;
 
 #[derive(Debug, Clone, Shape)]
-struct Foo {
+struct Composite {
     lo: U<32>,
     hi: U<32>,
 }
@@ -16,7 +16,7 @@ pub fn my_counter(
     mut count_times_3: Out<U<19>>,
     mut done: Out<bool>,
     mut busy: Out<bool>,
-    mut foo: Out<Foo>,
+    mut composite: Out<Composite>,
 ) {
     let mut started = Signal::<bool>::new(false);
     let mut count = Signal::<U<17>>::new(u!(0));
@@ -26,8 +26,8 @@ pub fn my_counter(
     clk.on(|| busy <<= false);
 
     comb(|| {
-        foo.lo <<= u!(123);
-        foo.hi <<= u!(0x456);
+        composite.lo <<= u!(123);
+        composite.hi <<= u!(0x456);
     });
 
     if start {

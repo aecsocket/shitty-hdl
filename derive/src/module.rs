@@ -181,6 +181,9 @@ fn make_elaborate_stmts(options: &Options, mut stmts: Vec<Stmt>) -> Vec<Stmt> {
     let mut rewriter = MakeElaborate { options };
     for stmt in &mut stmts {
         rewriter.visit_stmt_mut(stmt);
+        if let Stmt::Expr(_, semi) = stmt {
+            *semi = Some(Default::default());
+        }
     }
     stmts
 }
@@ -192,9 +195,47 @@ struct MakeElaborate<'a> {
 impl VisitMut for MakeElaborate<'_> {
     fn visit_item_mut(&mut self, _item: &mut syn::Item) {}
 
+    fn visit_block_mut(&mut self, block: &mut syn::Block) {
+        let len = block.stmts.len();
+        for (index, stmt) in block.stmts.iter_mut().enumerate() {
+            self.visit_stmt_mut(stmt);
+            // Rewritten statement expressions may now return Expr<()>. Only
+            // discard non-tail values; branch tails can be value-producing.
+            if index + 1 < len
+                && let Stmt::Expr(_, semi) = stmt
+            {
+                *semi = Some(Default::default());
+            }
+        }
+    }
+
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
         let Expr::If(if_) = expr else {
             syn::visit_mut::visit_expr_mut(self, expr);
+            let args = match expr {
+                Expr::Call(call)
+                    if matches!(call.func.as_ref(), Expr::Path(path)
+                        if path.path.segments.last().is_some_and(|segment| segment.ident == "comb")) =>
+                {
+                    &mut call.args
+                }
+                Expr::MethodCall(call) if call.method == "on" => &mut call.args,
+                _ => return,
+            };
+            // These callbacks require unit, unlike arbitrary value closures.
+            // Their bodies have already been visited; only discard the result.
+            for arg in args {
+                if let Expr::Closure(closure) = arg {
+                    match closure.body.as_mut() {
+                        Expr::Block(block) => {
+                            if let Some(Stmt::Expr(_, semi)) = block.block.stmts.last_mut() {
+                                *semi = Some(Default::default());
+                            }
+                        }
+                        body => *body = parse_quote! { { #body; } },
+                    }
+                }
+            }
             return;
         };
 
@@ -207,6 +248,7 @@ impl VisitMut for MakeElaborate<'_> {
         let mut chain = quote! { #crate_::__::if_(#cond, || #then) };
 
         // Walk the chain before rewriting its `else if` nodes into calls.
+        let mut has_else = false;
         let mut next = &mut if_.else_branch;
         while let Some((_, branch)) = next {
             match branch.as_mut() {
@@ -220,12 +262,18 @@ impl VisitMut for MakeElaborate<'_> {
                 }
                 branch => {
                     self.visit_expr_mut(branch);
-                    chain = quote! { #chain.else_(|| { #branch }) };
+                    chain = quote! { #chain.else_(|| #branch) };
+                    has_else = true;
                     break;
                 }
             }
         }
 
-        *expr = parse_quote! { { #chain; } };
+        *expr = if has_else {
+            parse_quote! { { #chain } }
+        } else {
+            // Without an else, discard the unfinished builder and yield unit.
+            parse_quote! { { #chain; } }
+        };
     }
 }

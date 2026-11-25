@@ -5,13 +5,14 @@ edition.workspace = true
 
 [workspace]
 resolver = "3"
-members = [".", "board/", "front/", "cli/", "derive/", "platform/"]
+members = [".", "air/", "board/", "front/", "cli/", "derive/", "platform/"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+air = { package = "shitty-hdl-air", path = "air/" }
 front = { package = "shitty-hdl-front", path = "front/" }
 board = { package = "shitty-hdl-board", path = "board/" }
 cli = { package = "shitty-hdl-cli", path = "cli/" }
@@ -29,6 +30,7 @@ generic-array = { version = "1.4.5" }
 lasso = { version = "0.7.3" }
 proc-macro2 = { version = "1.0.107" }
 quote = { version = "1.0.47" }
+scoped-tls-hkt = { version = "0.1.5" }
 smallvec = { version = "2.0.0-beta.4" }
 syn = { version = "3.0.9" }
 tracing = { version = "0.1.44" }

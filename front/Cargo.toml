@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+air = { workspace = true }
+bumpalo = { workspace = true }
+scoped-tls-hkt = { workspace = true }
+
 derive = { workspace = true }
 smallvec = { workspace = true }
 variadics_please = { workspace = true }

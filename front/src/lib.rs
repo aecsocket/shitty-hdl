@@ -3,12 +3,17 @@
 #![allow(incomplete_features)]
 
 pub mod data;
+
+pub mod domain;
+pub mod elab;
 pub mod method;
 pub mod module;
 pub mod ops;
 pub mod reg;
 pub mod value;
 pub mod prelude {
+    pub use crate::domain::{Clock, Domain};
+    pub use crate::elab::elaborate;
     pub use crate::method::Method;
     pub use crate::module::{Action, Interface, Rule};
     pub use crate::ops::{
@@ -21,4 +26,5 @@ pub mod prelude {
     pub use derive::{Arith, ArithCmp, BitCmp, Bits, Interface, Shape, Shift, hdl, module};
 }
 
+pub use air;
 pub use derive::*;

@@ -1,6 +1,9 @@
 use std::ops::{Deref, ShlAssign};
 
-use crate::value::{IntoValue, IntoValues, Shape, Value};
+use crate::{
+    domain::Domain,
+    value::{IntoValue, IntoValues, Shape, Value},
+};
 
 #[derive(Debug)]
 pub struct Reg<T: Shape> {
@@ -18,13 +21,13 @@ impl<T: Shape> Copy for Reg<T> {}
 
 impl<T: Shape> Reg<T> {
     #[must_use]
-    pub fn new(init: T) -> Self {
+    pub fn new(domain: impl Domain, init: T) -> Self {
         drop(init);
         todo!();
     }
 
     #[must_use]
-    pub fn uninit() -> Self {
+    pub fn uninit(domain: impl Domain) -> Self {
         todo!();
     }
 

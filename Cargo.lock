@@ -59,6 +59,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "bumpalo"
+version = "3.20.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87a0cf66fd1eb2fb7b822cb78370d82303750809bc6ba855f3f58e517d3238db"
+
+[[package]]
 name = "camino"
 version = "1.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -250,6 +256,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b1e7f9a428571be2dc5bc0505c13fb6bf936822b894ec87abf8a08a4e51742d"
 
 [[package]]
+name = "scoped-tls-hkt"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9603871ffe5df3ac39cb624790c296dbd47a400d202f56bf3e414045099524d"
+
+[[package]]
 name = "semver"
 version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -311,6 +323,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "shitty-hdl-air"
+version = "0.1.0"
+
+[[package]]
 name = "shitty-hdl-board"
 version = "0.1.0"
 
@@ -341,6 +357,9 @@ dependencies = [
 name = "shitty-hdl-front"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
+ "scoped-tls-hkt",
+ "shitty-hdl-air",
  "shitty-hdl-derive",
  "smallvec",
  "variadics_please",

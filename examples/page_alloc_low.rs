@@ -38,7 +38,7 @@ pub struct PageAlloc {
 }
 
 #[module]
-pub fn page_alloc(mut heap: Heap) -> PageAlloc {
+pub fn page_alloc(clk: Clock, mut heap: Heap) -> PageAlloc {
     #[derive(Debug, Shape, BitCmp)]
     enum State {
         Idle,
@@ -48,14 +48,14 @@ pub fn page_alloc(mut heap: Heap) -> PageAlloc {
         FreeDone,
     }
 
-    let mut next_clean = Reg::<PageAddr>::new(PageAddr::zero());
-    let mut free_head = Reg::<PageAddr>::new(PageAddr::invalid());
-    let mut free_count = Reg::<PageAddr>::new(PageAddr::zero());
-    let mut state = Reg::<State>::new(State::Idle);
+    let mut next_clean = Reg::<PageAddr>::new(clk, PageAddr::zero());
+    let mut free_head = Reg::<PageAddr>::new(clk, PageAddr::invalid());
+    let mut free_count = Reg::<PageAddr>::new(clk, PageAddr::zero());
+    let mut state = Reg::<State>::new(clk, State::Idle);
 
     // alloc
 
-    let mut alloc_out_r = Reg::<PageAddr>::uninit();
+    let mut alloc_out_r = Reg::<PageAddr>::uninit(clk);
     let alloc_out = Action::when(state == State::AllocDone).define_as(|()| {
         state <<= State::Idle;
         alloc_out_r.read()
@@ -93,7 +93,7 @@ pub fn page_alloc(mut heap: Heap) -> PageAlloc {
         state <<= State::Idle;
     });
 
-    let mut free_req_captured = Reg::<PageAddr>::uninit();
+    let mut free_req_captured = Reg::<PageAddr>::uninit(clk);
     let free_req = Action::when(state == State::Idle).define_as(|page: Value<PageAddr>| {
         sim_assert!(page != PageAddr::invalid(), "freeing invalid page");
         sim_assert!(free_count < PageAddr::invalid(), "freeing too many pages");
@@ -116,10 +116,6 @@ pub fn page_alloc(mut heap: Heap) -> PageAlloc {
         alloc: Method::new(alloc_req, alloc_out),
         free: Method::new(free_req, free_out),
     }
-}
-
-fn top(heap: Heap) {
-    let pages = page_alloc(heap);
 }
 
 fn main() {}

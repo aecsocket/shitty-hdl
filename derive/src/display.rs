@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::mem;
 
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
@@ -64,17 +65,18 @@ fn name_key(name: &Ident) -> String {
     name.strip_prefix("r#").unwrap_or(&name).to_owned()
 }
 
-fn conversion(spec: &str, span: Span) -> syn::Result<String> {
+fn conversion(spec: &str, span: Span) -> syn::Result<Spec> {
     let width_end = spec.bytes().take_while(u8::is_ascii_digit).count();
     let (width, kind) = spec.split_at(width_end);
     if !width.is_empty() && width.parse::<u32>().is_err() {
         return Err(syn::Error::new(span, "format width is too large"));
     }
-    let kind = match kind {
-        "" => "d",
-        "x" | "?" => "h",
-        "b" => "b",
-        "o" => "o",
+    let (hardware_kind, text_kind) = match kind {
+        "" => ('d', 'd'),
+        "x" => ('x', 'x'),
+        "?" => ('h', 'x'),
+        "b" => ('b', 'b'),
+        "o" => ('o', 'o'),
         _ => {
             return Err(syn::Error::new(
                 span,
@@ -82,10 +84,25 @@ fn conversion(spec: &str, span: Span) -> syn::Result<String> {
             ));
         }
     };
-    Ok(format!(
-        "%{}{kind}",
-        if width.is_empty() { "0" } else { width }
-    ))
+    Ok(Spec {
+        hardware: format!(
+            "%{}{hardware_kind}",
+            if width.is_empty() { "0" } else { width }
+        ),
+        width: width.parse().unwrap_or(0),
+        kind: text_kind,
+    })
+}
+
+struct Spec {
+    hardware: String,
+    width: usize,
+    kind: char,
+}
+
+enum Piece {
+    Text(String),
+    Arg { index: usize, spec: Spec },
 }
 
 fn expand(input: Input) -> syn::Result<TokenStream> {
@@ -110,24 +127,27 @@ fn expand(input: Input) -> syn::Result<TokenStream> {
     }
     let explicit_count = expressions.len();
     let mut used = vec![false; explicit_count];
-    let mut ordered = Vec::new();
-    let (bsv, span) = if let Some(format) = format {
+    let mut next = 0usize;
+    let (pieces, _span) = if let Some(format) = format {
         let span = format.span();
         let text = format.value();
         let mut chars = text.chars().peekable();
-        let mut bsv = String::new();
-        let mut next = 0usize;
+        let mut pieces = Vec::new();
+        let mut chunk = String::new();
         while let Some(ch) = chars.next() {
             match ch {
                 '{' if chars.peek() == Some(&'{') => {
                     chars.next();
-                    bsv.push('{');
+                    chunk.push('{');
                 }
                 '}' if chars.peek() == Some(&'}') => {
                     chars.next();
-                    bsv.push('}');
+                    chunk.push('}');
                 }
                 '{' => {
+                    if !chunk.is_empty() {
+                        pieces.push(Piece::Text(mem::take(&mut chunk)));
+                    }
                     let mut field = String::new();
                     loop {
                         match chars.next() {
@@ -171,35 +191,82 @@ fn expand(input: Input) -> syn::Result<TokenStream> {
                     if index < explicit_count {
                         used[index] = true;
                     }
-                    ordered.push(index);
-                    bsv.push_str(&conversion(spec, span)?);
+                    pieces.push(Piece::Arg {
+                        index,
+                        spec: conversion(spec, span)?,
+                    });
                 }
                 '}' => return Err(syn::Error::new(span, "unmatched closing brace")),
-                '%' => bsv.push_str("%%"),
-                ch => bsv.push(ch),
+                '%' => {
+                    chunk.push('%');
+                    chunk.push('%');
+                }
+                ch => chunk.push(ch),
             }
         }
-        for (index, used) in used.iter().enumerate() {
-            if !used {
-                return Err(syn::Error::new_spanned(
-                    &expressions[index],
-                    "unused explicit display argument",
-                ));
-            }
+        if !chunk.is_empty() {
+            pieces.push(Piece::Text(chunk));
         }
-        (bsv, span)
+        (pieces, span)
     } else {
-        ordered.push(0);
-        ("%0h".to_owned(), Span::call_site())
+        if explicit_count == 0 {
+            return Err(syn::Error::new(
+                Span::call_site(),
+                "expected a display value",
+            ));
+        }
+        used[0] = true;
+        (
+            vec![Piece::Arg {
+                index: 0,
+                spec: Spec {
+                    hardware: "%0h".to_owned(),
+                    width: 0,
+                    kind: 'x',
+                },
+            }],
+            Span::call_site(),
+        )
     };
-    let locals: Vec<_> = (0..expressions.len())
-        .map(|index| Ident::new(&format!("__display_arg_{index}"), Span::mixed_site()))
-        .collect();
-    let handles = ordered.iter().map(|index| &locals[*index]);
-    let bsv = LitStr::new(&bsv, span);
+    for (index, used) in used.iter().enumerate() {
+        if !used {
+            return Err(syn::Error::new_spanned(
+                &expressions[index],
+                "unused explicit display argument",
+            ));
+        }
+    }
+    let mut statements = Vec::new();
+    for piece in pieces {
+        match piece {
+            Piece::Text(text) => statements.push(quote! { __display_fmt.push_str(#text); }),
+            Piece::Arg { index, spec } => {
+                let expr = &expressions[index];
+                let Spec {
+                    hardware,
+                    width,
+                    kind,
+                } = spec;
+                statements.push(quote! {
+                    (#expr).push_display_arg(
+                        &mut __display_fmt,
+                        &mut __display_args,
+                        &#crate_::__::DisplaySpec {
+                            hardware: ::std::string::String::from(#hardware),
+                            width: #width,
+                            kind: #kind,
+                        },
+                    );
+                });
+            }
+        }
+    }
     Ok(quote! {{
-        #(let #locals = #crate_::__::display_arg(#expressions);)*
-        #crate_::__::display(#bsv, &[#(#handles),*])
+        use #crate_::__::{DisplayArgHardware as _, DisplayArgText as _};
+        let mut __display_fmt = ::std::string::String::new();
+        let mut __display_args = ::std::vec::Vec::new();
+        #(#statements)*
+        #crate_::__::display(&__display_fmt, &__display_args)
     }})
 }
 

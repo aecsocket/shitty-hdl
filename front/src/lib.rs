@@ -14,6 +14,7 @@ pub mod reg;
 pub mod value;
 pub mod prelude {
     pub use crate::data::sim_finish;
+    pub use crate::data::{DisplayArgHardware, DisplayArgText, DisplaySpec};
     pub use crate::domain::{Clock, Domain};
     pub use crate::elab::elaborate;
     pub use crate::method::Method;
@@ -33,6 +34,7 @@ pub use derive::*;
 
 #[doc(hidden)]
 pub mod __ {
+    pub use crate::data::{DisplayArgHardware, DisplayArgText, DisplaySpec};
     pub use crate::elab::context::Context;
     pub use crate::elab::handle::{ActionHandle, ExprHandle, InterfaceHandle};
     pub use bon;

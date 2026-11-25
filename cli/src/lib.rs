@@ -25,7 +25,11 @@ enum Command {
     Check,
     /// Simulate the design in Bluesim
     #[command(alias = "sim")]
-    Simulate,
+    Simulate {
+        /// Stop the simulation after this many clock cycles
+        #[arg(short, long)]
+        cycles: Option<u64>,
+    },
     /// Build a bitstream for the design
     Build {
         /// Also programs the design onto the currently connected board
@@ -93,7 +97,7 @@ pub fn cli<R>(
     let cli = <Cli as clap::Parser>::parse();
     match cli.command {
         Command::Check => task::check(cx),
-        Command::Simulate => task::simulate(cx),
+        Command::Simulate { cycles } => task::simulate(cx, cycles),
         Command::Build { program } => task::build(cx, program),
         Command::Program => task::program(cx),
     }

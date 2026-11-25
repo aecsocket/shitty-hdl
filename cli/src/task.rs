@@ -27,7 +27,7 @@ pub fn check(mut cx: Context) -> Result<()> {
     Ok(())
 }
 
-pub fn simulate(mut cx: Context) -> Result<()> {
+pub fn simulate(mut cx: Context, cycles: Option<u64>) -> Result<()> {
     let GenBsv {
         module_name,
         bsv_path,
@@ -56,8 +56,13 @@ pub fn simulate(mut cx: Context) -> Result<()> {
     info!("- simulation binary at {exe_path:?}");
 
     info!("running simulation");
-    let status = Command::new(&exe_path)
-        .current_dir(&sim_dir)
+    let mut command = Command::new(&exe_path);
+    command.current_dir(&sim_dir);
+    if let Some(cycles) = cycles {
+        // Bluesim runtime flag: stop after N clock cycles.
+        command.arg("-m").arg(cycles.to_string());
+    }
+    let status = command
         .status()
         .with_context(|| anyhow!("running {exe_path:?}"))?;
     ensure!(
@@ -69,13 +74,35 @@ pub fn simulate(mut cx: Context) -> Result<()> {
 }
 
 pub fn build(mut cx: Context, program: bool) -> Result<()> {
+    let bitstream_path = build_bitstream(&mut cx)?;
+
+    if program {
+        program_bitstream(&cx, &bitstream_path)?;
+    }
+    Ok(())
+}
+
+pub fn program(mut cx: Context) -> Result<()> {
+    let GenVerilog { module_name, .. } = gen_verilog(&mut cx)?;
+    let bitstream_path = cx.out_dir.join("vivado").join(format!("{module_name}.bit"));
+    let bitstream_path = if bitstream_path.exists() {
+        info!("using existing bitstream {bitstream_path:?}");
+        bitstream_path
+    } else {
+        info!("no bitstream found; building first");
+        build_bitstream(&mut cx)?
+    };
+    program_bitstream(&cx, &bitstream_path)
+}
+
+fn build_bitstream(cx: &mut Context) -> Result<PathBuf> {
     let GenVerilog {
         bindings,
         module_name,
         bsv_path,
         verilog_path,
         verilog_library_dirs,
-    } = gen_verilog(&mut cx)?;
+    } = gen_verilog(cx)?;
     info!("generated Verilog in {:.2?}", START.elapsed());
 
     let vivado_dir = cx.out_dir.join("vivado");
@@ -101,21 +128,7 @@ pub fn build(mut cx: Context, program: bool) -> Result<()> {
     info!("- BSV output to {bsv_path:?}");
     info!("- Verilog output to {verilog_path:?}");
     info!("- Bitstream output to {bitstream_path:?}");
-
-    if program {
-        program_bitstream(&cx, &bitstream_path)?;
-    }
-    Ok(())
-}
-
-pub fn program(mut cx: Context) -> Result<()> {
-    let GenVerilog { module_name, .. } = gen_verilog(&mut cx)?;
-    let bitstream_path = cx.out_dir.join("vivado").join(format!("{module_name}.bit"));
-    ensure!(
-        bitstream_path.exists(),
-        "bitstream {bitstream_path:?} does not exist; run `build` first"
-    );
-    program_bitstream(&cx, &bitstream_path)
+    Ok(bitstream_path)
 }
 
 fn program_bitstream(cx: &Context, bitstream_path: &Path) -> Result<()> {

@@ -132,6 +132,10 @@ macro_rules! uint {
         const VALUE: u128 = $lit;
         $crate::value::Uint::constant::<VALUE>()
     }};
+    ($e:expr) => {{
+        const VALUE: u128 = $e;
+        $crate::value::Uint::constant::<VALUE>()
+    }};
 }
 
 impl<const N: usize> Trunc for Value<Uint<N>> {

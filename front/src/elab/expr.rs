@@ -44,6 +44,83 @@ pub fn tuple_element<D: Domain, T: Shape, Element: Shape>(
 }
 
 #[must_use]
+pub fn struct_field<D: Domain, S: Shape, T: Shape>(
+    value: Value<D, S>,
+    index: usize,
+) -> Value<D, T> {
+    Value::from_handle(with_context(|cx| {
+        let value = cx.typed_expr::<S>(value.handle());
+        let air::Type::Named(named) = value.ty else {
+            panic!("expected struct value")
+        };
+        let air::NamedTypeKind::Struct(fields) = named.kind else {
+            panic!("expected struct value")
+        };
+        let field = fields.get(index).expect("struct field index out of bounds");
+        let ty = cx.ty::<T>();
+        assert!(ptr::eq(field.ty, ty), "struct field type mismatch");
+        let expr = cx.alloc(air::Expr {
+            ty,
+            kind: air::ExprKind::Field { value, field },
+        });
+        cx.push_expr(expr)
+    }))
+}
+
+/// Rewrites field `index` of a struct-shaped register with `new` and
+/// schedules the updated struct back into the register.
+pub fn write_struct_field<D: Domain, S: Shape, T: Shape>(
+    parent: Value<D, S>,
+    index: usize,
+    new: Value<D, T>,
+) {
+    with_context(|cx| {
+        let parent_expr = cx.typed_expr::<S>(parent.handle());
+        let air::Type::Named(named) = parent_expr.ty else {
+            panic!("field write on non-struct value")
+        };
+        let air::NamedTypeKind::Struct(fields) = named.kind else {
+            panic!("field write on non-struct value")
+        };
+        assert!(index < fields.len(), "struct field index out of bounds");
+        assert!(
+            ptr::eq(fields[index].ty, cx.ty::<T>()),
+            "struct field type mismatch"
+        );
+        let new_expr = cx.typed_expr::<T>(new.handle());
+        let values = fields
+            .iter()
+            .enumerate()
+            .map(|(j, field)| {
+                if j == index {
+                    new_expr
+                } else {
+                    let expr = cx.alloc(air::Expr {
+                        ty: field.ty,
+                        kind: air::ExprKind::Field {
+                            value: parent_expr,
+                            field,
+                        },
+                    });
+                    cx.push_expr(expr);
+                    expr
+                }
+            })
+            .collect::<Vec<_>>();
+        let expr = cx.struct_value::<S>(values);
+        let air::ExprKind::Register(register) = parent_expr.kind else {
+            panic!(
+                "field assignment requires a register; only direct fields of a register can be assigned"
+            )
+        };
+        cx.emit(air::Statement::RegisterWrite {
+            register,
+            value: expr,
+        });
+    });
+}
+
+#[must_use]
 pub fn unary<D: Domain, T: Shape>(op: air::UnaryOp, value: Value<D, T>) -> Value<D, T> {
     Value::from_handle(with_context(|cx| {
         let operand = cx.typed_expr::<T>(value.handle());

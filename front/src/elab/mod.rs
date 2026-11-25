@@ -20,8 +20,8 @@ pub(crate) use body::{
 pub(crate) use context::Context;
 pub(crate) use design::DesignId;
 pub use expr::{
-    assert, binary, cast, compare, display, finish, literal, shift, shift_resize, tuple,
-    tuple_element, uint_from_u128, unary,
+    assert, binary, cast, compare, display, finish, literal, shift, shift_resize, struct_field,
+    tuple, tuple_element, uint_from_u128, unary, write_struct_field,
 };
 pub use fsm::{define_async_method, define_async_rule, lower_async_if, unit_value};
 pub(crate) use handle::{

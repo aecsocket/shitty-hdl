@@ -62,7 +62,7 @@ pub fn page_alloc(clk: Clock<Sync>, mut heap: Heap) -> PageAlloc<Sync> {
 
     // alloc
 
-    let mut alloc_out_r = Reg::uninit(clk);
+    let mut alloc_out_r = Reg::<Sync, PageAddr>::uninit(clk);
     let alloc_out: Action<Sync, (), PageAddr> =
         Action::when(state == State::AllocDone).define_as(|()| {
             state <<= State::Idle;

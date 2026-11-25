@@ -42,7 +42,7 @@ impl Drop for BodyScope {
 
 pub fn define_action<D: Domain, In: Shape, Out: Shape>(
     guard: Option<ExprHandle>,
-    f: impl FnOnce(SyncCx, In::Values<D>) -> Out::Values<D>,
+    f: impl FnOnce(SyncCx, Value<D, In>) -> Out::Values<D>,
 ) -> ActionHandle {
     let definition = with_context(|cx| {
         assert!(
@@ -77,7 +77,7 @@ pub fn define_action<D: Domain, In: Shape, Out: Shape>(
         let input = cx.alloc(air::Expr { ty: input_ty, kind });
         cx.push_expr(input)
     });
-    let result = f(SyncCx::new(), In::make_values(Value::from_handle(input)));
+    let result = f(SyncCx::new(), Value::from_handle(input));
     let result = Out::pack_values(result).handle();
     let handle = with_context(|cx| {
         let result = cx.typed_expr::<Out>(result);

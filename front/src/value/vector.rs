@@ -4,7 +4,7 @@ use std::ptr;
 use crate::{
     domain::Domain,
     elab::{Context, ExprHandle, with_context},
-    value::{IntoValue, Shape, U, Value, ValueView},
+    value::{FieldView, IntoValue, Shape, U, Value},
 };
 
 pub struct Vector<T, const N: usize>(pub [T; N]);
@@ -16,10 +16,7 @@ impl<T: Shape, const N: usize> Vector<T, N> {
     }
 
     #[must_use]
-    pub fn select<D: Domain, const W: usize>(
-        &self,
-        index: impl IntoValue<D, U<W>>,
-    ) -> Value<D, T> {
+    pub fn select<D: Domain, const W: usize>(&self, index: impl IntoValue<D, U<W>>) -> Value<D, T> {
         assert!(
             N == 1 || 1_usize << W >= N,
             "index width cannot address table"
@@ -50,12 +47,16 @@ impl<T, const N: usize> FromIterator<T> for Vector<T, N> {
 }
 
 impl<T: Shape, const N: usize> Shape for Vector<T, N> {
-    type View = ValueView<Self>;
+    type View<D: Domain> = FieldView<D, Self, Self>;
     type Values<D: Domain> = Value<D, Self>;
 
     fn air_type<'dsn>(cx: &mut Context<'dsn>) -> &'dsn air::Type<'dsn> {
         let element = cx.ty::<T>();
         cx.alloc(air::Type::Vector { element, length: N })
+    }
+
+    fn make_view<D: Domain>(handle: ExprHandle) -> Self::View<D> {
+        FieldView::whole(handle)
     }
 
     fn air_value<'dsn>(&self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {

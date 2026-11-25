@@ -105,30 +105,61 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
         quote! { <#ty as #crate_::value::Shape>::air_value(&self.#member, cx) }
     });
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let fields = data.fields.iter().map(|field| {
+    let mut view_generics = input.generics.clone();
+    let lifetime_count = view_generics
+        .params
+        .iter()
+        .take_while(|param| matches!(param, syn::GenericParam::Lifetime(_)))
+        .count();
+    view_generics.params.insert(
+        lifetime_count,
+        parse_quote! { __D: #crate_::domain::Domain },
+    );
+    for field in &data.fields {
+        let ty = &field.ty;
+        view_generics
+            .make_where_clause()
+            .predicates
+            .push(parse_quote! { #ty: #crate_::value::Shape });
+    }
+    let (view_impl_generics, view_ty_generics, view_where) = view_generics.split_for_impl();
+    let view_fields = data.fields.iter().map(|field| {
         let ty = &field.ty;
         let vis = &field.vis;
-        let view_ty = quote! { <#ty as #crate_::value::Shape>::View };
+        let view_ty = quote! { #crate_::value::FieldView<__D, #ident #original_ty_generics, #ty> };
         if let Some(ident) = &field.ident {
             quote! { #vis #ident: #view_ty }
         } else {
             quote! { #vis #view_ty }
         }
     });
+    let view_field_inits = data.fields.iter().enumerate().map(|(index, field)| {
+        if let Some(ident) = &field.ident {
+            let ident = ident.unraw();
+            quote! { #ident: #crate_::value::FieldView::field(handle, #index) }
+        } else {
+            quote! { #crate_::value::FieldView::field(handle, #index) }
+        }
+    });
     let view = match &data.fields {
         Fields::Named(_) => quote! {
-            #vis struct #view_ident #generics #where_clause {
-                #(#fields,)*
+            #vis struct #view_ident #view_generics #view_where {
+                #(#view_fields,)*
             }
         },
         Fields::Unnamed(_) => quote! {
-            #vis struct #view_ident #generics (
-                #(#fields,)*
-            ) #where_clause;
+            #vis struct #view_ident #view_generics (
+                #(#view_fields,)*
+            ) #view_where;
         },
         Fields::Unit => quote! {
-            #vis struct #view_ident #generics #where_clause;
+            #vis struct #view_ident #view_generics #view_where;
         },
+    };
+    let make_view_body = match &data.fields {
+        Fields::Named(_) => quote! { #view_ident { #(#view_field_inits,)* } },
+        Fields::Unnamed(_) => quote! { #view_ident (#(#view_field_inits,)*) },
+        Fields::Unit => quote! { #view_ident },
     };
     let width_assert = options.width.map(|annotated| {
         let generic = !input.generics.params.is_empty();
@@ -181,17 +212,17 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
     Ok(quote! {
         #view
 
-        impl #impl_generics ::core::marker::Copy for #view_ident #ty_generics #where_clause {}
+        impl #view_impl_generics ::core::marker::Copy for #view_ident #view_ty_generics #view_where {}
 
         #[allow(clippy::expl_impl_clone_on_copy)]
-        impl #impl_generics ::core::clone::Clone for #view_ident #ty_generics #where_clause {
+        impl #view_impl_generics ::core::clone::Clone for #view_ident #view_ty_generics #view_where {
             fn clone(&self) -> Self {
                 *self
             }
         }
 
         impl #impl_generics #crate_::value::Shape for #ident #ty_generics #where_clause {
-            type View = #view_ident #ty_generics;
+            type View<__D: #crate_::domain::Domain> = #view_ident #view_ty_generics;
 
             fn air_type<'dsn>(cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Type<'dsn> {
                 let fields = [#(#metadata,)*];
@@ -202,6 +233,11 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             fn air_value<'dsn>(&self, cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Expr<'dsn> {
                 let fields = ::std::vec![#(#values,)*];
                 cx.struct_value::<Self>(fields)
+            }
+
+            fn make_view<D: #crate_::domain::Domain>(handle: #crate_::__::ExprHandle) -> Self::View<D> {
+                let _ = handle;
+                #make_view_body
             }
 
             type Values<D: #crate_::domain::Domain> = #crate_::value::Value<D, Self>;
@@ -255,7 +291,7 @@ fn named_enum(input: &DeriveInput, data: &syn::DataEnum, crate_: &Path) -> Token
     });
     quote! {
         impl #impl_generics #crate_::value::Shape for #ident #ty_generics #where_clause {
-            type View = #crate_::value::ValueView<Self>;
+            type View<D: #crate_::domain::Domain> = #crate_::value::FieldView<D, Self, Self>;
 
             fn air_type<'dsn>(cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Type<'dsn> {
                 let variants = cx.alloc_slice([#(#names,)*]);
@@ -264,6 +300,10 @@ fn named_enum(input: &DeriveInput, data: &syn::DataEnum, crate_: &Path) -> Token
 
             fn air_value<'dsn>(&self, cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Expr<'dsn> {
                 match self { #(#arms,)* }
+            }
+
+            fn make_view<D: #crate_::domain::Domain>(handle: #crate_::__::ExprHandle) -> Self::View<D> {
+                #crate_::value::FieldView::whole(handle)
             }
 
             type Values<D: #crate_::domain::Domain> = #crate_::value::Value<D, Self>;
@@ -347,13 +387,17 @@ fn packed_enum(
     });
     Ok(quote! {
         impl #impl_generics #crate_::value::Shape for #ident #ty_generics #where_clause {
-            type View = #crate_::value::ValueView<Self>;
+            type View<D: #crate_::domain::Domain> = #crate_::value::FieldView<D, Self, Self>;
 
             fn air_type<'dsn>(cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Type<'dsn> {
                 // Delegate to `Bit<#width>` through the type cache so every
                 // use of this enum shares its type arena slot with the
                 // packed bits (the elaborator compares types by pointer).
                 cx.ty::<#crate_::value::Bit<#width>>()
+            }
+
+            fn make_view<D: #crate_::domain::Domain>(handle: #crate_::__::ExprHandle) -> Self::View<D> {
+                #crate_::value::FieldView::whole(handle)
             }
 
             fn air_value<'dsn>(&self, cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Expr<'dsn> {

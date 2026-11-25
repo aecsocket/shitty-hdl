@@ -7,7 +7,9 @@ pub use bit::*;
 pub use int::*;
 pub use vector::*;
 
+use std::fmt;
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut, ShlAssign};
 
 use crate::domain::Domain;
 use crate::elab::{self, Context, ExprHandle};
@@ -16,11 +18,12 @@ use crate::ops::Arith;
 /// The type of a hardware value: how it is typed, laid out, and packed.
 /// Domain-agnostic; the clock domain lives on [`Value`].
 pub trait Shape: Sized + 'static {
-    type View: Copy;
+    type View<D: Domain>: Copy;
     type Values<D: Domain>;
 
     fn air_type<'dsn>(cx: &mut Context<'dsn>) -> &'dsn air::Type<'dsn>;
     fn air_value<'dsn>(&self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn>;
+    fn make_view<D: Domain>(handle: ExprHandle) -> Self::View<D>;
     fn make_values<D: Domain>(value: Value<D, Self>) -> Self::Values<D>;
     fn pack_values<D: Domain>(values: Self::Values<D>) -> Value<D, Self>;
     fn value_handles<D: Domain>(values: Self::Values<D>) -> Vec<ExprHandle>;
@@ -44,17 +47,26 @@ pub fn unpack<D: Domain, T: Shape>(value: Value<D, T>) -> <T as Shape>::Values<D
 /// A hardware expression branded with the clock domain `D` it belongs
 /// to. Values of different domains cannot be combined; crossing domains
 /// requires an explicit synchronizer.
-#[derive(Debug)]
+impl<D: Domain, T: Shape> fmt::Debug for Value<D, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Value")
+            .field("handle", &self.handle)
+            .finish_non_exhaustive()
+    }
+}
+
 pub struct Value<D: Domain, T: Shape> {
     handle: ExprHandle,
+    view: T::View<D>,
     _brand: PhantomData<fn() -> (D, T)>,
 }
 
 impl<D: Domain, T: Shape> Value<D, T> {
     #[must_use]
-    pub(crate) const fn from_handle(handle: ExprHandle) -> Self {
+    pub(crate) fn from_handle(handle: ExprHandle) -> Self {
         Self {
             handle,
+            view: T::make_view(handle),
             _brand: PhantomData,
         }
     }
@@ -62,6 +74,25 @@ impl<D: Domain, T: Shape> Value<D, T> {
     #[must_use]
     pub const fn handle(self) -> ExprHandle {
         self.handle
+    }
+
+    #[must_use]
+    pub fn view(self) -> T::View<D> {
+        self.view
+    }
+}
+
+impl<D: Domain, T: Shape> Deref for Value<D, T> {
+    type Target = T::View<D>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.view
+    }
+}
+
+impl<D: Domain, T: Shape> DerefMut for Value<D, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.view
     }
 }
 
@@ -87,7 +118,7 @@ mod private {
     use crate::domain::Domain;
     use crate::io::Output;
     use crate::reg::Reg;
-    use crate::value::Shape;
+    use crate::value::{FieldView, Shape};
 
     pub trait Sealed {}
 
@@ -95,6 +126,7 @@ mod private {
     impl<D: Domain, T: Shape> Sealed for super::Value<D, T> {}
     impl<D: Domain> Sealed for Output<D> {}
     impl<D: Domain, T: Shape> Sealed for Reg<D, T> {}
+    impl<D: Domain, S: Shape, T: Shape> Sealed for FieldView<D, S, T> {}
 
     macro_rules! impl_sealed_int {
         ($($ty:ty),* $(,)?) => {
@@ -177,16 +209,72 @@ impl<D: Domain, T: Shape> IntoValues<D> for Value<D, T> {
     }
 }
 
+/// A field of a value's view: either the whole value (`index: None`) or
+/// one named field of a struct value.
+///
+/// Views are pure data - reading a field elaborates a projection, and
+/// assigning through `<<=` rewrites the field of the register the view
+/// was taken from.
 #[derive(Debug)]
-pub struct ValueView<T: Shape> {
-    handle: ExprHandle,
-    _shape: PhantomData<T>,
+pub struct FieldView<D: Domain, S: Shape, T: Shape> {
+    parent: ExprHandle,
+    index: Option<usize>,
+    _brand: PhantomData<fn() -> (D, S, T)>,
 }
 
-impl<T: Shape> Clone for ValueView<T> {
+impl<D: Domain, S: Shape, T: Shape> Clone for FieldView<D, S, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T: Shape> Copy for ValueView<T> {}
+impl<D: Domain, S: Shape, T: Shape> Copy for FieldView<D, S, T> {}
+
+impl<D: Domain, S: Shape, T: Shape> FieldView<D, S, T> {
+    #[must_use]
+    pub fn whole(parent: ExprHandle) -> Self {
+        Self {
+            parent,
+            index: None,
+            _brand: PhantomData,
+        }
+    }
+
+    #[must_use]
+    pub fn field(parent: ExprHandle, index: usize) -> Self {
+        Self {
+            parent,
+            index: Some(index),
+            _brand: PhantomData,
+        }
+    }
+
+    #[must_use]
+    pub fn value(self) -> Value<D, T> {
+        self.into_value()
+    }
+}
+
+impl<D: Domain, S: Shape, T: Shape> IntoValue<D, T> for FieldView<D, S, T> {
+    fn into_value(self) -> Value<D, T> {
+        match self.index {
+            None => Value::from_handle(self.parent),
+            Some(index) => {
+                elab::struct_field::<D, S, T>(Value::<D, S>::from_handle(self.parent), index)
+            }
+        }
+    }
+}
+
+impl<D: Domain, S: Shape, T: Shape, Rhs: IntoValue<D, T>> ShlAssign<Rhs> for FieldView<D, S, T> {
+    fn shl_assign(&mut self, rhs: Rhs) {
+        let Some(index) = self.index else {
+            panic!("cannot assign to a whole-value view")
+        };
+        elab::write_struct_field(
+            Value::<D, S>::from_handle(self.parent),
+            index,
+            rhs.into_value(),
+        );
+    }
+}

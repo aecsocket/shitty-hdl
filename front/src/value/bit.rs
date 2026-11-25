@@ -4,7 +4,7 @@ use crate::{
     domain::Domain,
     elab::{Context, ExprHandle},
     ops::Bits,
-    value::{Shape, Value, ValueView},
+    value::{FieldView, Shape, Value},
 };
 
 #[derive(Debug, Clone)]
@@ -16,7 +16,7 @@ pub const fn bit_cap<const N: usize>() -> usize {
 }
 
 impl<const N: usize> Shape for Bit<N> {
-    type View = ValueView<Self>;
+    type View<D: Domain> = FieldView<D, Self, Self>;
 
     fn air_type<'dsn>(cx: &mut Context<'dsn>) -> &'dsn air::Type<'dsn> {
         cx.alloc(air::Type::Bit {
@@ -26,6 +26,10 @@ impl<const N: usize> Shape for Bit<N> {
 
     fn air_value<'dsn>(&self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {
         cx.bits::<Self>(&self.0)
+    }
+
+    fn make_view<D: Domain>(handle: ExprHandle) -> Self::View<D> {
+        FieldView::whole(handle)
     }
 
     type Values<D: Domain> = Value<D, Self>;
@@ -53,6 +57,12 @@ impl<const N: usize> Bits for Bit<N> {
 
     fn unpack<D: Domain>(bits: Value<D, Self::Packed>) -> Value<D, Self> {
         bits
+    }
+}
+
+impl<const N: usize> Default for Bit<N> {
+    fn default() -> Self {
+        Self::none()
     }
 }
 

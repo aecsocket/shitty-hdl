@@ -57,7 +57,7 @@ pub trait MethodBody<D: Domain, In: Shape, Out: Shape, Cx> {
 
 impl<D: Domain, In: Shape, Out: Shape, F, O> MethodBody<D, In, Out, SyncCx> for F
 where
-    F: FnOnce(SyncCx, In::Values<D>) -> O,
+    F: FnOnce(SyncCx, Value<D, In>) -> O,
     O: IntoValues<D, Values = Out::Values<D>>,
 {
     fn define(self, clk: Clock<D>) -> Method<D, In, Out> {
@@ -72,7 +72,7 @@ where
 
 impl<D: Domain, In: Shape, Out: Shape, F, O> MethodBody<D, In, Out, AsyncCx> for F
 where
-    F: AsyncFnOnce(AsyncCx, In::Values<D>) -> O,
+    F: AsyncFnOnce(AsyncCx, Value<D, In>) -> O,
     O: IntoValues<D, Values = Out::Values<D>>,
 {
     fn define(self, clk: Clock<D>) -> Method<D, In, Out> {

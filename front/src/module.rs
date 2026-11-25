@@ -114,10 +114,10 @@ impl<D: Domain, In: Shape, Out: Shape> Action<D, In, Out> {
     }
 
     pub fn define_as<O: IntoValues<D, Values = Out::Values<D>>>(
-        f: impl FnOnce(SyncCx, In::Values<D>) -> O,
+        f: impl FnOnce(SyncCx, Value<D, In>) -> O,
     ) -> Self {
-        Self::from_handle(elab::define_action::<D, In, Out>(None, |cx, values| {
-            f(cx, values).into_values()
+        Self::from_handle(elab::define_action::<D, In, Out>(None, |cx, packed| {
+            f(cx, packed).into_values()
         }))
     }
 
@@ -138,12 +138,12 @@ pub struct DefineAction<D: Domain, In: Shape, Out: Shape>(
 impl<D: Domain, In: Shape, Out: Shape> DefineAction<D, In, Out> {
     pub fn define_as<O: IntoValues<D, Values = Out::Values<D>>>(
         self,
-        f: impl FnOnce(SyncCx, In::Values<D>) -> O,
+        f: impl FnOnce(SyncCx, Value<D, In>) -> O,
     ) -> Action<D, In, Out> {
         let guard = self.0.map(super::value::Value::handle);
         Action::from_handle(elab::define_action::<D, In, Out>(
             guard,
-            move |cx, values| f(cx, values).into_values(),
+            move |cx, packed| f(cx, packed).into_values(),
         ))
     }
 }

@@ -1,13 +1,13 @@
 use crate::{
     domain::Domain,
     elab::{self, Context, ExprHandle},
-    value::{IntoValues, Shape, Value, ValueView},
+    value::{FieldView, IntoValues, Shape, Value},
 };
 
 macro_rules! impl_shape {
     ($($T:ident),*) => {
         impl<$($T: Shape),*> Shape for ($($T,)*) {
-            type View = ($(<$T as Shape>::View,)*);
+            type View<D: Domain> = ($(FieldView<D, Self, $T>,)*);
             type Values<D: Domain> = ($(<$T as Shape>::Values<D>,)*);
 
             fn air_type<'dsn>(cx: &mut Context<'dsn>) -> &'dsn air::Type<'dsn> {
@@ -25,6 +25,16 @@ macro_rules! impl_shape {
                 let ($($T,)*) = self;
                 let elements = vec![$($T::air_value($T, cx),)*];
                 cx.tuple_value::<Self>(elements)
+            }
+
+            #[allow(unused_assignments, unused_mut, unused_variables, clippy::unused_unit)]
+            fn make_view<D: Domain>(handle: ExprHandle) -> Self::View<D> {
+                let mut index = 0;
+                ($({
+                    let view = FieldView::<D, Self, $T>::field(handle, index);
+                    index += 1;
+                    view
+                },)*)
             }
 
             #[allow(unused_assignments, unused_mut, unused_variables, clippy::unused_unit)]
@@ -77,7 +87,7 @@ macro_rules! impl_into_values_tuple {
 variadics_please::all_tuples!(impl_into_values_tuple, 1, 15, T);
 
 impl Shape for bool {
-    type View = ValueView<Self>;
+    type View<D: Domain> = FieldView<D, Self, Self>;
     type Values<D: Domain> = Value<D, Self>;
 
     fn air_type<'dsn>(cx: &mut Context<'dsn>) -> &'dsn air::Type<'dsn> {
@@ -86,6 +96,10 @@ impl Shape for bool {
 
     fn air_value<'dsn>(&self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {
         cx.boolean(*self)
+    }
+
+    fn make_view<D: Domain>(handle: ExprHandle) -> Self::View<D> {
+        FieldView::whole(handle)
     }
 
     fn make_values<D: Domain>(value: Value<D, Self>) -> Self::Values<D> {

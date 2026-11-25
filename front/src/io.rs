@@ -34,7 +34,7 @@ impl<D: Domain> Output<D> {
     }
 
     #[must_use]
-    pub const fn read(self) -> Value<D, bool> {
+    pub fn read(self) -> Value<D, bool> {
         Value::from_handle(self.value)
     }
 

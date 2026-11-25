@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::ops::{Deref, ShlAssign};
+use std::ops::{Deref, DerefMut, ShlAssign};
 
 use crate::{
     domain::{Clock, Domain},
@@ -58,6 +58,12 @@ impl<D: Domain, T: Shape> Deref for Reg<D, T> {
 
     fn deref(&self) -> &Self::Target {
         &self.value
+    }
+}
+
+impl<D: Domain, T: Shape> DerefMut for Reg<D, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
     }
 }
 

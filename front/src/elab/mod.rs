@@ -4,6 +4,7 @@ mod design;
 mod expr;
 pub(crate) mod handle;
 mod interface;
+pub(crate) mod io;
 mod primitive;
 mod state;
 mod types;

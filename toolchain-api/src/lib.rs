@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub use anyhow;
 
@@ -10,7 +10,7 @@ pub trait Toolchain {
         &self,
         input: BitstreamInput,
         progress: &mut (dyn FnMut(MakeBitstreamEvent) + Send),
-    ) -> Result<()>;
+    ) -> Result<PathBuf>;
 
     fn program(&self) -> Result<()>;
 }
@@ -18,13 +18,13 @@ pub trait Toolchain {
 const _ASSERT_DYN_COMPATIBLE: Option<&dyn Toolchain> = None;
 
 #[derive(Debug)]
-pub struct BitstreamInput {
+pub struct BitstreamInput<'a> {
     pub board: Board,
-    pub bindings: Bindings,
-    pub verilog_path: PathBuf,
-    pub verilog_library_dirs: Vec<PathBuf>,
-    pub module: String,
-    pub out_dir: PathBuf,
+    pub bindings: &'a Bindings,
+    pub verilog_path: &'a Path,
+    pub verilog_library_dirs: &'a [PathBuf],
+    pub module: &'a str,
+    pub out_dir: &'a Path,
 }
 
 #[derive(Debug)]
@@ -35,6 +35,7 @@ pub enum MakeBitstreamEvent {
     PhysicalOptimization,
     Routing,
     WriteBitstream,
+    Finish,
 }
 
 #[derive(Debug, Default)]

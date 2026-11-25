@@ -48,6 +48,7 @@ pub struct Context<'dsn> {
     local_action_interfaces:
         HashMap<usize, (&'dsn air::InterfaceRef<'dsn>, &'dsn air::Interface<'dsn>)>,
     interface_owners: Vec<usize>,
+    pub(crate) outputs: Vec<&'dsn air::Output<'dsn>>,
     pub(crate) register_handles: Vec<(&'dsn air::Register<'dsn>, usize)>,
     pub(crate) arena: &'dsn Bump,
     pub(crate) design_id: DesignId,
@@ -98,6 +99,7 @@ impl<'dsn> Context<'dsn> {
             action_owners: Vec::new(),
             local_action_interfaces: HashMap::new(),
             interface_owners: Vec::new(),
+            outputs: Vec::new(),
             register_handles: Vec::new(),
             arena,
             design_id,
@@ -467,6 +469,15 @@ impl<'dsn> Context<'dsn> {
         if !self.parents.is_empty() {
             self.in_parent(|cx| cx.ensure_clock(domain));
         }
+        assert!(
+            (self.id != 0 || self.outputs.iter().all(|output| output.name != domain.name))
+                && self.parameters.iter().all(|parameter| match parameter {
+                    air::Parameter::Value { name, .. } | air::Parameter::Interface { name, .. } =>
+                        *name != domain.name,
+                    air::Parameter::Clock { domain: existing } => existing.name != domain.name,
+                }),
+            "duplicate module parameter name"
+        );
         let parameter = self.add_parameter(air::Parameter::Clock { domain });
         if !self.parents.is_empty() {
             self.arguments
@@ -490,6 +501,18 @@ impl<'dsn> Context<'dsn> {
         std::mem::swap(&mut self.arguments, &mut state.arguments);
         std::mem::swap(&mut self.imports, &mut state.imports);
         std::mem::swap(&mut self.id, &mut state.id);
+    }
+
+    pub(crate) fn in_root<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        assert!(
+            self.frames.is_empty(),
+            "cannot construct physical IO in action bodies"
+        );
+        if self.id == 0 {
+            f(self)
+        } else {
+            self.in_parent(|cx| cx.in_root(f))
+        }
     }
 
     fn in_parent<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
@@ -639,6 +662,11 @@ impl<'dsn> Context<'dsn> {
             types: self.arena.alloc_slice_copy(&self.types),
             instances: self.arena.alloc_slice_copy(&self.instances),
             registers: self.arena.alloc_slice_copy(&self.registers),
+            outputs: if self.id == 0 {
+                self.arena.alloc_slice_copy(&self.outputs)
+            } else {
+                &[]
+            },
             methods: self.arena.alloc_slice_copy(&self.methods),
             rules: self.arena.alloc_slice_copy(&self.rules),
             interface,

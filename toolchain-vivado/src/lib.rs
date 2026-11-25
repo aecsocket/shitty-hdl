@@ -28,11 +28,12 @@ impl Toolchain for Vivado {
         &self,
         input: BitstreamInput,
         progress: &mut (dyn FnMut(MakeBitstreamEvent) + Send),
-    ) -> Result<()> {
+    ) -> Result<PathBuf> {
         const SCRIPT_PATH: &str = "build.tcl";
         const SCRIPT_CONTENTS: &str = include_str!("build.tcl");
 
         let out_dir = input.out_dir;
+        let bitstream_path = out_dir.join(format!("{}.bit", input.module));
         let verilog_path = input.verilog_path;
         let board::Toolchain::Vivado(board::ToolchainVivado { part, .. }) = input.board.toolchain
         else {
@@ -41,8 +42,8 @@ impl Toolchain for Vivado {
 
         debug!("making bitstream for part {part:?}");
 
-        let xdc_path = out_dir.join("top.xdc");
-        fs::write(&xdc_path, write_constraints(&input.bindings)?)
+        let xdc_path = out_dir.join(format!("{}.xdc", input.module));
+        fs::write(&xdc_path, write_constraints(input.bindings)?)
             .with_context(|| anyhow!("writing {xdc_path:?}"))?;
 
         let script_path = out_dir.join(SCRIPT_PATH);
@@ -52,16 +53,16 @@ impl Toolchain for Vivado {
         let vivado_bin = &self.bin;
         let mut command = Command::new(vivado_bin);
         command
-            .current_dir(&out_dir)
+            .current_dir(out_dir)
             .args(["-mode", "batch"])
             .args(["-source", SCRIPT_PATH])
             .arg("-tclargs")
-            .arg(&out_dir)
-            .arg(&verilog_path)
+            .arg(out_dir)
+            .arg(verilog_path)
             .arg(&xdc_path)
             .arg(input.module)
             .arg(part)
-            .args(&input.verilog_library_dirs)
+            .args(input.verilog_library_dirs)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         debug!("spawning {command:?}");
@@ -89,7 +90,7 @@ impl Toolchain for Vivado {
         let status = child.wait().context("waiting for vivado to finish")?;
         ensure!(status.success(), "vivado failed");
 
-        Ok(())
+        Ok(bitstream_path)
     }
 
     fn program(&self) -> Result<()> {
@@ -168,7 +169,8 @@ fn handle_stdout(line: &str, progress: &mut dyn FnMut(MakeBitstreamEvent)) {
             "PhysicalOptimization" => MakeBitstreamEvent::PhysicalOptimization,
             "Routing" => MakeBitstreamEvent::Routing,
             "WriteBitstream" => MakeBitstreamEvent::WriteBitstream,
-            _ => panic!("unknown progress marker: {marker}"),
+            "Finish" => MakeBitstreamEvent::Finish,
+            _ => panic!("unknown progress marker {marker:?}"),
         };
         progress(event);
     } else {

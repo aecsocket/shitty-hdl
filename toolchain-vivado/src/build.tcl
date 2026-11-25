@@ -78,4 +78,6 @@ close $timing_file
 
 puts {shitty_hdl:WriteBitstream}
 flush stdout
-write_bitstream -force [file join $out_dir top.bit]
+write_bitstream -force [file join $out_dir "${top_module}.bit"]
+
+puts {shitty_hdl:Finish}

@@ -5,7 +5,7 @@ use std::{
     thread,
 };
 
-use crate::BluespecCompiler;
+use crate::{BluespecCompiler, EmitVerilog};
 use anyhow::{Context, Result, anyhow, ensure};
 use tracing::{debug, warn};
 
@@ -46,18 +46,22 @@ impl BluespecCompiler for SystemBluespec {
 
     fn emit_verilog(
         &self,
-        bsv_path: &Path,
-        module: &str,
-        bdir: &Path,
-        vdir: &Path,
+        EmitVerilog {
+            bsv_path,
+            module,
+            reset_prefix,
+            bluespec_dir,
+            verilog_dir,
+        }: EmitVerilog<'_>,
     ) -> Result<PathBuf> {
         let bin = &self.bin;
         let mut command = Command::new(bin);
         command
             .arg("-verilog")
+            .args(["-reset-prefix", reset_prefix])
             .args(["-g", module])
-            .args([Path::new("-bdir"), bdir])
-            .args([Path::new("-vdir"), vdir])
+            .args([Path::new("-bdir"), bluespec_dir])
+            .args([Path::new("-vdir"), verilog_dir])
             .arg(bsv_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -86,6 +90,6 @@ impl BluespecCompiler for SystemBluespec {
         let status = child.wait().context("waiting for bsc to finish")?;
         ensure!(status.success(), "bsc failed");
 
-        Ok(vdir.join(format!("{module}.v")))
+        Ok(verilog_dir.join(format!("{module}.v")))
     }
 }

@@ -6,6 +6,7 @@ pub mod data;
 
 pub mod domain;
 pub mod elab;
+pub mod io;
 pub mod method;
 pub mod module;
 pub mod ops;

@@ -21,8 +21,15 @@ struct Cli {
 
 #[derive(clap::Subcommand)]
 enum Command {
+    /// Compile the design to Verilog and check diagnostics
     Check,
-    Build,
+    /// Build a bitstream for the design
+    Build {
+        /// Also uploads the design to the currently connected board
+        #[arg(long)]
+        upload: bool,
+    },
+    /// Upload the built design to the currently connected board
     Upload,
 }
 
@@ -83,7 +90,7 @@ pub fn cli<R>(
     let cli = <Cli as clap::Parser>::parse();
     match cli.command {
         Command::Check => task::check(cx),
-        Command::Build => task::build(cx),
+        Command::Build { upload } => task::build(cx, upload),
         Command::Upload => task::upload(cx),
     }
 }

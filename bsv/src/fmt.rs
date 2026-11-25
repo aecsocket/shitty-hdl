@@ -387,6 +387,20 @@ impl Emit for InterfaceMember<'_> {
 
 impl Emit for MethodSignature<'_> {
     fn emit(&self, p: &mut Printer<'_>) -> fmt::Result {
+        if self.always_ready || self.result_port.is_some() {
+            p.write_str("(* ")?;
+            if self.always_ready {
+                p.write_str("always_ready")?;
+            }
+            if let Some(port) = self.result_port {
+                if self.always_ready {
+                    p.write_str(", ")?;
+                }
+                p.write_str("result = ")?;
+                p.quoted(port)?;
+            }
+            p.write_str(" *)\n")?;
+        }
         p.signature(self)?;
         p.write_str(";\n")
     }
@@ -395,9 +409,14 @@ impl Emit for MethodSignature<'_> {
 impl Emit for Parameter<'_> {
     fn emit(&self, p: &mut Printer<'_>) -> fmt::Result {
         match self {
-            Self::Value(field) => p.node(field),
+            Self::Value(field) => {
+                p.write_str("(* port = ")?;
+                p.quoted(field.name)?;
+                p.write_str(", clocked_by = \"no_clock\", reset_by = \"no_reset\" *) ")?;
+                p.node(field)
+            }
             Self::Interface { name, ty } => write!(p, "{ty} {name}"),
-            Self::Clock(name) => write!(p, "Clock {name}"),
+            Self::Clock { name, port } => write!(p, "(* osc = \"{port}\" *) Clock {name}"),
         }
     }
 }
@@ -423,13 +442,12 @@ impl Emit for Module<'_> {
         for schedule in self.scheduling {
             p.node(schedule)?;
         }
-        write!(p, "module {}", self.name)?;
+        write!(p, "module {}(", self.name)?;
         if !self.parameters.is_empty() {
-            p.write_str("#(")?;
             p.list(self.parameters)?;
-            p.write_char(')')?;
+            p.write_str(", ")?;
         }
-        writeln!(p, "({});", self.interface)?;
+        writeln!(p, "{} bsv_result);", self.interface)?;
         p.nested(|p| {
             for clock in self.clock_bindings {
                 p.node(clock)?;

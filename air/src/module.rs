@@ -28,15 +28,22 @@ pub enum Parameter<'dsn> {
 pub struct Module<'dsn> {
     pub signature: &'dsn ModuleSignature<'dsn>,
     pub primitive: Option<Primitive<'dsn>>,
-    pub modules: &'dsn [&'dsn Module<'dsn>],
+    pub modules: &'dsn [&'dsn Self],
     pub domains: &'dsn [&'dsn Domain<'dsn>],
     pub types: &'dsn [&'dsn NamedType<'dsn>],
     pub instances: &'dsn [&'dsn Instance<'dsn>],
     pub registers: &'dsn [&'dsn Register<'dsn>],
+    pub outputs: &'dsn [&'dsn Output<'dsn>],
     pub methods: &'dsn [&'dsn Method<'dsn>],
     pub rules: &'dsn [&'dsn Rule<'dsn>],
     pub interface: &'dsn InterfaceImpl<'dsn>,
     pub scheduling: &'dsn [ScheduleConstraint<'dsn>],
+}
+
+#[derive(Debug, Clone)]
+pub struct Output<'dsn> {
+    pub name: &'dsn str,
+    pub value: &'dsn Expr<'dsn>,
 }
 
 #[derive(Debug, Clone, Copy)]

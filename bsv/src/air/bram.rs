@@ -35,6 +35,9 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
         let [source::Parameter::Clock { domain }] = m.signature.parameters else {
             return error("BRAM primitive requires exactly one clock parameter");
         };
+        if domain.name == "bsv_result" {
+            return error("duplicate name: bsv_result");
+        }
         let clock = self.clock(domain)?;
         let reset = None;
         let interface = self.iface(m.signature.interface)?;
@@ -294,7 +297,10 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                 name: "bsv_default_clock",
                 constructor: "exposeCurrentClock",
             }]),
-            parameters: self.slice(&[Parameter::Clock(self.text(domain.name))]),
+            parameters: self.slice(&[Parameter::Clock {
+                name: self.text(domain.name),
+                port: self.text(&format!("CLK_{}", domain.name)),
+            }]),
             interface,
             reset_bindings: &[],
             declarations,

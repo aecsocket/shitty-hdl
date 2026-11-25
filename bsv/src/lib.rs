@@ -73,6 +73,8 @@ pub struct MethodSignature<'a> {
     pub name: &'a str,
     pub inputs: &'a [Field<'a>],
     pub output: Type<'a>,
+    pub result_port: Option<&'a str>,
+    pub always_ready: bool,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct ClockBinding<'a> {
@@ -103,7 +105,7 @@ pub struct Module<'a> {
 pub enum Parameter<'a> {
     Value(Field<'a>),
     Interface { name: &'a str, ty: &'a str },
-    Clock(&'a str),
+    Clock { name: &'a str, port: &'a str },
 }
 #[derive(Debug, Clone, Copy)]
 pub struct Declaration<'a> {

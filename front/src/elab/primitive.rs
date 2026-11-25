@@ -61,6 +61,7 @@ pub(crate) fn bram<Addr: Bits, Data: Bits>(clock: Clock, depth: u64) -> Bram<Add
             types: &[],
             instances: &[],
             registers: &[],
+            outputs: &[],
             methods: &[],
             rules: &[],
             interface: cx.alloc(air::InterfaceImpl { ty, members: &[] }),

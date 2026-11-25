@@ -354,6 +354,8 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
             name: name.unwrap_or_else(|| self.text(s.name)),
             inputs: self.slice(&inputs),
             output,
+            result_port: None,
+            always_ready: false,
         })
     }
     fn iface(&mut self, i: &'s source::Interface<'s>) -> Result<&'o str> {
@@ -729,7 +731,23 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                 source::Parameter::Clock { .. } => {}
             }
         }
+        unique(
+            m.signature
+                .interface
+                .members
+                .iter()
+                .map(|member| match member {
+                    source::InterfaceMember::Method(signature) => signature.name,
+                    source::InterfaceMember::Interface { name, .. } => name,
+                })
+                .chain(m.outputs.iter().map(|output| output.name)),
+        )?;
+        self.reserved
+            .extend(m.outputs.iter().map(|output| output.name.to_owned()));
         self.collect_impl(m.interface, &mut Vec::new())?;
+        for output in m.outputs {
+            self.discover_expr(output.value)?;
+        }
         for instance in m.instances {
             self.reserved
                 .insert(self.module_name(instance.module.name).to_owned());
@@ -1563,7 +1581,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
         }
         self.discover()?;
         let reset_bindings = self.reset_bindings()?;
-        let mut names = vec!["bsv_default_clock", "bsv_default_reset"];
+        let mut names = vec!["bsv_default_clock", "bsv_default_reset", "bsv_result"];
         names.extend(reset_bindings.iter().map(|binding| binding.name));
         for p in m.signature.parameters {
             names.push(match p {
@@ -1586,7 +1604,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
         for t in m.types {
             self.named(t)?;
         }
-        let interface = self.iface(m.signature.interface)?;
+        let mut interface = self.iface(m.signature.interface)?;
         if !same(m.interface.ty, m.signature.interface) {
             return error("module interface mismatch");
         }
@@ -1601,7 +1619,10 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                     name: self.text(name),
                     ty: self.iface(ty)?,
                 },
-                source::Parameter::Clock { domain } => Parameter::Clock(self.text(domain.name)),
+                source::Parameter::Clock { domain } => Parameter::Clock {
+                    name: self.text(domain.name),
+                    port: self.text(&format!("CLK_{}", domain.name)),
+                },
             });
         }
         let mut registers = Vec::new();
@@ -1777,7 +1798,55 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
             });
             index += 1;
         }
-        let implementation = self.implementation(m.interface, &mut Vec::new())?;
+        let mut implementation = self.implementation(m.interface, &mut Vec::new())?;
+        if !m.outputs.is_empty() {
+            let base = format!("BsvPorts_{}", m.signature.name);
+            let mut name = base.clone();
+            let mut suffix = 0;
+            while self.interfaces.iter().any(|item| item.name == name)
+                || self.typedefs.iter().any(|item| item.name == name)
+                || self.reserved.contains(&name)
+            {
+                suffix += 1;
+                name = format!("{base}_{suffix}");
+            }
+            let name = self.text(&name);
+            self.reserved.insert(name.to_owned());
+            let mut members = self
+                .interfaces
+                .iter()
+                .find(|item| item.name == interface)
+                .ok_or_else(|| LowerError {
+                    message: "missing module interface".into(),
+                })?
+                .members
+                .to_vec();
+            let mut bindings = implementation.members.to_vec();
+            for output in m.outputs {
+                let signature = MethodSignature {
+                    name: self.text(output.name),
+                    inputs: &[],
+                    output: self.ty(output.value.ty)?,
+                    result_port: Some(self.text(output.name)),
+                    always_ready: true,
+                };
+                members.push(InterfaceMember::Method(signature));
+                bindings.push(Binding::Method(Method {
+                    signature,
+                    guard: None,
+                    body: MethodBody::Value(self.expr_ref(output.value)?),
+                }));
+            }
+            self.interfaces.push(Interface {
+                name,
+                members: self.slice(&members),
+            });
+            interface = name;
+            implementation = InterfaceExpr {
+                ty: name,
+                members: self.slice(&bindings),
+            };
+        }
         let mut scheduling = Vec::new();
         for s in m.scheduling {
             let (attribute, a, b) = match *s {

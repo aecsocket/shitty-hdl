@@ -1,4 +1,7 @@
-use shitty_hdl::{In, Out, Shape, Signal, Val, capture, comb, memory, module, sync};
+use shitty_hdl::{
+    Capture, CmpExt, In, IntoValue, Out, Shape, Signal, capture, comb, data::mem::memory, module,
+    sync,
+};
 
 #[derive(Clone, Copy, Shape)]
 pub struct Word(pub u64);
@@ -29,23 +32,27 @@ pub fn heap(
         write.data <<= write_data;
     });
 
-    if read_addr > peak_addr {
+    if read_addr.ge(peak_addr) {
         peak_addr <<= read_addr;
     }
 }
 
 impl heap {
-    pub async fn read(&mut self, addr: impl Val<Addr>) -> impl Val<Word> {
+    pub async fn read(&mut self, addr: impl IntoValue<Addr>) -> Capture<Word> {
         let read_data = capture(self.read_data);
-        self.do_read <<= true;
-        self.read_addr <<= addr;
+        comb(|| {
+            self.do_read <<= true;
+            self.read_addr <<= addr;
+        });
         read_data
     }
 
-    pub async fn write(&mut self, addr: impl Val<Addr>, data: impl Val<Word>) {
-        self.do_write <<= true;
-        self.write_addr <<= addr;
-        self.write_data <<= data;
+    pub async fn write(&mut self, addr: impl IntoValue<Addr>, data: impl IntoValue<Word>) {
+        comb(|| {
+            self.do_write <<= true;
+            self.write_addr <<= addr;
+            self.write_data <<= data;
+        });
     }
 }
 

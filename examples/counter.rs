@@ -1,4 +1,4 @@
-use shitty_hdl::{In, Out, Signal, comb, module, sync};
+use shitty_hdl::prelude::*;
 
 #[module]
 pub fn my_counter(start: In<bool>, count_times_4: Out<u32>, done: Out<bool>) {
@@ -19,7 +19,7 @@ pub fn my_counter(start: In<bool>, count_times_4: Out<u32>, done: Out<bool>) {
             count_times_4 <<= count * 4;
         });
 
-        if count == 100_000 {
+        if count.eq(100_000) {
             sync(|| {
                 done <<= true;
                 count <<= 0;

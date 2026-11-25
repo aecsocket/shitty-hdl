@@ -1,7 +1,7 @@
 use darling::{FromMeta, util::Flag};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{BinOp, Error, Expr, FnArg, ItemFn, Pat, Result, Stmt, Type, parse_quote};
+use syn::{Expr, FnArg, ItemFn, Pat, Result, Stmt, Type, parse_quote};
 
 #[derive(Default, FromMeta)]
 #[darling(derive_syn_parse)]
@@ -39,7 +39,7 @@ fn derive_(attr: TokenStream, input_: TokenStream) -> Result<TokenStream> {
     // rewrite control flow (`if`, `else`, `while` etc.) in the body,
     // and save that as the statements for the elaborate fn;
     // the real fn with name `ident` will just make the port.
-    let elaborate_stmts = make_elaborate_stmts(&options, function.block.stmts, &mut errors);
+    let elaborate_stmts = make_elaborate_stmts(&options, function.block.stmts);
 
     let builder = if options.builder.is_present() {
         quote! { #[#crate_::__::bon::builder(crate = #crate_::__::bon)] }
@@ -177,11 +177,7 @@ fn make_in_outs<'a>(
     }
 }
 
-fn make_elaborate_stmts(
-    options: &Options,
-    original: Vec<Stmt>,
-    errors: &mut Vec<syn::Error>,
-) -> Vec<Stmt> {
+fn make_elaborate_stmts(options: &Options, original: Vec<Stmt>) -> Vec<Stmt> {
     let crate_ = &options.crate_;
     let mut stmts = Vec::new();
     for stmt in original {
@@ -193,13 +189,7 @@ fn make_elaborate_stmts(
         let stmt = match expr {
             Expr::If(if_) => {
                 // `if x { then }` -> `if_(x, || then)`
-                let cond = match translate_cond(options, *if_.cond) {
-                    Ok(cond) => cond,
-                    Err(err) => {
-                        errors.push(err);
-                        continue;
-                    }
-                };
+                let cond = if_.cond;
                 let then = if_.then_branch;
                 parse_quote! {
                     #crate_::__::if_(#cond, || #then);
@@ -210,41 +200,4 @@ fn make_elaborate_stmts(
         stmts.push(stmt);
     }
     stmts
-}
-
-fn translate_cond(options: &Options, expr: Expr) -> Result<Expr> {
-    let crate_ = &options.crate_;
-    let Expr::Binary(bin) = &expr else {
-        return Ok(expr);
-    };
-    let lhs = &bin.left;
-    let rhs = &bin.right;
-
-    match bin.op {
-        BinOp::Eq(_) => {
-            // `a == b` -> `eq(a, b)`
-            Ok(parse_quote! { #crate_::__::eq(#lhs, #rhs) })
-        }
-        BinOp::Ne(_) => {
-            // `a != b` -> `ne(a, b)`
-            Ok(parse_quote! { #crate_::__::ne(#lhs, #rhs) })
-        }
-        BinOp::Gt(_) => {
-            // `a > b` -> `gt(a, b)`
-            Ok(parse_quote! { #crate_::__::gt(#lhs, #rhs) })
-        }
-        BinOp::Ge(_) => {
-            // `a >= b` -> `ge(a, b)`
-            Ok(parse_quote! { #crate_::__::ge(#lhs, #rhs) })
-        }
-        BinOp::Lt(_) => {
-            // `a < b` -> `lt(a, b)`
-            Ok(parse_quote! { #crate_::__::lt(#lhs, #rhs) })
-        }
-        BinOp::Le(_) => {
-            // `a <= b` -> `le(a, b)`
-            Ok(parse_quote! { #crate_::__::le(#lhs, #rhs) })
-        }
-        _ => Err(Error::new_spanned(expr, "unsupported binary operation")),
-    }
 }

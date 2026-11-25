@@ -1,18 +1,17 @@
-mod val;
+mod core;
+pub mod data;
 
-mod mem;
-mod module;
-mod signal;
-mod stmt;
-
-pub use {mem::*, module::*, signal::*, stmt::*, val::*};
-
+pub use core::*;
 pub use shitty_hdl_derive::{Shape, module};
+
+pub mod prelude {
+    pub use crate::{CmpExt, In, Out, Shape, Signal, Value, comb, module, sync};
+}
 
 // re-exports for macros
 #[doc(hidden)]
 pub mod __ {
-    pub use crate::{Module, Shape, SignalFlow, eq, ge, gt, if_, le, lt, ne};
+    pub use crate::{Module, Shape, SignalFlow, if_};
     pub use bon;
 }
 

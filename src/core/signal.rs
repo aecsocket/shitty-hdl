@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, ops};
 
-use crate::{Cond, Shape, Stmt, Val};
+use crate::{IntoValue, Shape, Value};
 
 #[derive(Clone, Copy)]
 pub struct Signal<T: Shape> {
@@ -25,7 +25,13 @@ impl<T: Shape> Signal<T> {
     }
 }
 
-impl<T: Shape, Rhs: Val<T>> ops::ShlAssign<Rhs> for Signal<T> {
+impl<T: Shape> IntoValue<T> for Signal<T> {
+    fn into_value(self) -> Value<T> {
+        todo!();
+    }
+}
+
+impl<T: Shape, Rhs: IntoValue<T>> ops::ShlAssign<Rhs> for Signal<T> {
     fn shl_assign(&mut self, rhs: Rhs) {
         todo!();
     }

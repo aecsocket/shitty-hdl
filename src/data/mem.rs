@@ -1,8 +1,8 @@
-use std::{marker::PhantomData, ops};
+use std::marker::PhantomData;
 
 use shitty_hdl_derive::module;
 
-use crate::{In, Out, Shape, Val};
+use crate::{In, IntoValue, Out, Shape, Value};
 
 #[module(crate = crate, builder)]
 pub fn memory<Data: Shape, Addr: Shape>(depth: u64, _: PhantomData<(Data, Addr)>) {}
@@ -25,43 +25,10 @@ pub struct ReadLane<Data: Shape, Addr: Shape> {
 }
 
 impl<Data: Shape, Addr: Shape> ReadLane<Data, Addr> {
-    pub async fn read(&self, addr: impl Val<Addr>) -> ReadVal<Data> {
+    pub async fn read(&self, addr: impl IntoValue<Addr>) -> Value<Data> {
         todo!();
     }
 }
-
-pub struct ReadVal<Data: Shape> {
-    _phantom: PhantomData<Data>,
-}
-
-impl<Data: Shape> Val<Data> for ReadVal<Data> {}
-
-impl<Data, Rhs> ops::Add<Rhs> for ReadVal<Data>
-where
-    Data: Shape,
-    Data: ops::Add<Rhs>,
-{
-    type Output = ();
-
-    fn add(self, rhs: Rhs) -> Self::Output {}
-}
-
-//
-// impl<Data: Shape, Lhs: Val<Data>> ops::Add<ReadVal<Data>> for Lhs {
-//     type Output = ();
-//
-//     fn add(self, rhs: Data) -> Self::Output {}
-// }
-
-pub struct Add<T, Lhs, Rhs> {
-    lhs: Lhs,
-    rhs: Rhs,
-    _phantom: PhantomData<T>,
-}
-
-impl<T: Shape, Lhs, Rhs> Val<T> for Add<T, Lhs, Rhs> {}
-
-// crate::val::impl_val!(ReadVal[Data], Data);
 
 pub struct WriteLane<Data: Shape, Addr: Shape> {
     pub enable: Out<bool>,
@@ -71,7 +38,7 @@ pub struct WriteLane<Data: Shape, Addr: Shape> {
 }
 
 impl<Data: Shape, Addr: Shape> WriteLane<Data, Addr> {
-    pub async fn write(&self, addr: impl Val<Addr>, data: impl Val<Data>) {
+    pub async fn write(&self, addr: impl IntoValue<Addr>, data: impl IntoValue<Data>) {
         todo!();
     }
 }

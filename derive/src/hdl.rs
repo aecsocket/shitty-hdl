@@ -5,7 +5,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
     BinOp, Block, Expr, ExprIf, Item, ItemFn, Pat, Path, Result, Stmt, Token, parse::Parser,
-    parse_quote, punctuated::Punctuated, visit_mut::VisitMut,
+    parse_quote, punctuated::Punctuated, token::Else, visit_mut, visit_mut::VisitMut,
 };
 
 #[derive(FromMeta)]
@@ -84,7 +84,19 @@ impl Rewriter<'_> {
         }
     }
 
+    fn transform_early_returns(&mut self, block: &mut Block) {
+        EarlyReturns {
+            errors: &mut self.errors,
+        }
+        .visit_block_mut(block);
+        RemainingReturns {
+            errors: &mut self.errors,
+        }
+        .visit_block_mut(block);
+    }
+
     fn branch(&mut self, block: &mut Block) {
+        self.transform_early_returns(block);
         BranchControlFlow {
             errors: &mut self.errors,
         }
@@ -202,6 +214,7 @@ impl VisitMut for Rewriter<'_> {
     fn visit_item_mut(&mut self, _item: &mut Item) {}
 
     fn visit_block_mut(&mut self, block: &mut Block) {
+        self.transform_early_returns(block);
         let len = block.stmts.len();
         for (index, stmt) in block.stmts.iter_mut().enumerate() {
             let was_if = matches!(stmt, Stmt::Expr(Expr::If(_), _));
@@ -283,6 +296,94 @@ impl VisitMut for Rewriter<'_> {
 
 struct BranchControlFlow<'a> {
     errors: &'a mut Vec<syn::Error>,
+}
+
+/// Desugars early returns: statements following an `if` whose block ends
+/// with `return;` move into that `if`'s else branch, so they execute only
+/// on the non-early path.
+struct EarlyReturns<'a> {
+    errors: &'a mut Vec<syn::Error>,
+}
+
+impl VisitMut for EarlyReturns<'_> {
+    fn visit_block_mut(&mut self, block: &mut Block) {
+        visit_mut::visit_block_mut(self, block);
+        self.splice(block);
+    }
+}
+
+impl EarlyReturns<'_> {
+    fn splice(&mut self, block: &mut Block) {
+        let mut index = 0;
+        while index < block.stmts.len() {
+            let ends_with_return = matches!(
+                &block.stmts[index],
+                Stmt::Expr(Expr::If(if_), _)
+                    if matches!(
+                        if_.then_branch.stmts.last(),
+                        Some(Stmt::Expr(Expr::Return(_), _))
+                    )
+            );
+            if !ends_with_return {
+                index += 1;
+                continue;
+            }
+            let rest: Vec<Stmt> = block.stmts.drain(index + 1..).collect();
+            let Stmt::Expr(Expr::If(if_), semi) = &mut block.stmts[index] else {
+                unreachable!()
+            };
+            if let Some(Stmt::Expr(Expr::Return(ret), _)) = if_.then_branch.stmts.last()
+                && let Some(value) = &ret.expr
+            {
+                self.errors.push(syn::Error::new_spanned(
+                    value,
+                    "early return with a value is not supported",
+                ));
+            }
+            if_.then_branch.stmts.pop();
+            match &mut if_.else_branch {
+                Some((_, branch)) => {
+                    if let Expr::Block(else_block) = &mut **branch {
+                        else_block.block.stmts.extend(rest);
+                    } else {
+                        self.errors.push(syn::Error::new_spanned(
+                            &**branch,
+                            "cannot combine an early return with this else branch",
+                        ));
+                    }
+                }
+                None => {
+                    if_.else_branch =
+                        Some((Else::default(), Box::new(parse_quote! { { #(#rest)* } })));
+                }
+            }
+            *semi = Some(Semi::default());
+            index += 1;
+        }
+    }
+}
+
+/// Flags early returns that the splice transform could not handle.
+struct RemainingReturns<'a> {
+    errors: &'a mut Vec<syn::Error>,
+}
+
+impl VisitMut for RemainingReturns<'_> {
+    fn visit_expr_mut(&mut self, expr: &mut Expr) {
+        if let Expr::Return(ret) = expr {
+            let value = ret
+                .expr
+                .as_ref()
+                .map_or_else(|| quote! { return }, |v| quote! { return #v });
+            self.errors.push(syn::Error::new_spanned(
+                &mut *expr,
+                format!(
+                    "early return must be the last statement of an `if` block, e.g. `{{ if guard {{ {value} }} }}`"
+                ),
+            ));
+        }
+        visit_mut::visit_expr_mut(self, expr);
+    }
 }
 
 impl VisitMut for BranchControlFlow<'_> {

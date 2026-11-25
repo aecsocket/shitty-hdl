@@ -710,6 +710,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                     }
                 }
                 source::Statement::Assert { condition, .. } => self.discover_expr(condition)?,
+                source::Statement::Finish => {}
             }
         }
         Ok(())
@@ -1395,6 +1396,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                         message: self.text(message),
                     }
                 }
+                source::Statement::Finish => Statement::Finish,
             };
             out.push(statement);
         }

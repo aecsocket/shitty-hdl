@@ -326,4 +326,5 @@ pub enum Statement<'a> {
         condition: Expr<'a>,
         message: &'a str,
     },
+    Finish,
 }

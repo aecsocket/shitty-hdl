@@ -866,6 +866,7 @@ impl Emit for Statement<'_> {
                 p.quoted(message)?;
                 p.write_str(");\n")
             }
+            Self::Finish => p.write_str("$finish(0);\n"),
         }
     }
 }

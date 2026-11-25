@@ -330,6 +330,7 @@ pub enum Statement<'dsn> {
         condition: &'dsn Expr<'dsn>,
         message: &'dsn str,
     },
+    Finish,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -51,12 +51,14 @@ pub fn page_alloc(clk: Clock, heap: Heap) -> PageAlloc {
         if free_head == PageAddr::invalid() {
             // bump allocate
             sim_assert!(next_clean != PageAddr::invalid(), "OOM");
+            display!("allocating page {next_clean:x}");
 
             next_clean <<= next_clean + 1;
             next_clean.read()
         } else {
             // reallocate from free list
             sim_assert!(free_count > 0u64);
+            display!("reallocating from free list");
 
             let next_free_head = heap.read(Addr::from_page(free_head)).await;
             free_head <<= next_free_head.repack_trunc::<PageAddr>();
@@ -68,6 +70,7 @@ pub fn page_alloc(clk: Clock, heap: Heap) -> PageAlloc {
     let free = Method::define_as(async |page: Value<PageAddr>| {
         sim_assert!(page != PageAddr::invalid(), "freeing invalid page");
         sim_assert!(free_count < PageAddr::invalid(), "freeing too many pages");
+        display!("freeing page {page:x}");
 
         heap.write(Addr::from_page(page), free_head.repack_zext::<Word>())
             .await;
@@ -98,6 +101,9 @@ fn top(platform: Platform) {
         display!("page2 = {page2}");
         led <<= !led;
         pages.free(page2).await;
+
+        display!("done!");
+        sim_finish();
     });
 }
 

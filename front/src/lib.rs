@@ -13,6 +13,7 @@ pub mod ops;
 pub mod reg;
 pub mod value;
 pub mod prelude {
+    pub use crate::data::sim_finish;
     pub use crate::domain::{Clock, Domain};
     pub use crate::elab::elaborate;
     pub use crate::method::Method;

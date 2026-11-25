@@ -14,3 +14,8 @@ macro_rules! sim_assert {
         $crate::__::assert($cond, $msg)
     };
 }
+
+#[must_use]
+pub fn sim_finish() {
+    crate::elab::finish();
+}

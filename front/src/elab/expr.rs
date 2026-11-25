@@ -185,6 +185,10 @@ pub(crate) fn assert(condition: impl IntoValue<Out = bool>, message: &str) {
     });
 }
 
+pub(crate) fn finish() {
+    with_context(|cx| cx.emit(air::Statement::Finish));
+}
+
 pub(crate) fn width(ty: &air::Type<'_>) -> u64 {
     match ty {
         air::Type::Unit => 0,

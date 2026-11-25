@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use crate::value::{Shape, Value};
+use crate::value::{IntoValue, Shape, Value};
 
 pub struct Reg<T: Shape> {
     id: RegId,
@@ -26,6 +26,14 @@ impl<T: Shape> Deref for Reg<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.value
+    }
+}
+
+impl<T: Shape> IntoValue for Reg<T> {
+    type Out = T;
+
+    fn into_value(self) -> Value<Self::Out> {
+        self.value
     }
 }
 

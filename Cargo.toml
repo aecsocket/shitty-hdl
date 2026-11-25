@@ -43,9 +43,10 @@ pedantic = { level = "warn", priority = -1 }
 option_if_let_else = "allow"
 too_many_lines = "allow"
 similar_names = "allow"
+missing_panics_doc = "allow"
 
 [dependencies]
 board = { workspace = true }
-cli = { workspace = true }
+# cli = { workspace = true }
 front = { workspace = true }
 # platform = { workspace = true }

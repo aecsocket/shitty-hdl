@@ -307,7 +307,6 @@ name = "shitty-hdl"
 version = "0.1.0"
 dependencies = [
  "shitty-hdl-board",
- "shitty-hdl-cli",
  "shitty-hdl-front",
 ]
 

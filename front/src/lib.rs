@@ -8,10 +8,11 @@ pub mod reg;
 pub mod value;
 pub mod prelude {
     pub use crate::core::Bit;
-    pub use crate::module::Action;
+    pub use crate::module::{Interface, Method};
     pub use crate::reg::Reg;
     pub use crate::value::{IntoValue, Shape, Value};
-    pub use derive::{Shape, module};
+    pub use crate::{bit, sim_assert, uint};
+    pub use derive::{Interface, Shape, module};
 }
 
 pub use derive::*;

@@ -25,7 +25,7 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
         ));
     };
     let ident = &input.ident;
-    let value_ident = format_ident!("{}Value", ident.unraw());
+    let view_ident = format_ident!("{}View", ident.unraw());
     let vis = &input.vis;
     let mut generics = input.generics.clone();
     for field in &data.fields {
@@ -38,32 +38,41 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
     let fields = data.fields.iter().map(|field| {
         let ty = &field.ty;
         let vis = &field.vis;
-        let value_ty = quote! { <#ty as #crate_::value::Shape>::Value };
+        let view_ty = quote! { <#ty as #crate_::value::Shape>::View };
         match &field.ident {
-            Some(ident) => quote! { #vis #ident: #value_ty },
-            None => quote! { #vis #value_ty },
+            Some(ident) => quote! { #vis #ident: #view_ty },
+            None => quote! { #vis #view_ty },
         }
     });
-    let value = match &data.fields {
+    let view = match &data.fields {
         Fields::Named(_) => quote! {
-            #vis struct #value_ident #generics #where_clause {
+            #vis struct #view_ident #generics #where_clause {
                 #(#fields,)*
             }
         },
         Fields::Unnamed(_) => quote! {
-            #vis struct #value_ident #generics (
+            #vis struct #view_ident #generics (
                 #(#fields,)*
             ) #where_clause;
         },
         Fields::Unit => quote! {
-            #vis struct #value_ident #generics #where_clause;
+            #vis struct #view_ident #generics #where_clause;
         },
     };
     Ok(quote! {
-        #value
+        #view
+
+        impl #impl_generics ::core::marker::Copy for #view_ident #ty_generics #where_clause {}
+
+        impl #impl_generics ::core::clone::Clone for #view_ident #ty_generics #where_clause {
+            fn clone(&self) -> Self {
+                *self
+            }
+        }
 
         impl #impl_generics #crate_::value::Shape for #ident #ty_generics #where_clause {
-            type Value = #value_ident #ty_generics;
+            type View = #view_ident #ty_generics;
+            type Values = #crate_::value::Value<Self>;
         }
     })
 }

@@ -1,8 +1,9 @@
+mod interface;
 mod module;
 mod shape;
 
 fn root() -> syn::Path {
-    syn::parse_quote! { ::shitty_hdl_core }
+    syn::parse_quote! { ::shitty_hdl }
 }
 
 /// Turns this function into a `Module`, which can be instantiated as a hardware
@@ -64,12 +65,11 @@ pub fn module(
     module::derive(attr.into(), input.into()).into()
 }
 
-/// Derives a packed shape for a named, tuple, or unit struct.
-///
-/// Generates a sibling `NameView` whose fields use each field shape's `View`,
-/// preserving visibility and generics. The view is `Copy` and `Clone`; `WIDTH`
-/// is the sum of field widths. Use `#[shape(crate = "path")]` to override the
-/// default `shitty_hdl` crate path.
+#[proc_macro_derive(Interface, attributes(interface))]
+pub fn interface(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    interface::derive(input.into()).into()
+}
+
 #[proc_macro_derive(Shape, attributes(shape))]
 pub fn shape(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     shape::derive(input.into()).into()

@@ -3,6 +3,6 @@ pub mod prelude {
 }
 
 pub use board;
-pub use cli::*;
+// pub use cli::*;
 pub use front::*;
 // pub use platform;

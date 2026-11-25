@@ -1,5 +1,4 @@
-use shitty_hdl_core::prelude::*;
-use shitty_hdl_platform::Platform;
+use platform::Platform;
 
 #[module]
 pub fn blinky(mut platform: Platform, mut sync: Domain<Sync>) {

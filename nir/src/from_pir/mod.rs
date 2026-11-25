@@ -1,5 +1,3 @@
-// AI GENERATED SLOP
-
 use std::collections::HashMap;
 
 use irt::bumpalo::Bump;

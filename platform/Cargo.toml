@@ -4,5 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-shitty-hdl-board = { workspace = true }
-shitty-hdl-core = { workspace = true }
+board = { workspace = true }
+front = { workspace = true }

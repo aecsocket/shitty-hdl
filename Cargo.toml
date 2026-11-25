@@ -5,7 +5,7 @@ edition.workspace = true
 
 [workspace]
 resolver = "3"
-members = [".", "board/", "cli/", "core/", "derive/", "irt/", "nir/", "pir/", "platform/", "rtlil/", "verilog-gen/"]
+members = [".", "board/", "front/", "cli/", "core/", "derive/", "irt/", "nir/", "pir/", "platform/", "rtlil/"]
 
 [workspace.package]
 version = "0.1.0"
@@ -16,12 +16,11 @@ irt = { package = "shitty-hdl-irt", path = "irt/" }
 nir = { package = "shitty-hdl-nir", path = "nir/" }
 pir = { package = "shitty-hdl-pir", path = "pir/" }
 rtlil = { package = "shitty-hdl-rtlil", path = "rtlil/" }
-shitty-hdl-board = { path = "board/" }
-shitty-hdl-cli = { path = "cli/" }
-shitty-hdl-core = { path = "core/" }
-shitty-hdl-derive = { path = "derive/" }
-shitty-hdl-platform = { path = "platform/" }
-verilog-gen = { path = "verilog-gen/" }
+front = { package = "shitty-hdl-front", path = "front/" }
+board = { package = "shitty-hdl-board", path = "board/" }
+cli = { package = "shitty-hdl-cli", path = "cli/" }
+derive = { package = "shitty-hdl-derive", path = "derive/" }
+platform = { package = "shitty-hdl-platform", path = "platform/" }
 
 anyhow = { version = "1.0.104" }
 bon = { version = "3.10.3" }
@@ -45,9 +44,10 @@ all = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 option_if_let_else = "allow"
+too_many_lines = "allow"
 
 [dependencies]
-shitty-hdl-board = { workspace = true }
-shitty-hdl-cli = { workspace = true }
-shitty-hdl-core = { workspace = true }
-shitty-hdl-platform = { workspace = true }
+board = { workspace = true }
+cli = { workspace = true }
+front = { workspace = true }
+platform = { workspace = true }

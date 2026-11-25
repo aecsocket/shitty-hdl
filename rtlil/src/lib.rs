@@ -1,5 +1,7 @@
-use irt::bumpalo::Bump;
+#![doc = include_str!("../README.md")]
 
-pub fn from_nir<'d>(nir: nir::Netlist<'d>, bump: &'d Bump) {
-    todo!();
-}
+pub mod ast;
+
+mod from_nir;
+
+pub use from_nir::{LowerError, from_nir};

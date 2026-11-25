@@ -1,14 +1,9 @@
 mod slop;
 
-pub use shitty_hdl_board as board;
-pub use shitty_hdl_board::Board;
-pub use shitty_hdl_core as core;
-pub use shitty_hdl_core::{ClockBinding, PinBinding};
+pub use board;
 
-use core::{
-    ir,
-    module::{In, Out},
-};
+use board::Board;
+use front::{In, Out};
 use std::{backtrace::Backtrace, mem, num::NonZero};
 
 #[derive(Debug)]

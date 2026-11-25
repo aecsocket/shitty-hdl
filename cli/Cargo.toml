@@ -7,7 +7,7 @@ edition.workspace = true
 anyhow = { workspace = true }
 cargo_metadata = "0.23"
 clap = { workspace = true, features = ["derive"] }
-shitty-hdl-board = { workspace = true }
-shitty-hdl-core = { workspace = true }
-shitty-hdl-platform = { workspace = true }
+board = { workspace = true }
+front = { workspace = true }
+platform = { workspace = true }
 tracing = { workspace = true }

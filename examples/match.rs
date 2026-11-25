@@ -1,5 +1,10 @@
 use shitty_hdl::prelude::*;
 
+fn main() {}
+
+#[derive(Domain)]
+pub struct Clk;
+
 #[derive(Debug, Clone, Copy, Shape)]
 #[shape(width = 3)]
 pub enum Tag {
@@ -19,22 +24,18 @@ pub struct Port {
     pub label: Bit<16>,
 }
 
-#[derive(Domain)]
-pub struct Clk;
-
 #[module]
 pub fn linker(clk: Clock<Clk>) {
     use Tag::*;
-    let link = Method::define_as(
-        clk,
-        async |(a, b): (Value<_, Port>, Value<_, Port>)| match (a.tag, b.tag) {
-            (Wire, _) => {}
-            (_, Wire) => {}
-            sym!(Graft | Erase) => {}
-            sym!(ExtVal | Erase) => {}
-            sym!(Comb) | sym!(ExtFn) if a.label == b.label => {}
-            sym!(Graft, _) | sym!(Comb | ExtFn) => {}
-            sym!(Erase, _) | sym!(ExtVal, _) => {}
-        },
-    );
+
+    let _link = Method::<Clk, (Port, Port), ()>::define_as(clk, |(a, b)| match (a.tag, b.tag) {
+        (Wire, _) => {}
+        (_, Wire) => {}
+        sym!(Graft | Erase) => {}
+        sym!(ExtVal | Erase) => {}
+        sym!(Comb) | sym!(ExtFn) if a.label == b.label => {}
+        sym!(Graft, _) | sym!(Comb | ExtFn) => {}
+        sym!(Erase, _) | sym!(ExtVal, _) => {}
+        _ => sim_panic!("unreachable"),
+    });
 }

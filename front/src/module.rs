@@ -10,8 +10,35 @@ use crate::{
     domain::Domain,
     elab,
     elab::ExprHandle,
-    value::{IntoValue, IntoValues, Shape, Value},
+    ops::BitCmp,
+    value::{IntoValue, IntoValues, Shape, U, Value},
 };
+
+/// Marks a condition, iterator, or match scrutinee as elaboration-time
+/// (Rust) control flow rather than hardware control flow.
+///
+/// Inside `#[module]` bodies, `if`, `while`, `for`, and `match` normally
+/// lower to hardware control flow. Wrapping the condition, iterable, or
+/// scrutinee in `elab(...)` keeps that construct as ordinary Rust evaluated
+/// during elaboration:
+///
+/// ```text
+/// if elab(flag) { ... }
+/// for i in elab(0..values.len()) { ... }
+/// while elab(n < 4) { ... }
+/// match elab(mode) { ... }
+/// ```
+///
+/// Only the control-flow decision is elaboration-time; hardware control flow
+/// inside the body is still lowered normally. The marker must wrap the whole
+/// condition, iterator, or scrutinee, and `elab` is recognized by name inside
+/// module bodies.
+///
+/// This is an identity function: it returns `value` unchanged.
+#[must_use]
+pub const fn elab<T>(value: T) -> T {
+    value
+}
 
 pub trait Interface: 'static {
     fn air_interface<'dsn>(cx: &mut elab::Context<'dsn>) -> &'dsn air::Interface<'dsn>;
@@ -194,6 +221,93 @@ impl<D: Domain, V: IntoValues<D>> Future for AsyncIf<'_, D, V> {
     }
 }
 
+/// A hardware `while` loop inside an async rule or method body.
+///
+/// The body is elaborated once and re-entered every cycle the condition
+/// holds; the enclosing body resumes after the loop exits. `break` and
+/// `continue` are not supported, because the Rust control-flow target would
+/// not survive the rewrite.
+pub struct AsyncWhile<'a, D: Domain> {
+    cond: Option<Value<D, bool>>,
+    body: Option<Pin<Box<dyn Future<Output = ()> + 'a>>>,
+    lowered: bool,
+}
+
+impl<D: Domain> Future for AsyncWhile<'_, D> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _: &mut TaskContext<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        if this.lowered {
+            return Poll::Ready(());
+        }
+        this.lowered = true;
+        let cond = this
+            .cond
+            .take()
+            .expect("async while condition was already lowered");
+        let body = this
+            .body
+            .take()
+            .expect("async while body was already lowered");
+        elab::lower_async_while(cond, body);
+        Poll::Pending
+    }
+}
+
+/// Marker for the internal index of a `for _ in range` loop, which never
+/// escapes to user code.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy)]
+pub struct LoopDomain;
+
+impl Domain for LoopDomain {}
+
+/// A hardware `for` loop over a range inside an async rule or method body.
+///
+/// The bounds are captured into registers on entry, so they behave like a
+/// Rust range: the end is not re-evaluated as the loop runs.
+pub struct AsyncFor<'a, D: Domain, T: Shape> {
+    body: Option<Pin<Box<dyn Future<Output = ()> + 'a>>>,
+    index: elab::RegisterHandle,
+    index_value: Value<D, T>,
+    start: Value<D, T>,
+    bound: elab::RegisterHandle,
+    bound_value: Value<D, T>,
+    end: Value<D, T>,
+    inclusive: bool,
+    lowered: bool,
+}
+
+impl<D: Domain, T: Shape> Unpin for AsyncFor<'_, D, T> {}
+
+impl<D: Domain, T: Shape + BitCmp> Future for AsyncFor<'_, D, T> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _: &mut TaskContext<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        if this.lowered {
+            return Poll::Ready(());
+        }
+        this.lowered = true;
+        let body = this
+            .body
+            .take()
+            .expect("async for body was already lowered");
+        elab::lower_async_for::<D, T>(
+            body,
+            this.index,
+            this.index_value,
+            this.start,
+            this.bound,
+            this.bound_value,
+            this.end,
+            this.inclusive,
+        );
+        Poll::Pending
+    }
+}
+
 /// Token proving the current body is an async rule or method body.
 ///
 /// Produced by `define_async_rule`/`define_async_method` and passed into
@@ -219,5 +333,118 @@ impl AsyncCx {
         then: impl AsyncFnOnce() -> V + 'a,
     ) -> AsyncIf<'a, D, V> {
         AsyncIf::new(cond.into_value(), Box::pin(then()))
+    }
+
+    /// Hardware `while` loop inside an async body. The condition is evaluated
+    /// every cycle; the body re-executes each time it holds.
+    #[must_use]
+    pub fn while_<'a, D: Domain>(
+        self,
+        cond: impl IntoValue<D, bool>,
+        body: impl AsyncFnOnce() -> () + 'a,
+    ) -> AsyncWhile<'a, D> {
+        AsyncWhile {
+            cond: Some(cond.into_value()),
+            body: Some(Box::pin(body())),
+            lowered: false,
+        }
+    }
+
+    /// Hardware half-open range loop: `for i in start..end`.
+    #[must_use]
+    pub fn for_<'a, D, T, Start, End>(
+        self,
+        start: Start,
+        end: End,
+        body: impl AsyncFnOnce(Value<D, T>) -> () + 'a,
+    ) -> AsyncFor<'a, D, T>
+    where
+        D: Domain,
+        T: Shape + BitCmp,
+        Start: IntoValue<D, T>,
+        End: IntoValue<D, T>,
+    {
+        Self::for_impl(start, end, false, body)
+    }
+
+    /// Hardware inclusive range loop: `for i in start..=end`.
+    #[must_use]
+    pub fn for_inclusive<'a, D, T, Start, End>(
+        self,
+        start: Start,
+        end: End,
+        body: impl AsyncFnOnce(Value<D, T>) -> () + 'a,
+    ) -> AsyncFor<'a, D, T>
+    where
+        D: Domain,
+        T: Shape + BitCmp,
+        Start: IntoValue<D, T>,
+        End: IntoValue<D, T>,
+    {
+        Self::for_impl(start, end, true, body)
+    }
+
+    /// Hardware range loop whose index is ignored: `for _ in start..end`.
+    /// The index never escapes, so no domain needs to be inferred.
+    #[must_use]
+    pub fn repeat<'a, const N: usize, Start, End>(
+        self,
+        start: Start,
+        end: End,
+        body: impl AsyncFnOnce() -> () + 'a,
+    ) -> AsyncFor<'a, LoopDomain, U<N>>
+    where
+        Start: IntoValue<LoopDomain, U<N>>,
+        End: IntoValue<LoopDomain, U<N>>,
+    {
+        Self::for_impl::<LoopDomain, U<N>, _, _>(start, end, false, async move |_index| {
+            body().await;
+        })
+    }
+
+    /// Inclusive [`Self::repeat`].
+    #[must_use]
+    pub fn repeat_inclusive<'a, const N: usize, Start, End>(
+        self,
+        start: Start,
+        end: End,
+        body: impl AsyncFnOnce() -> () + 'a,
+    ) -> AsyncFor<'a, LoopDomain, U<N>>
+    where
+        Start: IntoValue<LoopDomain, U<N>>,
+        End: IntoValue<LoopDomain, U<N>>,
+    {
+        Self::for_impl::<LoopDomain, U<N>, _, _>(start, end, true, async move |_index| body().await)
+    }
+
+    fn for_impl<'a, D, T, Start, End>(
+        start: Start,
+        end: End,
+        inclusive: bool,
+        body: impl AsyncFnOnce(Value<D, T>) -> () + 'a,
+    ) -> AsyncFor<'a, D, T>
+    where
+        D: Domain,
+        T: Shape + BitCmp,
+        Start: IntoValue<D, T>,
+        End: IntoValue<D, T>,
+    {
+        let start = start.into_value();
+        let end = end.into_value();
+        let (index, _) = elab::register_default::<D, T>(None);
+        let (bound, _) = elab::register_default::<D, T>(None);
+        let index_value = elab::read_register_module::<D, T>(index);
+        let bound_value = elab::read_register_module::<D, T>(bound);
+        AsyncFor {
+            body: Some(Box::pin(body(index_value))),
+            index,
+            index_value,
+            start,
+            bound,
+            bound_value,
+            end,
+            inclusive,
+            lowered: false,
+        }
     }
 }

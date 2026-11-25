@@ -1,6 +1,6 @@
 use std::{any::TypeId, marker::PhantomData, num::NonZero};
 
-use crate::elab;
+use crate::elab::{self, with_context};
 
 /// A type-level clock domain brand.
 ///
@@ -40,5 +40,17 @@ impl<D: Domain> Clock<D> {
     #[allow(clippy::unused_self)]
     pub(crate) const fn identity(&self) -> TypeId {
         TypeId::of::<D>()
+    }
+
+    /// Marks the enclosing module as using this clock, so that modules
+    /// whose bodies contain no registers or IO still get one.
+    pub(crate) fn ensure(&self) {
+        if let Some(handle) = self.handle {
+            with_context(|cx| {
+                cx.check_design(handle.design_id);
+                let domain = cx.domains[handle.index];
+                cx.ensure_clock(domain);
+            });
+        }
     }
 }

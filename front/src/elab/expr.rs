@@ -282,6 +282,19 @@ pub fn assert<D: Domain>(condition: impl IntoValue<D, bool>, message: &str) {
     });
 }
 
+/// Aborts the simulation with the given message: emits an assertion whose
+/// condition is always false, so the simulator stops on the first cycle
+/// the statement is reachable.
+pub fn sim_panic(message: &str) {
+    with_context(|cx| {
+        let condition = cx.boolean(false);
+        cx.emit(air::Statement::Assert {
+            condition,
+            message: cx.alloc_str(message),
+        });
+    });
+}
+
 pub fn finish() {
     with_context(|cx| cx.emit(air::Statement::Finish));
 }

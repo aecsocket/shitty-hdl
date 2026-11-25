@@ -9,6 +9,7 @@ use crate::{
     domain::Domain,
     elab,
     module::{Action, AsyncCx},
+    ops::BitCmp,
     value::{IntoValues, Shape, U, Value},
 };
 
@@ -490,6 +491,253 @@ pub fn lower_async_if<'a, D: Domain, R: IntoValues<D>>(
             LoweredIf::Fsm(result)
         }
     }
+}
+
+/// The states allocated for a lowered loop. The enclosing segment enters
+/// `head`, which selects between `body` and `exit`; the body loops back to
+/// `head`, and the enclosing continuation is elaborated in `exit`.
+struct LoopStates {
+    head: usize,
+    body: usize,
+    exit: usize,
+}
+
+/// Allocates the loop's head/body/exit states and emits the head rule (which
+/// evaluates the condition and branches) plus the enclosing state's transition
+/// into the head. The caller is responsible for driving the body and for
+/// leaving the enclosing continuation in `exit`.
+fn begin_loop<D: Domain>(cond: Value<D, bool>) -> LoopStates {
+    let cond_branch = super::capture_branch(|| cond);
+    let (head, body, exit) = with_flow(|flow| {
+        let head = flow.next;
+        let body = head + 1;
+        let exit = body + 1;
+        flow.next = exit + 1;
+        (head, body, exit)
+    });
+    let state = flow_state();
+    with_context(|cx| {
+        let (statements, condition) = {
+            let branch = &cx.branches[cond_branch.index];
+            (branch.block.statements, branch.result)
+        };
+        let mut statements = statements.to_vec();
+        let state_register = cx.register_for_write(state.id.index);
+        let body_value = state_value_cx(cx, body);
+        let exit_value = state_value_cx(cx, exit);
+        statements.push(air::Statement::If {
+            condition,
+            then_body: air::Block {
+                statements: cx.alloc_slice([air::Statement::RegisterWrite {
+                    register: state_register,
+                    value: body_value,
+                }]),
+            },
+            else_body: Some(air::Block {
+                statements: cx.alloc_slice([air::Statement::RegisterWrite {
+                    register: state_register,
+                    value: exit_value,
+                }]),
+            }),
+        });
+        let block = air::Block {
+            statements: cx.alloc_slice(statements),
+        };
+        let guard = elab_compare_inline(cx, state, head);
+        let name = cx.alloc_str(&format!("rule_{}", cx.rules.len()));
+        cx.add_rule(air::Rule {
+            name,
+            guard: Some(guard),
+            body: block,
+        });
+        let state_register = cx.register_for_write(state.id.index);
+        let head_value = state_value_cx(cx, head);
+        cx.emit(air::Statement::RegisterWrite {
+            register: state_register,
+            value: head_value,
+        });
+    });
+    LoopStates { head, body, exit }
+}
+
+/// Drives the body of a loop until it completes, adding one rule per segment.
+/// A completed segment transitions to `target`; a suspended one transitions
+/// to the next segment allocated by [`poll_segment`].
+fn drive_loop_body<'a>(
+    mut future: Pin<Box<dyn Future<Output = ()> + 'a>>,
+    first: usize,
+    target: usize,
+) {
+    let state = flow_state();
+    with_flow(|flow| flow.current = first);
+    loop {
+        let current = with_flow(|flow| flow.current);
+        #[allow(
+            clippy::redundant_closure_for_method_calls,
+            reason = "passing `Context::begin_body` directly fails to infer"
+        )]
+        with_context(|cx| cx.begin_body());
+        let poll = poll_segment(future.as_mut());
+        let ready = matches!(poll, Poll::Ready(()));
+        with_context(|cx| {
+            let block = cx.end_body();
+            let mut statements = block.statements.to_vec();
+            if ready {
+                let state_register = cx.register_for_write(state.id.index);
+                let target_value = state_value_cx(cx, target);
+                statements.push(air::Statement::RegisterWrite {
+                    register: state_register,
+                    value: target_value,
+                });
+            }
+            let body = air::Block {
+                statements: cx.alloc_slice(statements),
+            };
+            let guard = elab_compare_inline(cx, state, current);
+            let name = cx.alloc_str(&format!("rule_{}", cx.rules.len()));
+            cx.add_rule(air::Rule {
+                name,
+                guard: Some(guard),
+                body,
+            });
+        });
+        if ready {
+            with_flow(|flow| flow.current = target);
+            return;
+        }
+        // `poll_segment` advanced `flow.current` to the next segment.
+    }
+}
+
+/// Lowers `while cond { body }`: the head evaluates the condition each cycle,
+/// the body loops back to it, and the enclosing async body resumes in the
+/// exit state once the condition is false.
+pub fn lower_async_while<'a, D: Domain>(
+    cond: Value<D, bool>,
+    body: Pin<Box<dyn Future<Output = ()> + 'a>>,
+) {
+    let states = begin_loop(cond);
+    drive_loop_body(body, states.body, states.head);
+    with_flow(|flow| {
+        flow.current = states.exit;
+        flow.suppress = true;
+    });
+}
+
+/// Lowers `for i in start..end { body }` (or `..=`) over a hardware range.
+///
+/// The range is captured on entry: `start` and `end` are written into
+/// registers, the index register drives the head comparison, and an extra
+/// step state increments the index (or, for an inclusive range, exits when
+/// the index reaches the bound, avoiding overflow).
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the loop's index, start, bound, and end state are elaborated together"
+)]
+pub fn lower_async_for<'a, D, T>(
+    body: Pin<Box<dyn Future<Output = ()> + 'a>>,
+    index: RegisterHandle,
+    index_value: Value<D, T>,
+    start: Value<D, T>,
+    bound: RegisterHandle,
+    bound_value: Value<D, T>,
+    end: Value<D, T>,
+    inclusive: bool,
+) where
+    D: Domain,
+    T: Shape + BitCmp,
+{
+    let cond = if inclusive {
+        T::le(index_value, bound_value)
+    } else {
+        T::lt(index_value, bound_value)
+    };
+    let increment = T::add(index_value, T::from_u128(1));
+    let step_condition = inclusive.then(|| T::eq(index_value, bound_value));
+
+    let states = begin_loop(cond);
+    let step = with_flow(|flow| {
+        let step = flow.next;
+        flow.next += 1;
+        step
+    });
+    let state = flow_state();
+
+    with_context(|cx| {
+        let index_register = cx.register_for_write(index.index);
+        let start = cx.typed_expr::<T>(start.handle());
+        cx.emit(air::Statement::RegisterWrite {
+            register: index_register,
+            value: start,
+        });
+        let bound_register = cx.register_for_write(bound.index);
+        let end = cx.typed_expr::<T>(end.handle());
+        cx.emit(air::Statement::RegisterWrite {
+            register: bound_register,
+            value: end,
+        });
+    });
+
+    with_context(|cx| {
+        let state_register = cx.register_for_write(state.id.index);
+        let index_register = cx.register_for_write(index.index);
+        let increment = cx.typed_expr::<T>(increment.handle());
+        let head_value = state_value_cx(cx, states.head);
+        let exit_value = state_value_cx(cx, states.exit);
+        let step_body = match step_condition {
+            Some(condition) => {
+                let condition = cx.typed_expr::<bool>(condition.handle());
+                air::Block {
+                    statements: cx.alloc_slice([air::Statement::If {
+                        condition,
+                        then_body: air::Block {
+                            statements: cx.alloc_slice([air::Statement::RegisterWrite {
+                                register: state_register,
+                                value: exit_value,
+                            }]),
+                        },
+                        else_body: Some(air::Block {
+                            statements: cx.alloc_slice([
+                                air::Statement::RegisterWrite {
+                                    register: index_register,
+                                    value: increment,
+                                },
+                                air::Statement::RegisterWrite {
+                                    register: state_register,
+                                    value: head_value,
+                                },
+                            ]),
+                        }),
+                    }]),
+                }
+            }
+            None => air::Block {
+                statements: cx.alloc_slice([
+                    air::Statement::RegisterWrite {
+                        register: index_register,
+                        value: increment,
+                    },
+                    air::Statement::RegisterWrite {
+                        register: state_register,
+                        value: head_value,
+                    },
+                ]),
+            },
+        };
+        let guard = elab_compare_inline(cx, state, step);
+        let name = cx.alloc_str(&format!("rule_{}", cx.rules.len()));
+        cx.add_rule(air::Rule {
+            name,
+            guard: Some(guard),
+            body: step_body,
+        });
+    });
+
+    drive_loop_body(body, states.body, step);
+    with_flow(|flow| {
+        flow.current = states.exit;
+        flow.suppress = true;
+    });
 }
 
 /// The [`state_value`] literal, built on an already-borrowed context.

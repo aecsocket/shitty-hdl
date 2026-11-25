@@ -27,6 +27,16 @@ macro_rules! sim_assert {
     };
 }
 
+#[macro_export]
+macro_rules! sim_panic {
+    () => {
+        $crate::__::sim_panic("sim_panic")
+    };
+    ($msg:literal) => {
+        $crate::__::sim_panic($msg)
+    };
+}
+
 pub fn sim_finish() {
     elab::finish();
 }

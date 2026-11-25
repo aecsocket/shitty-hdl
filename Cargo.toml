@@ -62,6 +62,7 @@ pedantic = { level = "warn", priority = -1 }
 similar_names = "allow"
 too_many_lines = "allow"
 unnecessary_debug_formatting = "allow"
+enum_glob_use = "allow"
 
 [dependencies]
 board = { workspace = true }

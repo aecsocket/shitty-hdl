@@ -18,7 +18,9 @@ pub mod prelude {
     pub use crate::elements;
     pub use crate::elements::sim_finish;
     pub use crate::elements::{DisplayArgHardware, DisplayArgText, DisplaySpec, mux};
+    pub use crate::io::Output;
     pub use crate::method::Method;
+    pub use crate::module::elab;
     pub use crate::module::{Action, Interface, Rule};
     pub use crate::ops::{
         Arith, BitCmp, BitCmpExt, BitEq, BitEqExt, BitShift, Bits, Pack, Repack, ShlZext, ShrTrunc,
@@ -27,7 +29,8 @@ pub mod prelude {
     pub use crate::reg::Reg;
     pub use crate::value::{Bit, IntoValue, IntoValues, Shape, U, Value, Vector};
     pub use crate::value::{pack, unpack};
-    pub use crate::{bit, display, displayln, sim_assert, u};
+    pub use crate::{bit, display, displayln, sim_assert, sim_panic, u};
+
     pub use derive::{Arith, Domain, Interface, Shape, hdl, module};
 }
 
@@ -38,6 +41,7 @@ pub use derive::*;
 pub mod __ {
     pub use crate::elab::context::Context;
     pub use crate::elab::handle::{ActionHandle, ExprHandle, InterfaceHandle};
+    pub use crate::elab::sim_panic;
     pub use crate::elements::{DisplayArgHardware, DisplayArgText, DisplaySpec};
     pub use bon;
     pub use derive::{display_format, displayln_format};

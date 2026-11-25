@@ -70,7 +70,7 @@ impl<D: Domain, In: Shape, Out: Shape> Method<D, In, Out> {
     where
         O: IntoValues<D, Values = Out::Values<D>>,
     {
-        let _ = clk;
+        clk.ensure();
         let (req, out) = elab::define_async_method::<D, In, Out, _>(async move |cx, packed| {
             f(cx, packed).await.into_values()
         });

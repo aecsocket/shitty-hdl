@@ -112,6 +112,26 @@ pub fn read_register<D: Domain, T: Shape>(handle: RegisterHandle) -> Value<D, T>
     })
 }
 
+/// Reads a register into an expression that is valid in every state of the
+/// module. Used for loop indices, which are read across the loop's state
+/// machine rather than within a single action body.
+pub fn read_register_module<D: Domain, T: Shape>(handle: RegisterHandle) -> Value<D, T> {
+    with_context(|cx| {
+        cx.check_design(handle.design_id);
+        let (register, owner) = cx.register_handles[handle.index];
+        assert_eq!(owner, cx.id, "cannot read a register from another module");
+        let ty = cx.ty::<T>();
+        assert!(ptr::eq(register.ty, ty), "register read type mismatch");
+        let expr = cx.alloc(air::Expr {
+            ty,
+            kind: air::ExprKind::Register(register),
+        });
+        let value = cx.push_expr(expr);
+        cx.expressions[value.index].1 = 0;
+        Value::from_handle(value)
+    })
+}
+
 pub fn write_register<D: Domain, T: Shape>(handle: RegisterHandle, value: Value<D, T>) {
     with_context(|cx| {
         cx.check_design(handle.design_id);

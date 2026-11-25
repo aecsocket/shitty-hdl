@@ -20,16 +20,21 @@ pub(crate) use body::{
 pub(crate) use context::Context;
 pub(crate) use design::DesignId;
 pub use expr::{
-    assert, binary, cast, compare, display, finish, literal, shift, shift_resize, struct_field,
-    tuple, tuple_element, uint_from_u128, unary, write_struct_field,
+    assert, binary, cast, compare, display, finish, literal, shift, shift_resize, sim_panic,
+    struct_field, tuple, tuple_element, uint_from_u128, unary, write_struct_field,
 };
-pub use fsm::{LoweredIf, define_async_method, define_async_rule, lower_async_if, unit_value};
+pub use fsm::{
+    LoweredIf, define_async_method, define_async_rule, lower_async_for, lower_async_if,
+    lower_async_while, unit_value,
+};
 pub(crate) use handle::{
     ActionHandle, BranchHandle, ClockHandle, ExprHandle, InterfaceHandle, RegisterHandle,
 };
 pub use interface::{input_interface, interface_action, module, subinterface};
 pub(crate) use primitive::bram;
-pub(crate) use state::{clock_input, read_register, register, register_default, write_register};
+pub(crate) use state::{
+    clock_input, read_register, read_register_module, register, register_default, write_register,
+};
 
 scoped_thread_local!(static CURRENT: for<'scope> &'scope (dyn ActiveContext + 'scope));
 

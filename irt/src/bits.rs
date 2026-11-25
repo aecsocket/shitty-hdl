@@ -9,6 +9,16 @@ pub struct Bits {
 }
 
 impl Bits {
+    #[must_use]
+    pub const fn width(&self) -> ShapeSize {
+        self.width
+    }
+
+    #[must_use]
+    pub fn words(&self) -> &[u64] {
+        &self.words
+    }
+
     pub fn into_parts(self) -> (ShapeSize, impl Iterator<Item = u64>) {
         (self.width, self.words.into_iter())
     }

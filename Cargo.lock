@@ -656,6 +656,7 @@ dependencies = [
 name = "shitty-hdl-irt"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
  "lasso",
  "smallvec",
 ]
@@ -664,7 +665,6 @@ dependencies = [
 name = "shitty-hdl-nir"
 version = "0.1.0"
 dependencies = [
- "bumpalo",
  "derive_more",
  "shitty-hdl-irt",
  "shitty-hdl-pir",
@@ -684,6 +684,14 @@ version = "0.1.0"
 dependencies = [
  "shitty-hdl-board",
  "shitty-hdl-core",
+]
+
+[[package]]
+name = "shitty-hdl-rtlil"
+version = "0.1.0"
+dependencies = [
+ "shitty-hdl-irt",
+ "shitty-hdl-nir",
 ]
 
 [[package]]

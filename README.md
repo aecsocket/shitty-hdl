@@ -1,13 +1,26 @@
-# Architecture
+# Crates
 
-- `board` defines constants about different physical FPGA boards, such as which pins to use for LEDs, buttons; what toolchains you can use to program it
-- `cli` lets you easily use the full toolchain from your own crate, by calling into the `cli`
-- `core` provides primitives such as `Signal`, `Module`, integer types, which can be elaborated into program IR (`pir`)
-- `derive` derive macro definitions for `core`
-- `examples` examples on how to use this crate
-- `pir` defines the layout of program IR, elaborated from `core` primitives
-- `piri` lets you interpret and simulate `pir`, like `miri` does for rust `mir`
-- `nir` defines 
+## Elaboration
+
+- `front`: the user-facing, high-level API types such as `Signal<T>`, `Module`, integer types, packed types, and control flow.
+- `pir`: the program IR (modules and statements), and how to lower `front` to `pir`.
+- `nir`: the netlist IR (nets, cells, and wires), and how to lower `pir` to `nir`.
+- `rtlil`: how to lower `nir` into [Yosys RTLIL][rtlil].
+- `irt`: shared IR crate utilities.
+
+## Hardware
+
+- `board`: definitions for physical board hardware, such as what LEDs or buttons a board has, what pins correspond to each resource, and what toolchain to use to program a board.
+- `platform`: turns a `board` definition into `front` items; gives you a `Platform` from which you can request LEDs, buttons, etc. during elaboration.
+- `toolchain`: exposes board-specific tools such as Yosys, Vivado, nextpnr, which can build/upload/verify your [RTLIL][rtlil].
+
+## Umbrella
+
+- `cli`: CLI logic for interacting with the toolchain (build, upload, etc.) for your board and design.
+- `derive`: derive macros for the whole crate.
+- `.`: wraps all of the above into one tidy package for you!
+
+[rtlil]: https://yosyshq.readthedocs.io/projects/yosys/en/stable/yosys_internals/formats/rtlil_rep.html
 
 # Notes
 

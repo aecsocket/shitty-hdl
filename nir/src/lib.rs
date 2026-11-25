@@ -4,7 +4,7 @@
 mod from_pir;
 
 #[cfg(feature = "from_pir")]
-pub use from_pir::from_pir;
+pub use from_pir::{DriverDomain, LowerError, NetLocation, PatternPart, SignalAccess, from_pir};
 pub use irt::{Bits, Flow, Ident, Pattern, ShapeSize, Signal, SignalDef};
 
 use derive_more::From;
@@ -21,7 +21,7 @@ pub struct Netlist<'d> {
 pub struct Module<'d> {
     pub name: Ident,
     pub ports: &'d [Port<'d>],
-    pub cells: &'d [Cell<'d>],
+    pub cells: &'d [CellRef<'d>],
     pub children: &'d [Self],
 }
 

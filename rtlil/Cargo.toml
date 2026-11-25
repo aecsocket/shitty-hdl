@@ -1,0 +1,11 @@
+[package]
+name = "shitty-hdl-rtlil"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+irt = { workspace = true }
+nir = { workspace = true }
+
+[lints]
+workspace = true

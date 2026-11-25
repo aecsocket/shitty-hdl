@@ -5,43 +5,46 @@ edition.workspace = true
 
 [workspace]
 resolver = "3"
-members = [".", "board/", "cli/", "core/", "derive/", "irt/", "nir/", "pir/", "platform/", "verilog-gen/"]
+members = [".", "board/", "cli/", "core/", "derive/", "irt/", "nir/", "pir/", "platform/", "rtlil/", "verilog-gen/"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-anyhow = { version = "1.0.104" }
-bon = { version = "3.10.3" }
-clap = { version = "4.6.7" }
-const-default = { version = "1.0.0" }
-bumpalo = { version = "3.20.3" }
-darling = { version = "0.24.1" }
-derive_more = { version = "2.1.1" }
-generic-array = { version = "1.4.5" }
 irt = { package = "shitty-hdl-irt", path = "irt/" }
-lasso = { version = "0.7.3" }
 nir = { package = "shitty-hdl-nir", path = "nir/" }
 pir = { package = "shitty-hdl-pir", path = "pir/" }
-proc-macro2 = { version = "1.0.107" }
-quote = { version = "1.0.47" }
+rtlil = { package = "shitty-hdl-rtlil", path = "rtlil/" }
 shitty-hdl-board = { path = "board/" }
 shitty-hdl-cli = { path = "cli/" }
 shitty-hdl-core = { path = "core/" }
 shitty-hdl-derive = { path = "derive/" }
 shitty-hdl-platform = { path = "platform/" }
+verilog-gen = { path = "verilog-gen/" }
+
+anyhow = { version = "1.0.104" }
+bon = { version = "3.10.3" }
+bumpalo = { version = "3.20.3" }
+clap = { version = "4.6.7" }
+const-default = { version = "1.0.0" }
+darling = { version = "0.24.1" }
+derive_more = { version = "2.1.1" }
+generic-array = { version = "1.4.5" }
+lasso = { version = "0.7.3" }
+proc-macro2 = { version = "1.0.107" }
+quote = { version = "1.0.47" }
 smallvec = { version = "2.0.0-beta.4" }
 syn = { version = "3.0.9" }
 tracing = { version = "0.1.44" }
 typenum = { version = "1.20.1" }
-verilog-gen = { path = "verilog-gen/" }
 
 [workspace.lints.clippy]
-all = { level = "warn", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
 absolute_paths = "warn"
+all = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+option_if_let_else = "allow"
 
 [dependencies]
 shitty-hdl-board = { workspace = true }

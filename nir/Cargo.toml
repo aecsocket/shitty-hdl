@@ -4,13 +4,12 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+derive_more = { workspace = true, features = ["from"] }
 irt = { workspace = true }
 pir = { workspace = true, optional = true }
-bumpalo = { workspace = true, optional = true }
-derive_more = { workspace = true, features = ["from"] }
+
+[features]
+from_pir = ["dep:pir", "derive_more/display", "derive_more/error"]
 
 [lints]
 workspace = true
-
-[features]
-from_pir = ["dep:pir", "dep:bumpalo", "derive_more/display", "derive_more/error"]

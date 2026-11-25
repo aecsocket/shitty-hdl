@@ -10,6 +10,14 @@ pub struct Bits {
 
 impl Bits {
     #[must_use]
+    pub const fn zero() -> Self {
+        Self {
+            width: 0,
+            words: SmallVec::new(),
+        }
+    }
+
+    #[must_use]
     pub const fn width(&self) -> ShapeSize {
         self.width
     }

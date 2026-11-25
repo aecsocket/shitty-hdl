@@ -2,7 +2,7 @@
 
 pub mod control;
 pub mod domain;
-mod et;
+pub mod elab;
 pub mod port;
 pub mod signal;
 pub mod value;
@@ -15,3 +15,4 @@ pub mod prelude {
 }
 
 pub use derive::*;
+pub use pir;

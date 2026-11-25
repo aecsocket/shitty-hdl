@@ -1,5 +1,6 @@
-use std::{cell::RefCell, fmt, sync::LazyLock};
+use std::{cell::RefCell, fmt, str::FromStr, sync::LazyLock};
 
+use derive_more::{Display, Error};
 use lasso::{Rodeo, Spur};
 
 thread_local! {
@@ -9,23 +10,24 @@ thread_local! {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Ident(Spur);
 
-impl Ident {
-    #[must_use]
-    pub fn new(s: impl AsRef<str>) -> Self {
+#[derive(Debug, Display, Error)]
+pub enum InvalidIdent {
+    #[display("illegal whitespace character {ch:?} at index {at}")]
+    Whitespace { at: usize, ch: char },
+}
+
+impl FromStr for Ident {
+    type Err = InvalidIdent;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        for (at, ch) in s.char_indices() {
+            if ch.is_whitespace() {
+                return Err(InvalidIdent::Whitespace { at, ch });
+            }
+        }
+
         let spur = RODEO.with(|rodeo| rodeo.borrow_mut().get_or_intern(s));
-        Self(spur)
-    }
-}
-
-impl From<&str> for Ident {
-    fn from(s: &str) -> Self {
-        Self::new(s)
-    }
-}
-
-impl From<String> for Ident {
-    fn from(s: String) -> Self {
-        Self::new(s)
+        Ok(Self(spur))
     }
 }
 

@@ -1,19 +1,40 @@
 use std::marker::PhantomData;
 
 use derive_more::Debug;
+use pir::{Bits, ShapeSize};
 
-use crate::signal::SignalView;
+use crate::signal::{SignalId, SignalView};
 
 pub trait Shape: Sized {
-    type View<'d>: Copy;
+    type View: Copy;
+
+    fn make_view(id: SignalId, offset: ShapeSize) -> Self::View;
+
+    fn into_bits(self) -> Bits;
 }
 
 impl Shape for () {
-    type View<'d> = SignalView<'d, Self>;
+    type View = SignalView<Self>;
+
+    fn make_view(id: SignalId, offset: ShapeSize) -> Self::View {
+        SignalView::from_slice(id, offset)
+    }
+
+    fn into_bits(self) -> Bits {
+        Bits::zero()
+    }
 }
 
 impl Shape for bool {
-    type View<'d> = SignalView<'d, Self>;
+    type View = SignalView<Self>;
+
+    fn make_view(id: SignalId, offset: ShapeSize) -> Self::View {
+        SignalView::from_slice(id, offset)
+    }
+
+    fn into_bits(self) -> Bits {
+        Bits::from(self)
+    }
 }
 
 #[derive(Debug)]

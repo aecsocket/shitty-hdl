@@ -3,30 +3,30 @@ use shitty_hdl_pir::*;
 #[test]
 fn make_pir() {
     let sync = DomainDef {
-        name: "sync".into(),
+        name: "sync".parse().unwrap(),
     };
 
     let bool = TypeDef {
-        name: "bool".into(),
+        name: "bool".parse().unwrap(),
         shape: Shape::Bits(1),
     };
     let u32 = TypeDef {
-        name: "u32".into(),
+        name: "u32".parse().unwrap(),
         shape: Shape::Unsigned(32),
     };
 
     let enable: SignalDef = SignalDef {
-        name: "enable".into(),
+        name: "enable".parse().unwrap(),
         init: &Bits::from(false),
         ty: Type(&bool),
     };
     let led_on: SignalDef = SignalDef {
-        name: "led_on".into(),
+        name: "led_on".parse().unwrap(),
         init: &Bits::from(false),
         ty: Type(&bool),
     };
     let count: SignalDef = SignalDef {
-        name: "count".into(),
+        name: "count".parse().unwrap(),
         init: &Bits::from(0u32),
         ty: Type(&u32),
     };
@@ -42,15 +42,15 @@ fn make_pir() {
     };
 
     let _top = Module {
-        name: "top".into(),
+        name: "top".parse().unwrap(),
         ports: &[
             Port {
-                name: "enable".into(),
+                name: "enable".parse().unwrap(),
                 flow: Flow::In,
                 signal: Signal(&enable),
             },
             Port {
-                name: "led_on".into(),
+                name: "led_on".parse().unwrap(),
                 flow: Flow::Out,
                 signal: Signal(&led_on),
             },

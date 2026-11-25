@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use irt::bumpalo::Bump;
 
@@ -368,14 +368,15 @@ impl<'d> Lowerer<'d> {
                     valid = false;
                 }
                 if let Some(mask) = mask
-                    && mask.width() != expected {
-                        self.errors.push(LowerError::PatternWidthMismatch {
-                            part: PatternPart::Mask,
-                            expected,
-                            actual: mask.width(),
-                        });
-                        valid = false;
-                    }
+                    && mask.width() != expected
+                {
+                    self.errors.push(LowerError::PatternWidthMismatch {
+                        part: PatternPart::Mask,
+                        expected,
+                        actual: mask.width(),
+                    });
+                    valid = false;
+                }
             }
             let guard = if let Some(guard) = arm.guard {
                 if width(guard.ty.0.shape) != 1 {
@@ -552,7 +553,7 @@ impl<'d> Lowerer<'d> {
                 .any(|port| port.value == value)
             {
                 let base = format!("{}_clk", domain.0.name);
-                let mut name = nir::Ident::new(&base);
+                let mut name = nir::Ident::from_str(&base).unwrap();
                 let mut suffix = 0;
                 while self.modules[module]
                     .source
@@ -565,7 +566,7 @@ impl<'d> Lowerer<'d> {
                         .any(|port| port.name == name)
                 {
                     suffix += 1;
-                    name = nir::Ident::new(format!("{base}_{suffix}"));
+                    name = nir::Ident::from_str(&format!("{base}_{suffix}")).unwrap();
                 }
                 self.modules[module].clock_ports.push(nir::Port {
                     name,

@@ -490,6 +490,7 @@ dependencies = [
 name = "shitty-hdl-front"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
  "derive_more",
  "shitty-hdl-derive",
  "shitty-hdl-pir",
@@ -500,6 +501,7 @@ name = "shitty-hdl-irt"
 version = "0.1.0"
 dependencies = [
  "bumpalo",
+ "derive_more",
  "lasso",
  "smallvec",
 ]

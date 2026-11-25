@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = [".", "derive/"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+syn = { version = "3.0.9" }
+quote = { version = "1.0.47" }
+proc-macro2 = { version = "1.0.107" }
+shitty-hdl-derive = { path = "derive/" }
+
+[package]
+name = "shitty-hdl"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+shitty-hdl-derive = { workspace = true }

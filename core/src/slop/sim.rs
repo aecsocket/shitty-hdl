@@ -89,12 +89,24 @@ impl Simulator {
         }
         self.settle()?;
         let triggered: HashSet<_> = domains.iter().copied().collect();
+        let reset_asserted: HashSet<_> = self
+            .compiled
+            .design
+            .domains
+            .iter()
+            .filter(|domain| domain.reset.is_some_and(|reset| self.state[reset.0].bit(0)))
+            .map(|domain| domain.id)
+            .collect();
         let values = evaluate(&self.compiled.design, &self.value_order, &self.state);
         for driver in &self.compiled.drivers {
             if let WriteDomain::Clocked(domain) = driver.domain
                 && triggered.contains(&domain)
             {
-                self.state[driver.signal.0] = values[driver.value.0].clone();
+                self.state[driver.signal.0] = if reset_asserted.contains(&domain) {
+                    self.compiled.design.signals[driver.signal.0].init.clone()
+                } else {
+                    values[driver.value.0].clone()
+                };
             }
         }
         self.settle()

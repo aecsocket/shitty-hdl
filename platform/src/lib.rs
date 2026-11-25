@@ -3,75 +3,57 @@ mod slop;
 pub use shitty_hdl_board as board;
 pub use shitty_hdl_board::Board;
 pub use shitty_hdl_core as core;
+pub use shitty_hdl_core::{ClockBinding, PinBinding};
 
 use core::{
     ir,
     module::{In, Out},
-    signal::Signal,
-    util::Period,
 };
-use std::{backtrace::Backtrace, cell::RefCell, mem, num::NonZero, rc::Rc};
+use std::{backtrace::Backtrace, mem, num::NonZero};
 
 #[derive(Debug)]
 pub struct Platform {
     pub board: Board,
     pub default_clock_hz: Option<NonZero<u64>>,
-    pub reset: Resources<In<bool>>,
-    pub led: Resources<Out<bool>>,
-    pub button: Resources<In<bool>>,
-    pub switch: Resources<In<bool>>,
-    pub uart: Resources<Uart>,
-    pub ddr3: Resources<Ddr3>,
-    #[doc(hidden)]
-    pub elab: Rc<RefCell<PlatformElab>>,
-}
-
-#[derive(Debug, Default)]
-pub struct PlatformElab {
-    pub bindings: Vec<PinBinding>,
-    pub clock_bindings: Vec<ClockBinding>,
-    pub default_clock: Option<Signal<bool>>,
-    owner: Option<ir::DesignId>,
+    pub reset: Resources<board::Reset>,
+    pub led: Resources<board::Led>,
+    pub button: Resources<board::Button>,
+    pub switch: Resources<board::Switch>,
+    pub uart: Resources<board::Uart>,
+    pub ddr3: Resources<board::Ddr3>,
 }
 
 #[derive(Debug)]
-pub struct Uart {
+pub struct UartPort {
     pub tx: Out<bool>,
     pub rx: In<bool>,
 }
 
 #[derive(Debug)]
-pub struct Ddr3 {
+pub struct Ddr3Port {
     // todo
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PinBinding {
-    pub signal: ir::SignalId,
-    pub bit: u32,
-    pub package_pin: String,
-    pub io_standard: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct ClockBinding {
-    pub signal: ir::SignalId,
-    pub period: Period,
 }
 
 #[derive(Debug)]
 pub struct Resources<T> {
     items: Vec<ResourceState<T>>,
+    owner: ir::DesignId,
 }
 
+#[derive(Debug)]
 enum ResourceState<T> {
-    Held { make: Box<dyn FnOnce() -> T> },
+    Held { item: T },
     Used { at: Backtrace },
 }
 
 impl<T> Resources<T> {
     #[track_caller]
-    pub fn take(&mut self, index: usize) -> T {
+    fn take_(&mut self, index: usize) -> T {
+        assert_eq!(
+            self.owner,
+            ir::io::design_id(),
+            "resource belongs to another elaboration"
+        );
         let state = self.items.get_mut(index).expect("invalid resource index");
         if let ResourceState::Used { at } = state {
             panic!("item already used at {at:?}");
@@ -83,9 +65,44 @@ impl<T> Resources<T> {
             },
         );
         match old {
-            ResourceState::Held { make } => make(),
+            ResourceState::Held { item } => item,
             ResourceState::Used { .. } => unreachable!(),
         }
+    }
+}
+
+impl Resources<board::Reset> {
+    #[track_caller]
+    pub fn take(&mut self, index: usize) -> In<bool> {
+        slop::reset(self.take_(index), index)
+    }
+}
+
+impl Resources<board::Led> {
+    #[track_caller]
+    pub fn take(&mut self, index: usize) -> Out<bool> {
+        slop::led(self.take_(index), index)
+    }
+}
+
+impl Resources<board::Button> {
+    #[track_caller]
+    pub fn take(&mut self, index: usize) -> In<bool> {
+        slop::button(self.take_(index), index)
+    }
+}
+
+impl Resources<board::Switch> {
+    #[track_caller]
+    pub fn take(&mut self, index: usize) -> In<bool> {
+        slop::switch(self.take_(index), index)
+    }
+}
+
+impl Resources<board::Uart> {
+    #[track_caller]
+    pub fn take(&mut self, index: usize) -> UartPort {
+        slop::uart(self.take_(index), index)
     }
 }
 

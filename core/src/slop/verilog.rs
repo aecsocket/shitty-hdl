@@ -424,10 +424,33 @@ fn to_ast_with_ports(
                             .ok_or_else(|| Error(format!("missing clock domain {domain:?}")))?,
                     ),
                 }]),
-                body: vec![v::Stmt::Assign {
-                    assign,
-                    kind: v::AssignKind::Nonblocking,
-                }],
+                body: {
+                    let update = v::Stmt::Assign {
+                        assign,
+                        kind: v::AssignKind::Nonblocking,
+                    };
+                    match d
+                        .domains
+                        .iter()
+                        .find(|item| item.id == domain)
+                        .and_then(|item| item.reset)
+                    {
+                        Some(reset) => vec![v::Stmt::If(v::If {
+                            origin: o,
+                            condition: v::Expr::Name(signals[reset.0]),
+                            then_body: vec![v::Stmt::Assign {
+                                assign: v::Assign {
+                                    origin: o,
+                                    target: v::Target::Name(signals[driver.signal.0]),
+                                    value: constant(&d.signals[driver.signal.0].init, o),
+                                },
+                                kind: v::AssignKind::Nonblocking,
+                            }],
+                            else_body: vec![update],
+                        })],
+                        None => vec![update],
+                    }
+                },
             }),
         });
     }

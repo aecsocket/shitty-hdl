@@ -104,7 +104,7 @@ pub enum ActiveOn {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Toolchain {
-    Vivado,
+    Vivado { design_properties: Attributes },
     Ise,
     Quartus,
     IceStorm,

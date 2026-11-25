@@ -26,6 +26,10 @@ fn with<R>(f: impl FnOnce(&mut Context) -> R) -> R {
     f(&mut active().borrow_mut())
 }
 
+pub(crate) fn with_design<R>(f: impl FnOnce(&mut Design) -> R) -> R {
+    with(|c| f(&mut c.design))
+}
+
 struct ActiveGuard;
 impl Drop for ActiveGuard {
     fn drop(&mut self) {

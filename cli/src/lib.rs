@@ -22,9 +22,17 @@ enum Command {
 }
 
 struct Context<Top> {
-    hdl_dir: PathBuf,
+    out_dir: PathBuf,
     board: Board,
     make_top: Box<dyn FnOnce(Platform) -> Top>,
+}
+
+#[macro_export]
+macro_rules! cli {
+    ($board:expr, $make_top:expr $(,)?) => {
+        $crate::cli(env!("CARGO_MANIFEST_DIR"), $board, $make_top)
+            .unwrap_or_else(|err| panic!("{err:?}"))
+    };
 }
 
 pub fn cli<Top: Module>(
@@ -39,12 +47,13 @@ pub fn cli<Top: Module>(
         .no_deps()
         .exec()
         .context("running cargo metadata")?;
-    let hdl_dir = metadata
+    let out_dir = metadata
         .target_directory
         .join("hdl")
-        .join(env!("CARGO_CRATE_NAME"));
+        .join(env!("CARGO_CRATE_NAME"))
+        .into_std_path_buf();
     let cx = Context {
-        hdl_dir: hdl_dir.into_std_path_buf(),
+        out_dir,
         board,
         make_top: Box::new(move |plat| make_top(plat)),
     };
@@ -54,12 +63,4 @@ pub fn cli<Top: Module>(
         Command::Build => task::build(cx),
         Command::Upload => task::upload(cx),
     }
-}
-
-#[macro_export]
-macro_rules! cli {
-    ($board:expr, $make_top:expr $(,)?) => {
-        $crate::cli(env!("CARGO_MANIFEST_DIR"), $board, $make_top)
-            .unwrap_or_else(|err| panic!("{err:?}"))
-    };
 }

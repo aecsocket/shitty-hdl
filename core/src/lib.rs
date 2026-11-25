@@ -11,6 +11,7 @@ pub use typenum;
 
 // LLM slop
 mod slop;
+pub use slop::lower::{ClockBinding, LowerResult, PinBinding, Toolchain, lower};
 pub use slop::{ir, ir::runtime::elaborate, sim, verilog};
 
 pub mod prelude {

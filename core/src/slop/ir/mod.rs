@@ -58,6 +58,7 @@ pub struct ClockDomain {
     pub name: String,
     pub id: DomainId,
     pub clock: Option<SignalId>,
+    pub reset: Option<SignalId>,
 }
 #[derive(Clone, Debug)]
 pub struct ValueData {
@@ -153,6 +154,8 @@ pub struct Design {
     pub values: Vec<ValueData>,
     pub domains: Vec<ClockDomain>,
     pub writes: Vec<Write>,
+    pub bindings: Vec<crate::PinBinding>,
+    pub clock_bindings: Vec<crate::ClockBinding>,
 }
 #[derive(Clone, Debug)]
 pub struct CompiledDesign {
@@ -205,6 +208,8 @@ impl Design {
             values: vec![],
             domains: vec![],
             writes: vec![],
+            bindings: vec![],
+            clock_bindings: vec![],
         }
     }
     pub fn add_value(
@@ -229,6 +234,7 @@ impl Design {
                 name,
                 id,
                 clock: None,
+                reset: None,
             });
         }
         id
@@ -257,6 +263,37 @@ impl Design {
         )?;
         domain.clock = Some(clock.raw);
         Ok(())
+    }
+
+    pub fn bind_domain_reset<L: crate::module::DomainLabel>(
+        &mut self,
+        reset: crate::signal::SignalId,
+    ) -> Result<(), Error> {
+        require(
+            reset.owner == self.id,
+            "reset belongs to a different design",
+        )?;
+        self.validate_reset(reset.raw)?;
+        let id = self.add_domain::<L>(std::any::type_name::<L>().into());
+        let domain = self
+            .domains
+            .iter_mut()
+            .find(|domain| domain.id == id)
+            .unwrap();
+        require(
+            domain.reset.is_none() || domain.reset == Some(reset.raw),
+            format!("clock domain {id:?} is already bound to a different reset"),
+        )?;
+        domain.reset = Some(reset.raw);
+        Ok(())
+    }
+
+    fn validate_reset(&self, reset: SignalId) -> Result<(), Error> {
+        let signal = self
+            .signals
+            .get(reset.0)
+            .ok_or_else(|| Error(format!("invalid reset signal {}", reset.0)))?;
+        require(signal.ty.width == 1, "bound reset must be a width-1 signal")
     }
 
     fn validate_clock(&self, clock: SignalId) -> Result<(), Error> {
@@ -309,6 +346,9 @@ impl Design {
         for domain in &self.domains {
             if let Some(clock) = domain.clock {
                 self.validate_clock(clock)?;
+            }
+            if let Some(reset) = domain.reset {
+                self.validate_reset(reset)?;
             }
             require(
                 domains.insert(domain.id),

@@ -22,7 +22,9 @@ pub const A7_100T: Board = Board {
 };
 
 const A7: Board = Board {
-    toolchain: Toolchain::Vivado,
+    toolchain: Toolchain::Vivado {
+        design_properties: &[("CFGBVS", "VCCO"), ("CONFIG_VOLTAGE", "3.3")],
+    },
     fpga: Fpga {
         device: "",
         package: "csg324",

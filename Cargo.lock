@@ -491,6 +491,7 @@ name = "shitty-hdl-front"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "shitty-hdl-derive",
  "shitty-hdl-pir",
 ]
 

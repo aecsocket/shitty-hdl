@@ -4,9 +4,8 @@ mod task;
 pub use demo::blinky;
 
 use anyhow::{Context as _, Result};
-use shitty_hdl_board::Board;
-use shitty_hdl_core::module::Module;
-use shitty_hdl_platform::Platform;
+use board::Board;
+use platform::Platform;
 use std::path::{Path, PathBuf};
 
 #[derive(clap::Parser)]
@@ -21,10 +20,10 @@ enum Command {
     Upload,
 }
 
-struct Context<Top> {
+struct Context {
     out_dir: PathBuf,
     board: Board,
-    make_top: Box<dyn FnOnce(Platform) -> Top>,
+    make_top: Box<dyn FnOnce(Platform)>,
 }
 
 #[macro_export]
@@ -35,10 +34,10 @@ macro_rules! cli {
     };
 }
 
-pub fn cli<Top: Module>(
+pub fn cli<R>(
     manifest_dir: impl AsRef<Path>,
     board: Board,
-    make_top: impl FnOnce(Platform) -> Top + 'static,
+    make_top: impl FnOnce(Platform) -> R + 'static,
 ) -> Result<()> {
     let dir = manifest_dir.as_ref();
     let metadata = cargo_metadata::MetadataCommand::new()
@@ -55,7 +54,7 @@ pub fn cli<Top: Module>(
     let cx = Context {
         out_dir,
         board,
-        make_top: Box::new(move |plat| make_top(plat)),
+        make_top: Box::new(|platform| drop(make_top(platform))),
     };
 
     let cli = <Cli as clap::Parser>::parse();

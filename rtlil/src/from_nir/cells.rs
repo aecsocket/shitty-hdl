@@ -1,7 +1,7 @@
 use super::{Emitter, LowerError};
 use crate::ast;
 
-impl<'a, 'd> Emitter<'a, 'd> {
+impl<'d> Emitter<'_, 'd> {
     pub(super) fn lower_cell(&mut self, cell: nir::CellRef<'d>) -> Result<(), LowerError> {
         let width = self.width(cell);
         match *cell.0 {
@@ -136,7 +136,7 @@ impl<'a, 'd> Emitter<'a, 'd> {
                         match *pattern {
                             nir::Pattern::Any => {}
                             nir::Pattern::Exact(bits) => {
-                                self.cells_pattern_width(cell, value_width, bits.width())?
+                                self.cells_pattern_width(cell, value_width, bits.width())?;
                             }
                             nir::Pattern::Masked { value, mask } => {
                                 self.cells_pattern_width(cell, value_width, value.width())?;

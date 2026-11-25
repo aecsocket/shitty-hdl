@@ -1,9 +1,9 @@
-mod slop;
+// mod slop;
 
 pub use board;
 
 use board::Board;
-use front::{In, Out};
+use front::port::{In, Out};
 use std::{backtrace::Backtrace, mem, num::NonZero};
 
 #[derive(Debug)]
@@ -19,9 +19,9 @@ pub struct Platform {
 }
 
 #[derive(Debug)]
-pub struct UartPort {
-    pub tx: Out<bool>,
-    pub rx: In<bool>,
+pub struct UartPort<'d> {
+    pub tx: Out<'d, bool>,
+    pub rx: In<'d, bool>,
 }
 
 #[derive(Debug)]
@@ -32,7 +32,6 @@ pub struct Ddr3Port {
 #[derive(Debug)]
 pub struct Resources<T> {
     items: Vec<ResourceState<T>>,
-    owner: ir::DesignId,
 }
 
 #[derive(Debug)]
@@ -44,11 +43,6 @@ enum ResourceState<T> {
 impl<T> Resources<T> {
     #[track_caller]
     fn take_(&mut self, index: usize) -> T {
-        assert_eq!(
-            self.owner,
-            ir::io::design_id(),
-            "resource belongs to another elaboration"
-        );
         let state = self.items.get_mut(index).expect("invalid resource index");
         if let ResourceState::Used { at } = state {
             panic!("item already used at {at:?}");
@@ -69,41 +63,47 @@ impl<T> Resources<T> {
 impl Resources<board::Reset> {
     #[track_caller]
     pub fn take(&mut self, index: usize) -> In<bool> {
-        slop::reset(self.take_(index), index)
+        todo!();
+        // slop::reset(self.take_(index), index)
     }
 }
 
 impl Resources<board::Led> {
     #[track_caller]
     pub fn take(&mut self, index: usize) -> Out<bool> {
-        slop::led(self.take_(index), index)
+        todo!();
+        // slop::led(self.take_(index), index)
     }
 }
 
 impl Resources<board::Button> {
     #[track_caller]
     pub fn take(&mut self, index: usize) -> In<bool> {
-        slop::button(self.take_(index), index)
+        todo!();
+        // slop::button(self.take_(index), index)
     }
 }
 
 impl Resources<board::Switch> {
     #[track_caller]
     pub fn take(&mut self, index: usize) -> In<bool> {
-        slop::switch(self.take_(index), index)
+        todo!();
+        // slop::switch(self.take_(index), index)
     }
 }
 
 impl Resources<board::Uart> {
     #[track_caller]
-    pub fn take(&mut self, index: usize) -> UartPort {
-        slop::uart(self.take_(index), index)
+    pub fn take(&mut self, index: usize) -> UartPort<'_> {
+        todo!();
+        // slop::uart(self.take_(index), index)
     }
 }
 
 impl Platform {
     #[must_use]
     pub fn from_board(board: Board) -> Self {
-        slop::from_board(board)
+        todo!();
+        // slop::from_board(board)
     }
 }

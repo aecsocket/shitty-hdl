@@ -2,9 +2,9 @@
 
 ## Elaboration
 
-- `front`: the user-facing, high-level API types such as `Signal<T>`, `Module`, integer types, packed types, and control flow.
-- `pir`: the program IR (modules and statements), and how to lower `front` to `pir`.
-- `nir`: the netlist IR (nets, cells, and wires), and how to lower `pir` to `nir`.
+- `front`: the user-facing, high-level API types such as `Signal<T>`, `Module`, integer types, packed types, and control flow; lowers to `pir`.
+- `pir`: the program IR (modules and statements); lowers to `nir`.
+- `nir`: the netlist IR (nets, cells, and wires); lowers to `rtlil`.
 - `rtlil`: how to lower `nir` into [Yosys RTLIL][rtlil].
 - `irt`: shared IR crate utilities.
 

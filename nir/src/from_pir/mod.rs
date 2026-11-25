@@ -79,7 +79,7 @@ const fn width(shape: pir::Shape) -> u32 {
     }
 }
 
-fn driver_domain(domain: Option<pir::ClockedDomain<'_>>) -> DriverDomain {
+const fn driver_domain(domain: Option<pir::ClockedDomain<'_>>) -> DriverDomain {
     match domain {
         None => DriverDomain::Comb,
         Some(domain) => DriverDomain::Clocked {
@@ -367,8 +367,8 @@ impl<'d> Lowerer<'d> {
                     });
                     valid = false;
                 }
-                if let Some(mask) = mask {
-                    if mask.width() != expected {
+                if let Some(mask) = mask
+                    && mask.width() != expected {
                         self.errors.push(LowerError::PatternWidthMismatch {
                             part: PatternPart::Mask,
                             expected,
@@ -376,7 +376,6 @@ impl<'d> Lowerer<'d> {
                         });
                         valid = false;
                     }
-                }
             }
             let guard = if let Some(guard) = arm.guard {
                 if width(guard.ty.0.shape) != 1 {

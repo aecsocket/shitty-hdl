@@ -1,13 +1,13 @@
 use super::{LowerError, Lowerer};
 use crate as nir;
 
-fn expr_width(shape: pir::Shape) -> u32 {
+const fn expr_width(shape: pir::Shape) -> u32 {
     match shape {
         pir::Shape::Bits(width) | pir::Shape::Unsigned(width) | pir::Shape::Signed(width) => width,
     }
 }
 
-fn expr_signed(shape: pir::Shape) -> bool {
+const fn expr_signed(shape: pir::Shape) -> bool {
     matches!(shape, pir::Shape::Signed(_))
 }
 

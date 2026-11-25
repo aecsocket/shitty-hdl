@@ -24,7 +24,7 @@ fn valid(name: Ident, errors: &mut Vec<LowerError>) {
     }
 }
 
-fn width(cell: nir::CellRef<'_>) -> usize {
+const fn width(cell: nir::CellRef<'_>) -> usize {
     match *cell.0 {
         nir::Cell::Input(x) => x.width as usize,
         nir::Cell::Unary(x) => match x.op {
@@ -307,7 +307,7 @@ struct Emitter<'a, 'd> {
     serial: usize,
 }
 
-impl<'a, 'd> Emitter<'a, 'd> {
+impl<'d> Emitter<'_, 'd> {
     fn fresh(&mut self) -> ast::Id {
         let id = ast::Id::Internal(Ident::new(format!("n{}", self.serial)));
         self.serial += 1;
@@ -360,11 +360,11 @@ impl<'a, 'd> Emitter<'a, 'd> {
         ast::SigSpec::Select {
             value: self.bump.alloc(value),
             select: if width == 1 {
-                ast::Select::Bit(offset as i32)
+                ast::Select::Bit(i32::try_from(offset).expect("validated RTLIL bit offset"))
             } else {
                 ast::Select::Range {
-                    msb: (offset + width - 1) as i32,
-                    lsb: offset as i32,
+                    msb: i32::try_from(offset + width - 1).expect("validated RTLIL range end"),
+                    lsb: i32::try_from(offset).expect("validated RTLIL range start"),
                 }
             },
         }
@@ -396,13 +396,13 @@ impl<'a, 'd> Emitter<'a, 'd> {
             return;
         };
         for item in &mut self.items {
-            if let ast::ModuleItem::Wire(wire) = item {
-                if wire.name == name {
-                    wire.attributes = self.bump.alloc_slice_copy(&[ast::Attribute {
-                        name: ast::Id::Public(Ident::new("init")),
-                        value,
-                    }]);
-                }
+            if let ast::ModuleItem::Wire(wire) = item
+                && wire.name == name
+            {
+                wire.attributes = self.bump.alloc_slice_copy(&[ast::Attribute {
+                    name: ast::Id::Public(Ident::new("init")),
+                    value,
+                }]);
             }
         }
     }
@@ -539,7 +539,7 @@ impl<'a, 'd> Emitter<'a, 'd> {
             };
             let wire = self.wire_named(
                 ast::Id::Public(port.name),
-                width as u32,
+                width.cast_unsigned(),
                 Some(ast::WirePort {
                     id: id.try_into().unwrap(),
                     direction: match port.flow {
@@ -552,7 +552,7 @@ impl<'a, 'd> Emitter<'a, 'd> {
             if port.flow != nir::Flow::In {
                 continue;
             }
-            for (bit, &net) in port.value.0.iter().enumerate() {
+            for (bit, &net) in (0u32..).zip(port.value.0.iter()) {
                 let net = match self.canonical(net) {
                     Ok(n) => n,
                     Err(e) => {
@@ -564,7 +564,7 @@ impl<'a, 'd> Emitter<'a, 'd> {
                     errors.push(LowerError::InvalidInputPort {
                         module: self.module,
                         port: port.name,
-                        bit: bit as u32,
+                        bit,
                     });
                     continue;
                 };
@@ -573,7 +573,7 @@ impl<'a, 'd> Emitter<'a, 'd> {
                     errors.push(LowerError::InvalidInputPort {
                         module: self.module,
                         port: port.name,
-                        bit: bit as u32,
+                        bit,
                     });
                     continue;
                 }
@@ -588,10 +588,10 @@ impl<'a, 'd> Emitter<'a, 'd> {
                     errors.push(LowerError::DuplicateInputBit {
                         module: self.module,
                         port: port.name,
-                        bit: bit as u32,
+                        bit,
                     });
                 } else {
-                    self.nets.insert(net, self.select(wire, bit as u32, 1));
+                    self.nets.insert(net, self.select(wire, bit, 1));
                 }
             }
         }
@@ -627,17 +627,17 @@ impl<'a, 'd> Emitter<'a, 'd> {
                 let Ok(width) = i32::try_from(port.value.0.len()) else {
                     continue;
                 };
-                let wire = self.wire(width as u32);
+                let wire = self.wire(width.cast_unsigned());
                 connections.push(ast::PortConnection {
                     port: ast::Id::Public(port.name),
                     value: wire,
                 });
-                for (bit, &net) in port.value.0.iter().enumerate() {
+                for (bit, &net) in (0u32..).zip(port.value.0.iter()) {
                     match self.canonical(net) {
                         Ok(net @ Net::Cell { cell, .. })
                             if self.ctx.inside(self.ctx.owners[&cell].0, child) =>
                         {
-                            let value = self.select(wire, bit as u32, 1);
+                            let value = self.select(wire, bit, 1);
                             self.nets.entry(net).or_insert(value);
                         }
                         Ok(_) => {}
@@ -706,10 +706,8 @@ impl<'a, 'd> Emitter<'a, 'd> {
                     invalid = true;
                 }
             }
-            if !invalid {
-                if let Err(e) = self.lower_cell(cell) {
-                    errors.push(e);
-                }
+            if !invalid && let Err(e) = self.lower_cell(cell) {
+                errors.push(e);
             }
         }
         for (port, wire) in port_wires {

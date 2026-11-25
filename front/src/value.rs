@@ -5,15 +5,15 @@ use derive_more::Debug;
 use crate::signal::SignalView;
 
 pub trait Shape: Sized {
-    type View: Copy;
+    type View<'d>: Copy;
 }
 
 impl Shape for () {
-    type View = SignalView<Self>;
+    type View<'d> = SignalView<'d, Self>;
 }
 
 impl Shape for bool {
-    type View = SignalView<Self>;
+    type View<'d> = SignalView<'d, Self>;
 }
 
 #[derive(Debug)]

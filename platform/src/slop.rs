@@ -1,11 +1,7 @@
 use std::num::NonZero;
 
-use shitty_hdl_board::{ActiveOn, Board, Button, Led, Pin, Reset, Switch, Uart};
-use shitty_hdl_core::{
-    ir,
-    module::{In, Out, Sync},
-    util::Period,
-};
+use board::{ActiveOn, Board, Button, Led, Pin, Reset, Switch, Uart};
+use front::{In, Out, Sync, util::Period};
 
 use crate::{Platform, ResourceState, Resources, UartPort};
 

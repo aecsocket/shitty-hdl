@@ -45,6 +45,7 @@ nursery = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 option_if_let_else = "allow"
 too_many_lines = "allow"
+similar_names = "allow"
 
 [dependencies]
 board = { workspace = true }

@@ -96,7 +96,7 @@ pub(super) fn check_cycles<'d>(
     errors
 }
 
-fn value_bit<'d>(value: nir::Value<'d>, bit: u32) -> Result<nir::Net<'d>, super::LowerError> {
+fn value_bit(value: nir::Value<'_>, bit: u32) -> Result<nir::Net<'_>, super::LowerError> {
     value
         .0
         .get(bit as usize)
@@ -131,32 +131,28 @@ fn dependencies_for_bit<'d>(
                 dependencies.push(value_bit(binary.lhs, bit)?);
                 dependencies.push(value_bit(binary.rhs, bit)?);
             }
-            nir::BinaryOp::Shl | nir::BinaryOp::Shr(_) => {
+            nir::BinaryOp::Shl | nir::BinaryOp::Shr(_)
                 if binary
                     .rhs
                     .0
                     .iter()
-                    .all(|net| matches!(net, nir::Net::Const(_)))
+                    .all(|net| matches!(net, nir::Net::Const(_))) =>
+            {
+                let amount = binary.rhs.0.iter().rev().fold(0usize, |amount, net| {
+                    amount
+                        .saturating_mul(2)
+                        .saturating_add(usize::from(*net == nir::Net::ONE))
+                });
+                let source = match binary.op {
+                    nir::BinaryOp::Shl => index.checked_sub(amount),
+                    _ => index.checked_add(amount),
+                };
+                if let Some(net) = source.and_then(|source| binary.lhs.0.get(source)) {
+                    dependencies.push(*net);
+                } else if matches!(binary.op, nir::BinaryOp::Shr(nir::Signedness::Signed))
+                    && let Some(sign) = binary.lhs.0.last()
                 {
-                    let amount = binary.rhs.0.iter().rev().fold(0usize, |amount, net| {
-                        amount
-                            .saturating_mul(2)
-                            .saturating_add(usize::from(*net == nir::Net::ONE))
-                    });
-                    let source = match binary.op {
-                        nir::BinaryOp::Shl => index.checked_sub(amount),
-                        _ => index.checked_add(amount),
-                    };
-                    if let Some(net) = source.and_then(|source| binary.lhs.0.get(source)) {
-                        dependencies.push(*net);
-                    } else if matches!(binary.op, nir::BinaryOp::Shr(nir::Signedness::Signed)) {
-                        if let Some(sign) = binary.lhs.0.last() {
-                            dependencies.push(*sign);
-                        }
-                    }
-                } else {
-                    dependencies.extend_from_slice(binary.lhs.0);
-                    dependencies.extend_from_slice(binary.rhs.0);
+                    dependencies.push(*sign);
                 }
             }
             _ => {
@@ -164,16 +160,17 @@ fn dependencies_for_bit<'d>(
                 dependencies.extend_from_slice(binary.rhs.0);
             }
         },
-        nir::Cell::Mux(mux) => match mux.select {
-            nir::Net::Const(select) => dependencies.push(value_bit(
-                if select {
-                    mux.when_true
-                } else {
-                    mux.when_false
-                },
-                bit,
-            )?),
-            _ => {
+        nir::Cell::Mux(mux) => {
+            if let nir::Net::Const(select) = mux.select {
+                dependencies.push(value_bit(
+                    if select {
+                        mux.when_true
+                    } else {
+                        mux.when_false
+                    },
+                    bit,
+                )?);
+            } else {
                 let when_true = value_bit(mux.when_true, bit)?;
                 let when_false = value_bit(mux.when_false, bit)?;
                 dependencies.push(when_true);
@@ -182,7 +179,7 @@ fn dependencies_for_bit<'d>(
                     dependencies.push(mux.select);
                 }
             }
-        },
+        }
         nir::Cell::Match(matcher) => {
             if matcher.enable != nir::Net::ZERO {
                 dependencies.push(matcher.enable);

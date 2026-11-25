@@ -1,4 +1,8 @@
-pub use shitty_hdl_board as board;
-pub use shitty_hdl_cli::*;
-pub use shitty_hdl_core::*;
-pub use shitty_hdl_platform as platform;
+pub mod prelude {
+    pub use front::prelude::*;
+}
+
+pub use board;
+pub use cli::*;
+pub use front::*;
+pub use platform;

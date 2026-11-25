@@ -1,4 +1,7 @@
-use std::{marker::PhantomData, ops};
+use std::{
+    marker::PhantomData,
+    ops::{self, Deref},
+};
 
 use crate::{IntoValue, Shape, Signal, Value};
 
@@ -47,7 +50,17 @@ pub trait SignalFlow {
 #[derive(Clone, Copy)]
 pub struct In<T: Shape>(Signal<T>);
 #[derive(Clone, Copy)]
-pub struct Out<T: Shape>(Signal<T>);
+pub struct Out<T: Shape> {
+    decomposed: T::Decomposed,
+}
+
+impl<T: Shape> Deref for Out<T> {
+    type Target = T::Decomposed;
+
+    fn deref(&self) -> &Self::Target {
+        &self.decomposed
+    }
+}
 
 impl<T: Shape> SignalFlow for In<T> {
     type Inverse = Out<T>;

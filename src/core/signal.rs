@@ -1,11 +1,23 @@
-use std::{marker::PhantomData, ops};
+use std::{
+    marker::PhantomData,
+    ops::{self, Deref},
+};
 
 use crate::{IntoValue, Shape, Value, elaborate::with_elaboration, impl_ops};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Signal<T: Shape> {
     id: SignalId,
+    decomposed: T::Decomposed,
     _phantom: PhantomData<T>,
+}
+
+impl<T: Shape> Deref for Signal<T> {
+    type Target = T::Decomposed;
+
+    fn deref(&self) -> &Self::Target {
+        &self.decomposed
+    }
 }
 
 impl<T: Shape> Signal<T> {

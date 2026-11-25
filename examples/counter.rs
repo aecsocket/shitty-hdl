@@ -1,9 +1,17 @@
 use shitty_hdl::{Bits, prelude::*};
 
-#[derive(Debug, Shape)]
 struct Foo {
     lo: u32,
     hi: u32,
+}
+
+struct FooSignals {
+    lo: Signal<u32>,
+    hi: Signal<u32>,
+}
+
+impl Shape for Foo {
+    type Signals = FooSignals;
 }
 
 #[module]

@@ -6,9 +6,11 @@ pub use {cmp::*, num::*};
 use {crate::Bits, std::marker::PhantomData};
 
 pub trait Shape: Clone + Copy {
-    fn to_bits(self) -> Bits;
+    type Decomposed;
 
-    fn from_bits(bits: Bits) -> Option<Self>;
+    //     fn to_bits(self) -> Bits;
+    //
+    //     fn from_bits(bits: Bits) -> Option<Self>;
 }
 
 impl Shape for bool {

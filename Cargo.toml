@@ -14,8 +14,10 @@ typenum = "1.20.1"
 generic-array = { version = "1.4.5", features = ["const-default"] }
 verilog-gen = { path = "verilog-gen/" }
 const-default = "1.0.0"
+anyhow = { version = "1.0.104" }
 lasso = { version = "0.7.3" }
 syn = { version = "3.0.9" }
+tracing = { version = "0.1.44" }
 quote = { version = "1.0.47" }
 proc-macro2 = { version = "1.0.107" }
 shitty-hdl-derive = { path = "derive/" }

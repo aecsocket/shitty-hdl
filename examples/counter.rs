@@ -54,5 +54,5 @@ pub fn my_counter(
 
 fn main() {
     let board = shitty_hdl::board::arty_a7::A7_100T;
-    shitty_hdl::cli(board, |_| my_counter());
+    shitty_hdl::cli!(board, |_| my_counter());
 }

@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+cargo_metadata = "0.23"
 shitty-hdl-core = { workspace = true }
 shitty-hdl-board = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
+anyhow = { workspace = true }
+tracing = { workspace = true }

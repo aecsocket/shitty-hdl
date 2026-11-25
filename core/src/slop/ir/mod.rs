@@ -7,7 +7,7 @@ pub(crate) mod signal;
 pub use bits::PackedBits;
 pub use expr::Value;
 pub(crate) use expr::shape_type;
-pub use runtime::elaborate_named as elaborate;
+pub use runtime::elaborate;
 use std::{
     any::TypeId,
     collections::{BTreeSet, HashMap, VecDeque},

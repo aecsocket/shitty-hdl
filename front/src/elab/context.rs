@@ -5,7 +5,7 @@ use std::{any::TypeId, collections::HashMap};
 
 use bumpalo::Bump;
 
-use super::{ActionHandle, BranchHandle, DesignId, ExprHandle, InterfaceHandle};
+use super::{ActionHandle, BranchHandle, DesignId, ExprHandle, InterfaceHandle, LocalHandle};
 use crate::value::Shape;
 
 pub struct Frame<'dsn> {
@@ -18,6 +18,22 @@ pub struct Branch<'dsn> {
     pub parent_scope: usize,
     pub block: air::Block<'dsn>,
     pub result: &'dsn air::Expr<'dsn>,
+}
+
+/// How the body currently being elaborated reports its completion.
+#[derive(Debug, Clone, Copy)]
+pub enum ReturnTarget {
+    /// Async rule/method bodies: write the result (if any) and jump to `done`.
+    State {
+        done: usize,
+        result: Option<super::RegisterHandle>,
+        /// Rule bodies discard a returned value instead of typing it.
+        discard: bool,
+    },
+    /// Combinational action bodies: assign the action's output local.
+    Local(LocalHandle),
+    /// Bodies with nothing to deliver (unit outputs).
+    Unit,
 }
 
 pub struct ModuleState<'dsn> {
@@ -78,6 +94,8 @@ pub struct Context<'dsn> {
     scope_parents: Vec<usize>,
     pub(crate) branches: Vec<Branch<'dsn>>,
     pub(crate) async_flow: Option<super::fsm::Flow>,
+    pub(crate) return_target: Option<ReturnTarget>,
+    pub(crate) locals: Vec<&'dsn air::Local<'dsn>>,
 }
 
 macro_rules! record {
@@ -131,6 +149,8 @@ impl<'dsn> Context<'dsn> {
             scope_parents: vec![0],
             branches: Vec::new(),
             async_flow: None,
+            return_target: None,
+            locals: Vec::new(),
         }
     }
 
@@ -206,6 +226,20 @@ impl<'dsn> Context<'dsn> {
         self.expression_owners.push(self.id);
         self.expressions.push((expr, self.current_scope()));
         handle
+    }
+
+    pub(crate) fn push_local(&mut self, local: &'dsn air::Local<'dsn>) -> LocalHandle {
+        let handle = LocalHandle {
+            design_id: self.design_id,
+            index: self.locals.len(),
+        };
+        self.locals.push(local);
+        handle
+    }
+
+    pub(crate) fn local(&self, handle: LocalHandle) -> &'dsn air::Local<'dsn> {
+        self.check_design(handle.design_id);
+        self.locals[handle.index]
     }
 
     pub(crate) fn expr(&mut self, handle: ExprHandle) -> &'dsn air::Expr<'dsn> {

@@ -11,7 +11,7 @@ use crate::{
     elab,
     elab::ExprHandle,
     ops::BitCmp,
-    value::{IntoValue, IntoValues, Shape, U, Value},
+    value::{IntoValue, IntoValues, ReturnValue, Shape, U, Value},
 };
 
 /// Marks a condition, iterator, or match scrutinee as elaboration-time
@@ -127,14 +127,8 @@ impl<D: Domain, In: Shape, Out: Shape> Action<D, In, Out> {
         DefineAction(Some(cond.into_value()), PhantomData)
     }
 
-    pub fn define_as<O>(f: impl AsyncFnOnce(AsyncCx, Value<D, In>) -> O) -> Self
-    where
-        O: IntoValues<D, Values = Out::Values<D>>,
-    {
-        Self::from_handle(elab::define_action::<D, In, Out>(
-            None,
-            async move |cx, packed| f(cx, packed).await.into_values(),
-        ))
+    pub fn define_as(f: impl AsyncFnOnce(AsyncCx, Value<D, In>)) -> Self {
+        Self::from_handle(elab::define_action::<D, In, Out>(None, f))
     }
 
     pub fn call(
@@ -152,15 +146,9 @@ pub struct DefineAction<D: Domain, In: Shape, Out: Shape>(
 );
 
 impl<D: Domain, In: Shape, Out: Shape> DefineAction<D, In, Out> {
-    pub fn define_as<O>(self, f: impl AsyncFnOnce(AsyncCx, Value<D, In>) -> O) -> Action<D, In, Out>
-    where
-        O: IntoValues<D, Values = Out::Values<D>>,
-    {
+    pub fn define_as(self, f: impl AsyncFnOnce(AsyncCx, Value<D, In>)) -> Action<D, In, Out> {
         let guard = self.0.map(super::value::Value::handle);
-        Action::from_handle(elab::define_action::<D, In, Out>(
-            guard,
-            async move |cx, packed| f(cx, packed).await.into_values(),
-        ))
+        Action::from_handle(elab::define_action::<D, In, Out>(guard, f))
     }
 }
 
@@ -310,14 +298,26 @@ impl<D: Domain, T: Shape + BitCmp> Future for AsyncFor<'_, D, T> {
 
 /// Token proving the current body is an async rule or method body.
 ///
-/// Produced by `define_async_rule`/`define_async_method` and passed into
-/// the body closure by the `hdl` macro; it cannot be constructed by user
-/// code.
+/// Produced by `define_async_rule`/`define_async_method` and passed into the
+/// body closure by the `hdl` macro; `#[hdl]` async functions obtain it with
+/// [`AsyncCx::assume`] inside the body they are awaited from.
 #[derive(Debug, Clone, Copy)]
 pub struct AsyncCx(());
 
 impl AsyncCx {
     pub(crate) const fn new() -> Self {
+        Self(())
+    }
+
+    /// Token for an `#[hdl]` async function body, which the macro injects.
+    ///
+    /// The function is awaited inside an async rule or method body and its
+    /// suspensions extend that body's state machine; this only panics at
+    /// elaboration time when no such body is active, so the token cannot
+    /// enable suspension outside one.
+    #[must_use]
+    pub fn assume() -> Self {
+        elab::assert_async_body();
         Self(())
     }
 
@@ -333,6 +333,42 @@ impl AsyncCx {
         then: impl AsyncFnOnce() -> V + 'a,
     ) -> AsyncIf<'a, D, V> {
         AsyncIf::new(cond.into_value(), Box::pin(then()))
+    }
+
+    /// Leaves the innermost hardware loop immediately. Macro-rewritten
+    /// `break` statements call this; user code should write `break`.
+    pub fn break_(self) {
+        elab::break_loop();
+    }
+
+    /// Completes the current body early with a value. Macro-rewritten `return`
+    /// statements call this; user code should write `return`.
+    pub fn return_<V: ReturnValue>(self, value: V) {
+        elab::return_value(value.pack().handle());
+    }
+
+    /// Completes the current body early without a value.
+    pub fn return_unit(self) {
+        elab::return_unit();
+    }
+
+    /// Completes the current body with the value of its tail expression.
+    /// Macro-generated code calls this; user code should write the value.
+    pub fn finish<V: ReturnValue>(self, value: V) {
+        elab::finish_value(value.pack().handle());
+    }
+
+    /// Completes the current body when its tail is unit.
+    pub fn finish_unit(self) {
+        elab::finish_unit();
+    }
+
+    /// Runs the innermost hardware loop's iteration step (test and jump for
+    /// `while`, index increment for `for`). Macro-generated code calls this on
+    /// every path that falls off the end of a loop body, and rewrites
+    /// `continue` to it.
+    pub fn loop_next(self) {
+        elab::loop_next();
     }
 
     /// Hardware `while` loop inside an async body. The condition is evaluated

@@ -1,4 +1,5 @@
 - `references/` contains external reference source code. Use CLI tools to discover and read those files, instead of using editor harness tools.
 - Use `target/` for specific experiments; scratch files there are not built by cargo.
+- Always bound `simulate` runs with either a timeout or the `--cycles`/`-c` limit, e.g. `cargo run --example foo -- simulate --cycles 100`.
 - Do not write comments, doc comments, or markdown files unless prompted by the user.
 - Do not write tests unless prompted by the user.

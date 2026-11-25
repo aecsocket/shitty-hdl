@@ -14,6 +14,7 @@ pub use bumpalo::Bump;
 use scoped_tls_hkt::scoped_thread_local;
 use std::cell::RefCell;
 
+pub use body::if_;
 pub(crate) use body::{
     call_action, capture_branch, define_action, define_action_sync, finish_if, pack_input,
 };
@@ -24,11 +25,13 @@ pub use expr::{
     struct_field, tuple, tuple_element, uint_from_u128, unary, write_struct_field,
 };
 pub use fsm::{
-    LoweredIf, define_async_method, define_async_rule, lower_async_for, lower_async_if,
-    lower_async_while, unit_value,
+    LoweredIf, assert_async_body, break_loop, define_async_method, define_async_rule, finish_unit,
+    finish_value, loop_next, lower_async_for, lower_async_if, lower_async_while, return_unit,
+    return_value, unit_value,
 };
 pub(crate) use handle::{
-    ActionHandle, BranchHandle, ClockHandle, ExprHandle, InterfaceHandle, RegisterHandle,
+    ActionHandle, BranchHandle, ClockHandle, ExprHandle, InterfaceHandle, LocalHandle,
+    RegisterHandle,
 };
 pub use interface::{input_interface, interface_action, module, subinterface};
 pub(crate) use primitive::bram;

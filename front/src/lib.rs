@@ -4,6 +4,7 @@
 
 pub mod elements;
 
+pub mod capture;
 pub mod domain;
 pub mod elab;
 pub mod io;
@@ -13,6 +14,7 @@ pub mod ops;
 pub mod reg;
 pub mod value;
 pub mod prelude {
+    pub use crate::capture::Capture;
     pub use crate::domain::{Clock, Domain};
     pub use crate::elab::elaborate;
     pub use crate::elements;
@@ -41,6 +43,7 @@ pub use derive::*;
 pub mod __ {
     pub use crate::elab::context::Context;
     pub use crate::elab::handle::{ActionHandle, ExprHandle, InterfaceHandle};
+    pub use crate::elab::if_;
     pub use crate::elab::sim_panic;
     pub use crate::elements::{DisplayArgHardware, DisplayArgText, DisplaySpec};
     pub use bon;

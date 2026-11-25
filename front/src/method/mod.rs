@@ -66,14 +66,9 @@ impl<D: Domain, In: Shape, Out: Shape> Method<D, In, Out> {
     /// method's interface, so calls and results are checked against it.
     /// The body may suspend with `.await`; a body that never suspends
     /// completes in a single cycle after the request.
-    pub fn define_as<O>(clk: Clock<D>, f: impl AsyncFnOnce(AsyncCx, Value<D, In>) -> O) -> Self
-    where
-        O: IntoValues<D, Values = Out::Values<D>>,
-    {
+    pub fn define_as(clk: Clock<D>, f: impl AsyncFnOnce(AsyncCx, Value<D, In>)) -> Self {
         clk.ensure();
-        let (req, out) = elab::define_async_method::<D, In, Out, _>(async move |cx, packed| {
-            f(cx, packed).await.into_values()
-        });
+        let (req, out) = elab::define_async_method::<D, In, Out, _>(f);
         Self::new(req, out)
     }
 }

@@ -19,4 +19,5 @@ handle!(
     pub InterfaceHandle,
     pub ClockHandle,
     pub BranchHandle,
+    pub LocalHandle,
 );

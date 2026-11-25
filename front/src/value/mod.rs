@@ -11,9 +11,12 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, ShlAssign};
 
+use crate::capture::Capture;
 use crate::domain::Domain;
 use crate::elab::{self, Context, ExprHandle};
+use crate::module::LoopDomain;
 use crate::ops::Arith;
+use crate::reg::Reg;
 
 /// The type of a hardware value: how it is typed, laid out, and packed.
 /// Domain-agnostic; the clock domain lives on [`Value`].
@@ -115,6 +118,7 @@ pub trait IntoValue<D: Domain, Out: Shape>: private::Sealed {
 }
 
 mod private {
+    use crate::capture::Capture;
     use crate::domain::Domain;
     use crate::io::Output;
     use crate::reg::Reg;
@@ -126,6 +130,7 @@ mod private {
     impl<D: Domain, T: Shape> Sealed for super::Value<D, T> {}
     impl<D: Domain> Sealed for Output<D> {}
     impl<D: Domain, T: Shape> Sealed for Reg<D, T> {}
+    impl<D: Domain, T: Shape> Sealed for Capture<D, T> {}
     impl<D: Domain, S: Shape, T: Shape> Sealed for FieldView<D, S, T> {}
 
     macro_rules! impl_sealed_int {
@@ -150,6 +155,119 @@ impl<D: Domain, T: Shape> IntoValue<D, T> for Value<D, T> {
         self
     }
 }
+
+/// Coercion for the value a body completes with: its tail expression or a
+/// `return` value.
+///
+/// Unlike [`IntoValues`], a value with a domain carries it, so the body's
+/// output type is checked at elaboration, and unit or shape literals use a
+/// placeholder domain - which is what lets a unit-valued tail such as an
+/// `if`/`match` statement finish a body without naming a domain.
+pub trait ReturnValue {
+    type Domain: Domain;
+    type Out: Shape;
+
+    fn pack(self) -> Value<Self::Domain, Self::Out>;
+}
+
+impl<D: Domain, T: Shape> ReturnValue for Value<D, T> {
+    type Domain = D;
+    type Out = T;
+
+    fn pack(self) -> Self {
+        self
+    }
+}
+
+impl<D: Domain, T: Shape> ReturnValue for Reg<D, T> {
+    type Domain = D;
+    type Out = T;
+
+    fn pack(self) -> Value<D, T> {
+        self.read()
+    }
+}
+
+impl<D: Domain, T: Shape> ReturnValue for Capture<D, T> {
+    type Domain = D;
+    type Out = T;
+
+    fn pack(self) -> Value<D, T> {
+        self.read()
+    }
+}
+
+/// Unit-valued completions have no domain to carry.
+impl ReturnValue for () {
+    type Domain = LoopDomain;
+    type Out = ();
+
+    fn pack(self) -> Value<Self::Domain, ()> {
+        elab::literal(&())
+    }
+}
+
+macro_rules! impl_return_value_literal {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl ReturnValue for $ty {
+                type Domain = LoopDomain;
+                type Out = $ty;
+
+                fn pack(self) -> Value<Self::Domain, $ty> {
+                    elab::literal(&self)
+                }
+            }
+        )*
+    };
+}
+
+impl_return_value_literal!(bool);
+
+impl<const N: usize> ReturnValue for U<N> {
+    type Domain = LoopDomain;
+    type Out = Self;
+
+    fn pack(self) -> Value<Self::Domain, Self> {
+        elab::literal(&self)
+    }
+}
+
+impl<const N: usize> ReturnValue for Bit<N> {
+    type Domain = LoopDomain;
+    type Out = Self;
+
+    fn pack(self) -> Value<Self::Domain, Self> {
+        elab::literal(&self)
+    }
+}
+
+macro_rules! impl_return_value_tuple {
+    ($($T:ident),*) => {
+        impl<D: Domain, $($T: Shape),*> ReturnValue for ($(Value<D, $T>,)*) {
+            type Domain = D;
+            type Out = ($($T,)*);
+
+            fn pack(self) -> Value<D, Self::Out> {
+                let values = <Self as IntoValues<D>>::into_values(self);
+                <Self::Out as Shape>::pack_values::<D>(values)
+            }
+        }
+
+        // A tuple of shape literals, e.g. `(u!(8:1), u!(8:2))`.
+        impl<$($T: Shape),*> ReturnValue for ($($T,)*) {
+            type Domain = crate::module::LoopDomain;
+            type Out = ($($T,)*);
+
+            fn pack(self) -> Value<Self::Domain, Self::Out> {
+                let values = <Self as IntoValues<Self::Domain>>::into_values(self);
+                <Self::Out as Shape>::pack_values::<Self::Domain>(values)
+            }
+        }
+    };
+}
+
+variadics_please::all_tuples!(impl_return_value_tuple, 1, 15, T);
 
 impl<D: Domain, T: Shape + Arith> IntoValue<D, T> for u128 {
     fn into_value(self) -> Value<D, T> {

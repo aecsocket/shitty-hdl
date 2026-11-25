@@ -20,7 +20,7 @@ fn derive_(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let options = syn::parse2::<Options>(attr)?;
     let crate_ = &options.crate_;
     let mut function = syn::parse2::<ItemFn>(input)?;
-    hdl::rewrite(&mut function.block, crate_)?;
+    hdl::rewrite(&mut function.block, crate_, false, 0)?;
     let name = &function.sig.ident;
     let body = &function.block;
     *function.block = parse_quote! {

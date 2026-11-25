@@ -6,7 +6,7 @@ use std::{
 use crate::{
     domain::Domain,
     module::AsyncCx,
-    value::{IntoValues, Shape, Value},
+    value::{IntoValue, IntoValues, Shape, Value},
 };
 
 use super::context::Branch;
@@ -45,7 +45,7 @@ impl Drop for BodyScope {
 
 pub fn define_action<D: Domain, In: Shape, Out: Shape>(
     guard: Option<ExprHandle>,
-    f: impl AsyncFnOnce(AsyncCx, Value<D, In>) -> Out::Values<D>,
+    f: impl AsyncFnOnce(AsyncCx, Value<D, In>),
 ) -> ActionHandle {
     let definition = with_context(|cx| {
         assert!(
@@ -80,26 +80,46 @@ pub fn define_action<D: Domain, In: Shape, Out: Shape>(
         let input = cx.alloc(air::Expr { ty: input_ty, kind });
         cx.push_expr(input)
     });
+    let local = with_context(|cx| {
+        if matches!(cx.ty::<Out>(), air::Type::Unit) {
+            return None;
+        }
+        let ty = cx.ty::<Out>();
+        let name = cx.alloc_str(&format!("action_out_{}", cx.methods.len()));
+        let local = cx.alloc(air::Local { name, ty });
+        let undefined = cx.alloc(air::Expr {
+            ty,
+            kind: air::ExprKind::Undefined,
+        });
+        cx.emit(air::Statement::Let {
+            local,
+            value: undefined,
+        });
+        Some(cx.push_local(local))
+    });
+    let target = local.map_or(super::context::ReturnTarget::Unit, |local| {
+        super::context::ReturnTarget::Local(local)
+    });
+    let previous = with_context(|cx| cx.return_target.replace(target));
     let mut future = std::pin::pin!(f(AsyncCx::new(), Value::from_handle(input)));
-    let result = {
+    {
         let mut task = TaskContext::from_waker(Waker::noop());
         match future.as_mut().poll(&mut task) {
-            Poll::Ready(value) => value,
+            Poll::Ready(()) => {}
             Poll::Pending => {
                 panic!("action bodies cannot suspend; use a Method for multi-cycle bodies")
             }
         }
-    };
-    let result = Out::pack_values(result).handle();
+    }
     let handle = with_context(|cx| {
-        let result = cx.typed_expr::<Out>(result);
-        cx.emit(air::Statement::Return(
-            if matches!(result.ty, air::Type::Unit) {
-                None
-            } else {
-                Some(result)
-            },
-        ));
+        let result = local.map(|handle| {
+            let local = cx.local(handle);
+            cx.alloc(air::Expr {
+                ty: local.ty,
+                kind: air::ExprKind::Local(local),
+            })
+        });
+        cx.emit(air::Statement::Return(result));
         let body = cx.end_body();
         let signature = cx.definitions[definition];
         let guard = guard.map(|handle| cx.typed_expr::<bool>(handle));
@@ -110,6 +130,7 @@ pub fn define_action<D: Domain, In: Shape, Out: Shape>(
         });
         cx.push_action(air::MethodRef::Local(method))
     });
+    with_context(|cx| cx.return_target = previous);
     scope.active = false;
     handle
 }
@@ -367,4 +388,16 @@ fn branch_block<'dsn>(
     } else {
         branch.block
     }
+}
+
+pub fn if_<D: Domain, V: IntoValues<D>>(
+    cond: impl IntoValue<D, bool>,
+    then: impl FnOnce() -> V,
+    else_: impl FnOnce() -> V,
+) -> V::Values {
+    let cond = capture_branch(|| cond.into_value());
+    let then = capture_branch(then);
+    let else_ = capture_branch(else_);
+    let value = finish_if::<D, V::Out>(vec![(cond, then)], Some(else_));
+    V::Out::make_values(value)
 }

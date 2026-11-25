@@ -6,7 +6,7 @@ use crate::{
     elab,
     ops::Bits,
     reg::Reg,
-    value::{Shape, Uint, Value},
+    value::{Shape, U, Value},
 };
 
 pub trait Shift: Bits {
@@ -32,19 +32,19 @@ impl<D: Domain, T: Shape + Shift> Shr<usize> for Value<D, T> {
 }
 
 pub trait ShlZext<const N: usize, D: Domain>: 'static {
-    fn shl_zext<const SHIFT: usize>(self) -> Value<D, Uint<{ N + SHIFT }>>
+    fn shl_zext<const SHIFT: usize>(self) -> Value<D, U<{ N + SHIFT }>>
     where
         [(); N + SHIFT]:;
 }
 
 pub trait ShrTrunc<const N: usize, D: Domain>: 'static {
-    fn shr_trunc<const SHIFT: usize>(self) -> Value<D, Uint<{ N - SHIFT }>>
+    fn shr_trunc<const SHIFT: usize>(self) -> Value<D, U<{ N - SHIFT }>>
     where
         [(); N - SHIFT]:;
 }
 
-impl<D: Domain, const N: usize> ShlZext<N, D> for Value<D, Uint<N>> {
-    fn shl_zext<const SHIFT: usize>(self) -> Value<D, Uint<{ N + SHIFT }>>
+impl<D: Domain, const N: usize> ShlZext<N, D> for Value<D, U<N>> {
+    fn shl_zext<const SHIFT: usize>(self) -> Value<D, U<{ N + SHIFT }>>
     where
         [(); N + SHIFT]:,
     {
@@ -52,8 +52,8 @@ impl<D: Domain, const N: usize> ShlZext<N, D> for Value<D, Uint<N>> {
     }
 }
 
-impl<D: Domain, const N: usize> ShrTrunc<N, D> for Value<D, Uint<N>> {
-    fn shr_trunc<const SHIFT: usize>(self) -> Value<D, Uint<{ N - SHIFT }>>
+impl<D: Domain, const N: usize> ShrTrunc<N, D> for Value<D, U<N>> {
+    fn shr_trunc<const SHIFT: usize>(self) -> Value<D, U<{ N - SHIFT }>>
     where
         [(); N - SHIFT]:,
     {

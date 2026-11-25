@@ -4,7 +4,7 @@ use std::ptr;
 use crate::{
     domain::Domain,
     elab::{Context, ExprHandle, with_context},
-    value::{IntoValue, Shape, Uint, Value, ValueView},
+    value::{IntoValue, Shape, U, Value, ValueView},
 };
 
 pub struct Vector<T, const N: usize>(pub [T; N]);
@@ -18,7 +18,7 @@ impl<T: Shape, const N: usize> Vector<T, N> {
     #[must_use]
     pub fn select<D: Domain, const W: usize>(
         &self,
-        index: impl IntoValue<D, Out = Uint<W>>,
+        index: impl IntoValue<D, Out = U<W>>,
     ) -> Value<D, T> {
         assert!(
             N == 1 || 1_usize << W >= N,
@@ -26,7 +26,7 @@ impl<T: Shape, const N: usize> Vector<T, N> {
         );
         let index = index.into_value();
         Value::from_handle(with_context(|cx| {
-            let index = cx.typed_expr::<Uint<W>>(index.handle());
+            let index = cx.typed_expr::<U<W>>(index.handle());
             let value = self.air_value(cx);
             let air::Type::Vector { element, .. } = value.ty else {
                 panic!("select requires a vector value")

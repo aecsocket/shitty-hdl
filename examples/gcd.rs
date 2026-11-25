@@ -33,8 +33,8 @@ pub fn gcd(platform: Platform) {
         platform.led.take(3).output(clk),
     ];
 
-    let mut x = Reg::new(clk, uint!(32:0));
-    let mut y = Reg::new(clk, uint!(32:0));
+    let mut x = Reg::new(clk, u!(32:0));
+    let mut y = Reg::new(clk, u!(32:0));
     let mut busy = Reg::new(clk, false);
     let mut done = Reg::new(clk, false);
 
@@ -44,26 +44,26 @@ pub fn gcd(platform: Platform) {
     // Start a new computation on button press.
     Rule::when(!busy & !done & !start).define_as(|| {
         displayln!("starting gcd({A}, {B})");
-        x <<= uint!(A);
-        y <<= uint!(B);
+        x <<= u!(A);
+        y <<= u!(B);
         busy <<= true;
         done <<= false;
     });
 
     // Reduce the larger operand; the guards below are mutually
     // exclusive, so the rules never conflict.
-    Rule::when(busy & (x >= y) & (y != uint!(0))).define_as(|| {
+    Rule::when(busy & (x >= y) & (y != u!(0))).define_as(|| {
         displayln!("x={x} y={y}: x -= y -> {}", x - y);
         x <<= x - y;
     });
 
-    Rule::when(busy & (y > x) & (x != uint!(0))).define_as(|| {
+    Rule::when(busy & (y > x) & (x != u!(0))).define_as(|| {
         displayln!("x={x} y={y}: y -= x -> {}", y - x);
         y <<= y - x;
     });
 
     // One operand reached zero: the other holds the GCD.
-    Rule::when(busy & (x == uint!(0)) | (y == uint!(0))).define_as(|| {
+    Rule::when(busy & (x == u!(0)) | (y == u!(0))).define_as(|| {
         let result = x + y;
         displayln!("gcd = {result} (0x{result:x}, 0b{result:b})");
         busy <<= false;

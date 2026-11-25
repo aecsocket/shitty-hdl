@@ -25,8 +25,8 @@ pub mod prelude {
         ShrTrunc, Trunc, Unpack, Zext,
     };
     pub use crate::reg::Reg;
-    pub use crate::value::{Bit, IntoValue, IntoValues, Shape, Uint, Value, Vector};
-    pub use crate::{bit, display, displayln, sim_assert, uint};
+    pub use crate::value::{Bit, IntoValue, IntoValues, Shape, U, Value, Vector};
+    pub use crate::{bit, display, displayln, sim_assert, u};
     pub use derive::{Arith, ArithCmp, BitCmp, Bits, Domain, Interface, Shape, Shift, hdl, module};
 }
 

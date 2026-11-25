@@ -10,29 +10,29 @@ use shitty_hdl::prelude::*;
 pub struct Sync;
 
 #[derive(Debug, Clone, Shape, Bits, Arith)]
-pub struct Word(pub Uint<64>);
+pub struct Word(pub U<64>);
 
 #[derive(Debug, Clone, Shape, Bits, Arith)]
-pub struct Addr(pub Uint<45>);
+pub struct Addr(pub U<45>);
 
 #[derive(Debug, Clone, Shape, Bits, Arith, BitCmp, ArithCmp)]
-pub struct PageAddr(pub Uint<40>);
+pub struct PageAddr(pub U<40>);
 
 impl PageAddr {
     #[must_use]
     pub fn zero() -> Self {
-        Self(uint!(0))
+        Self(u!(0))
     }
 
     #[must_use]
     pub fn invalid() -> Self {
-        Self(uint!(:1))
+        Self(u!(:1))
     }
 }
 
 impl Addr {
     pub fn from_page<D: Domain>(page: impl IntoValue<D, Out = PageAddr>) -> Value<D, Self> {
-        page.repack::<Uint<40>>().shl_zext::<5>().repack::<Self>()
+        page.repack::<U<40>>().shl_zext::<5>().repack::<Self>()
     }
 }
 

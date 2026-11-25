@@ -1,7 +1,7 @@
 use crate::{
-    elab,
-    value::{Bit, Uint},
     domain::Domain,
+    elab,
+    value::{Bit, U},
     value::{IntoValue, Shape, Value},
 };
 
@@ -100,16 +100,16 @@ pub trait Zext<D: Domain> {
     fn zext<const TO: usize>(self) -> Value<D, Self::To<TO>>;
 }
 
-impl<D: Domain, const N: usize> Trunc<D> for Value<D, Uint<N>> {
-    type To<const TO: usize> = Uint<TO>;
+impl<D: Domain, const N: usize> Trunc<D> for Value<D, U<N>> {
+    type To<const TO: usize> = U<TO>;
 
     fn trunc<const TO: usize>(self) -> Value<D, Self::To<TO>> {
         elab::cast(air::CastKind::Truncate, self)
     }
 }
 
-impl<D: Domain, const N: usize> Zext<D> for Value<D, Uint<N>> {
-    type To<const TO: usize> = Uint<TO>;
+impl<D: Domain, const N: usize> Zext<D> for Value<D, U<N>> {
+    type To<const TO: usize> = U<TO>;
 
     fn zext<const TO: usize>(self) -> Value<D, Self::To<TO>> {
         elab::cast(air::CastKind::ZeroExtend, self)

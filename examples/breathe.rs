@@ -20,10 +20,10 @@ pub fn top(platform: Platform) {
     let clk_hz = clk.hz.get();
     let cycles_per_duty_step = clk_hz / DUTY_PERIOD;
 
-    let mut pwm_cycles = Reg::new(clk, uint!(32:0));
-    let mut breathe_cycles = Reg::new(clk, uint!(32:0));
-    let mut duty = Reg::new(clk, uint!(8:0));
-    let gamma_lut = Vector::<Uint<7>, 100>::from_fn(|i| Uint::from(map_duty(i as u64)));
+    let mut pwm_cycles = Reg::new(clk, u!(32:0));
+    let mut breathe_cycles = Reg::new(clk, u!(32:0));
+    let mut duty = Reg::new(clk, u!(8:0));
+    let gamma_lut = Vector::<U<7>, 100>::from_fn(|i| U::from(map_duty(i as u64)));
 
     Rule::define_as(|| {
         // duty cycle for LED

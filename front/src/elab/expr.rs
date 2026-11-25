@@ -1,6 +1,6 @@
 use crate::{
     domain::Domain,
-    value::{IntoValue, Uint, Value},
+    value::{IntoValue, U, Value},
 };
 use std::ptr;
 
@@ -120,10 +120,10 @@ pub fn cast<D: Domain, From: Shape, To: Shape>(
 }
 
 #[must_use]
-pub fn uint_from_u128<D: Domain, const N: usize>(value: u128) -> Value<D, Uint<N>> {
+pub fn uint_from_u128<D: Domain, const N: usize>(value: u128) -> Value<D, U<N>> {
     assert!(
         N >= 128 || value >> N == 0,
-        "integer operand does not fit Uint<N>"
+        "integer operand does not fit U<N>"
     );
     Value::from_handle(with_context(|cx| {
         let mut words = vec![0; N.div_ceil(64)];
@@ -138,7 +138,7 @@ pub fn uint_from_u128<D: Domain, const N: usize>(value: u128) -> Value<D, Uint<N
         if let Some(word) = words.get_mut(1) {
             *word = hi;
         }
-        let expr = cx.bits::<Uint<N>>(&words);
+        let expr = cx.bits::<U<N>>(&words);
         cx.push_expr(expr)
     }))
 }
@@ -152,7 +152,7 @@ pub fn shift<D: Domain, T: Shape>(
     let amount = uint_from_u128::<D, 64>(amount as u128);
     Value::from_handle(with_context(|cx| {
         let lhs = cx.typed_expr::<T>(value.handle());
-        let rhs = cx.typed_expr::<Uint<64>>(amount.handle());
+        let rhs = cx.typed_expr::<U<64>>(amount.handle());
         let expr = cx.alloc(air::Expr {
             ty: lhs.ty,
             kind: air::ExprKind::Binary { op, lhs, rhs },
@@ -164,17 +164,17 @@ pub fn shift<D: Domain, T: Shape>(
 #[must_use]
 pub fn shift_resize<D: Domain, const FROM: usize, const TO: usize>(
     op: air::BinaryOp,
-    value: Value<D, Uint<FROM>>,
+    value: Value<D, U<FROM>>,
     amount: usize,
-) -> Value<D, Uint<TO>> {
+) -> Value<D, U<TO>> {
     match op {
         air::BinaryOp::ShiftLeft => shift(
             op,
-            cast::<D, Uint<FROM>, Uint<TO>>(air::CastKind::ZeroExtend, value),
+            cast::<D, U<FROM>, U<TO>>(air::CastKind::ZeroExtend, value),
             amount,
         ),
         air::BinaryOp::ShiftRight => {
-            cast::<D, Uint<FROM>, Uint<TO>>(air::CastKind::Truncate, shift(op, value, amount))
+            cast::<D, U<FROM>, U<TO>>(air::CastKind::Truncate, shift(op, value, amount))
         }
         _ => panic!("expected shift operation"),
     }

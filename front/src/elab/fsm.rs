@@ -9,7 +9,7 @@ use crate::{
     domain::Domain,
     elab,
     module::Action,
-    value::{IntoValues, Shape, Uint, Value},
+    value::{IntoValues, Shape, U, Value},
 };
 
 use super::{RegisterHandle, with_context};
@@ -35,7 +35,7 @@ struct StateReg {
 
 impl StateReg {
     fn new() -> Self {
-        let (id, _) = super::register_default::<Internal, _>(Some(Uint::<32>::zero()));
+        let (id, _) = super::register_default::<Internal, _>(Some(U::<32>::zero()));
         Self { id }
     }
 
@@ -43,12 +43,12 @@ impl StateReg {
         super::register_default::<D, T>(None).0
     }
 
-    fn read(&self) -> Value<Internal, Uint<32>> {
-        elab::read_register::<Internal, Uint<32>>(self.id)
+    fn read(&self) -> Value<Internal, U<32>> {
+        elab::read_register::<Internal, U<32>>(self.id)
     }
 
-    fn write(&self, value: Value<Internal, Uint<32>>) {
-        elab::write_register::<Internal, Uint<32>>(self.id, value);
+    fn write(&self, value: Value<Internal, U<32>>) {
+        elab::write_register::<Internal, U<32>>(self.id, value);
     }
 }
 
@@ -60,7 +60,7 @@ pub struct Flow {
     done: Option<usize>,
 }
 
-fn state_value(value: usize) -> Value<Internal, Uint<32>> {
+fn state_value(value: usize) -> Value<Internal, U<32>> {
     super::uint_from_u128::<Internal, 32>(value as u128)
 }
 
@@ -317,8 +317,8 @@ pub fn lower_async_if<'a, D: Domain, R: IntoValues<D>>(
     with_context(|cx| {
         let register = cx.register_for_write(state.id.index);
         let condition = cx.typed_expr::<bool>(cond.handle());
-        let then_value = cx.typed_expr::<Uint<32>>(then_state.handle());
-        let else_value = cx.typed_expr::<Uint<32>>(else_state.handle());
+        let then_value = cx.typed_expr::<U<32>>(then_state.handle());
+        let else_value = cx.typed_expr::<U<32>>(else_state.handle());
         cx.emit(air::Statement::If {
             condition,
             then_body: air::Block {

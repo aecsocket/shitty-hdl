@@ -18,7 +18,7 @@ const DUTY_CYCLE_PERIOD: u64 = 10;
 fn top(platform: Platform) {
     let clk = platform.clock::<Clk>();
 
-    let mut timer = Reg::new(clk, uint!(32:0));
+    let mut timer = Reg::new(clk, u!(32:0));
     let mut led = platform.led.take(0).output(clk);
 
     Rule::define_as(|| {

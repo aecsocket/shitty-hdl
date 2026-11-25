@@ -12,12 +12,12 @@ pub fn blinky(platform: Platform) {
 
     let mut led = platform.led.take(0).output(clk.clock);
     let button = platform.button.take(0).input(clk.clock);
-    let mut timer = Reg::new(clk.clock, Uint::<64>::zero());
+    let mut timer = Reg::new(clk.clock, u!(64:0));
 
     Rule::define_as(|| {
         if timer == half_freq {
             led <<= !led;
-            timer <<= uint!(0);
+            timer <<= u!(0);
         } else if !button {
             timer <<= timer + 1;
         }

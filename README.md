@@ -33,14 +33,14 @@ In fact, after a bit of research I found that [TxHDL] does almost exactly this. 
 By using Rust's own async/await machinery to express "hardware async" (I mean that's basically what it is[^5]), you can write something that looks like Bluespec's guarded atomic actions, but compose like Rust async calls. For example, a simple memory allocator with a free list would look like:
 
 ```rs
-type PageAddr = Uint<45>;
+type PageAddr = U<45>;
 
 let alloc: Method<(), PageAddr>;
 //                ^^  ^^^^^^^^
 //                in  out
 
-let free_head = Reg::new(clock, uint!(0));
-let free_list_len = Reg::new(clock, uint!(0));
+let free_head = Reg::new(clock, u!(0));
+let free_list_len = Reg::new(clock, u!(0));
 
 let alloc = Method::define_as(async |()| {
     if free_list_len > 0 {

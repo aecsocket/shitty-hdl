@@ -1,22 +1,25 @@
 use std::ptr;
 
-use crate::{domain::Clock, value::Shape};
+use crate::{
+    domain::{Clock, Domain},
+    value::Shape,
+};
 
 use super::{ActionHandle, Context, ExprHandle, with_context};
 
 impl<'dsn> Context<'dsn> {
-    fn io_domain(&mut self, clock: Clock) -> &'dsn air::Domain<'dsn> {
+    fn io_domain<D: Domain>(&mut self, clock: Clock<D>) -> &'dsn air::Domain<'dsn> {
         let domain = match clock.handle {
-            None => match self.domain_cache.get(&clock.identity) {
+            None => match self.domain_cache.get(&clock.identity()) {
                 Some(&(_, domain)) => domain,
-                None => self.intern_domain(clock.identity, "clk").1,
+                None => self.intern_domain(clock.identity(), "clk").1,
             },
             Some(handle) => {
                 self.check_design(handle.design_id);
                 let domain = self.domains[handle.index];
                 let canonical = self
                     .domain_cache
-                    .get(&clock.identity)
+                    .get(&clock.identity())
                     .expect("unregistered clock domain")
                     .1;
                 assert!(ptr::eq(domain, canonical), "clock domain identity mismatch");
@@ -75,7 +78,11 @@ impl<'dsn> Context<'dsn> {
     }
 }
 
-pub fn output(clock: Clock, name: &str, active_low: bool) -> (ExprHandle, ActionHandle) {
+pub fn output<D: Domain>(
+    clock: Clock<D>,
+    name: &str,
+    active_low: bool,
+) -> (ExprHandle, ActionHandle) {
     with_context(|cx| {
         cx.in_root(|cx| {
             let domain = cx.io_domain(clock);
@@ -110,7 +117,7 @@ pub fn output(clock: Clock, name: &str, active_low: bool) -> (ExprHandle, Action
     })
 }
 
-pub fn input(clock: Clock, name: &str, active_low: bool) -> ExprHandle {
+pub fn input<D: Domain>(clock: Clock<D>, name: &str, active_low: bool) -> ExprHandle {
     with_context(|cx| {
         cx.in_root(|cx| {
             let domain = cx.io_domain(clock);

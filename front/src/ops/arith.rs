@@ -2,6 +2,7 @@ use std::ops::{Add, Sub};
 
 use crate::{
     ops::Bits,
+    domain::Domain,
     reg::Reg,
     value::{IntoValue, Shape, Value},
 };
@@ -46,7 +47,7 @@ impl<T: Arith> Sub<u128> for Value<T> {
     }
 }
 
-impl<T: Shape, Rhs> Add<Rhs> for Reg<T>
+impl<D: Domain, T: Shape, Rhs> Add<Rhs> for Reg<D, T>
 where
     Value<T>: Add<Rhs>,
 {
@@ -57,7 +58,7 @@ where
     }
 }
 
-impl<T: Shape, Rhs> Sub<Rhs> for Reg<T>
+impl<D: Domain, T: Shape, Rhs> Sub<Rhs> for Reg<D, T>
 where
     Value<T>: Sub<Rhs>,
 {

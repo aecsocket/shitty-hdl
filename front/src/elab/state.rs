@@ -1,5 +1,5 @@
 use crate::{
-    domain::Clock,
+    domain::{Clock, Domain},
     elab::handle::{ClockHandle, RegisterHandle},
     value::{Shape, Value},
 };
@@ -11,7 +11,13 @@ use super::with_context;
 pub fn clock_input<D: 'static>(name: &str) -> ClockHandle {
     with_context(|cx| {
         let (index, domain) = cx.intern_domain(TypeId::of::<D>(), name);
-        if !cx.parameters.iter().any(|parameter| matches!(parameter, air::Parameter::Clock { domain: existing } if ptr::eq(*existing, domain))) {
+        if cx.parameters.iter().any(|parameter| matches!(parameter, air::Parameter::Clock { domain: existing } if ptr::eq(*existing, domain))) {
+            assert!(
+                domain.name == name,
+                "clock domains are singletons: domain is already bound to clock {:?}",
+                domain.name
+            );
+        } else {
             assert!(
                 cx.parameters.iter().all(|parameter| match parameter {
                     air::Parameter::Clock { domain } => domain.name != name,
@@ -29,19 +35,22 @@ pub fn clock_input<D: 'static>(name: &str) -> ClockHandle {
     })
 }
 
-pub fn register<T: Shape>(clock: Clock, init: Option<T>) -> (RegisterHandle, Value<T>) {
+pub fn register<D: Domain, T: Shape>(
+    clock: Clock<D>,
+    init: Option<T>,
+) -> (RegisterHandle, Value<T>) {
     let (handle, value) = with_context(|cx| {
         let domain = match clock.handle {
-            None => match cx.domain_cache.get(&clock.identity) {
+            None => match cx.domain_cache.get(&clock.identity()) {
                 Some(&(_, domain)) => domain,
-                None => cx.intern_domain(clock.identity, "clk").1,
+                None => cx.default_domain(clock.identity(), "clk"),
             },
             Some(handle) => {
                 cx.check_design(handle.design_id);
                 let domain = cx.domains[handle.index];
                 let canonical = cx
                     .domain_cache
-                    .get(&clock.identity)
+                    .get(&clock.identity())
                     .expect("unregistered clock domain")
                     .1;
                 assert!(ptr::eq(domain, canonical), "clock domain identity mismatch");

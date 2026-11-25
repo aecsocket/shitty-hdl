@@ -6,6 +6,10 @@ use front::data::{Bram, bram};
 use platform::Platform;
 use shitty_hdl::prelude::*;
 
+#[derive(Debug, Clone, Copy)]
+pub struct SysClk;
+impl Domain for SysClk {}
+
 #[derive(Debug, Clone, Shape, Bits, Arith)]
 pub struct Word(pub Uint<64>);
 
@@ -42,7 +46,7 @@ pub struct PageAlloc {
 }
 
 #[module]
-pub fn page_alloc(clk: Clock, mut heap: Heap) -> PageAlloc {
+pub fn page_alloc(clk: Clock<SysClk>, mut heap: Heap) -> PageAlloc {
     #[derive(Debug, Shape, BitCmp)]
     enum State {
         Idle,
@@ -52,14 +56,14 @@ pub fn page_alloc(clk: Clock, mut heap: Heap) -> PageAlloc {
         FreeDone,
     }
 
-    let mut next_clean = Reg::<PageAddr>::new(clk, PageAddr::zero());
-    let mut free_head = Reg::<PageAddr>::new(clk, PageAddr::invalid());
-    let mut free_count = Reg::<PageAddr>::new(clk, PageAddr::zero());
-    let mut state = Reg::<State>::new(clk, State::Idle);
+    let mut next_clean = Reg::new(clk, PageAddr::zero());
+    let mut free_head = Reg::new(clk, PageAddr::invalid());
+    let mut free_count = Reg::new(clk, PageAddr::zero());
+    let mut state = Reg::new(clk, State::Idle);
 
     // alloc
 
-    let mut alloc_out_r = Reg::<PageAddr>::uninit(clk);
+    let mut alloc_out_r = Reg::uninit(clk);
     let alloc_out = Action::when(state == State::AllocDone).define_as(|()| {
         state <<= State::Idle;
         alloc_out_r.read()
@@ -98,7 +102,7 @@ pub fn page_alloc(clk: Clock, mut heap: Heap) -> PageAlloc {
         state <<= State::Idle;
     });
 
-    let mut free_req_captured = Reg::<PageAddr>::uninit(clk);
+    let mut free_req_captured = Reg::uninit(clk);
     let free_req = Action::when(state == State::Idle).define_as(|page: Value<PageAddr>| {
         sim_assert!(page != PageAddr::invalid(), "freeing invalid page");
         display!("freeing page {:x}", page);
@@ -143,15 +147,15 @@ fn top(platform: Platform) {
         Free3Done,
     }
 
-    let clk = platform.default_clock().clock();
-    let mut led = platform.led.take(0);
+    let clk = platform.clock::<SysClk>().clock;
+    let mut led = platform.led.take(0).output(clk);
 
-    let heap = bram::<Addr, Word>().clk(clk).depth(32 * 1024).call();
+    let heap = bram::<SysClk, Addr, Word>().clk(clk).depth(32 * 1024).call();
     let mut pages = page_alloc(clk, heap);
-    let mut state = Reg::<State>::new(clk, State::Idle);
-    let mut page1 = Reg::<PageAddr>::uninit(clk);
-    let mut page2 = Reg::<PageAddr>::uninit(clk);
-    let mut page3 = Reg::<PageAddr>::uninit(clk);
+    let mut state = Reg::new(clk, State::Idle);
+    let mut page1 = Reg::uninit(clk);
+    let mut page2 = Reg::uninit(clk);
+    let mut page3 = Reg::uninit(clk);
 
     Rule::when(state == State::Idle).define_as(|| {
         display!("idle!");

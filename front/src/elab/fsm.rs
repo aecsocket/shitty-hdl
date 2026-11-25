@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     air,
-    domain::Clock,
+    domain::{Clock, DefaultDomain},
     module::Action,
     ops::{Arith, BitCmp},
     reg::Reg,
@@ -16,7 +16,7 @@ use crate::{
 use super::with_context;
 
 pub struct Flow {
-    pub(crate) state: Reg<Uint<32>>,
+    pub(crate) state: Reg<DefaultDomain, Uint<32>>,
     pub(crate) next: usize,
     pub(crate) current: usize,
     pub(crate) suppress: bool,
@@ -42,7 +42,7 @@ fn with_flow<R>(f: impl FnOnce(&mut Flow) -> R) -> R {
     })
 }
 
-const fn transition(flow: &mut Flow) -> Reg<Uint<32>> {
+const fn transition(flow: &mut Flow) -> Reg<DefaultDomain, Uint<32>> {
     let next = flow.next;
     flow.current = next;
     flow.next += 1;
@@ -70,7 +70,7 @@ fn poll_segment<F: Future + ?Sized>(future: Pin<&mut F>) -> Poll<F::Output> {
     poll
 }
 
-fn begin_flow(state: Reg<Uint<32>>) {
+fn begin_flow(state: Reg<DefaultDomain, Uint<32>>) {
     with_context(|cx| {
         assert!(cx.frames.is_empty(), "define async bodies at module scope");
         assert!(cx.async_flow.is_none(), "nested async body definition");
@@ -84,7 +84,7 @@ fn begin_flow(state: Reg<Uint<32>>) {
     });
 }
 
-fn close_state(state: Reg<Uint<32>>, index: usize) {
+fn close_state(state: Reg<DefaultDomain, Uint<32>>, index: usize) {
     let guard = BitCmp::eq(state.read(), state_value(index));
     with_context(|cx| {
         let guard = cx.typed_expr::<bool>(guard.handle());
@@ -134,15 +134,15 @@ where
     Out: Shape,
     F: AsyncFnOnce(In::Values) -> Out::Values + 'a,
 {
-    let state = Reg::<Uint<32>>::new(Clock::default(), Uint::zero());
+    let state = Reg::new(Clock::default(), Uint::<32>::zero());
     let (in_unit, out_unit) = with_context(|cx| {
         (
             matches!(cx.ty::<In>(), air::Type::Unit),
             matches!(cx.ty::<Out>(), air::Type::Unit),
         )
     });
-    let args = (!in_unit).then(|| Reg::<In>::uninit(Clock::default()));
-    let result = (!out_unit).then(|| Reg::<Out>::uninit(Clock::default()));
+    let args = (!in_unit).then(|| Reg::uninit(Clock::default()));
+    let result = (!out_unit).then(|| Reg::uninit(Clock::default()));
     begin_flow(state);
 
     let mut slot: Option<Pin<Box<dyn Future<Output = Out::Values> + 'a>>> = None;
@@ -217,7 +217,7 @@ where
     F: AsyncFnOnce() -> R + 'a,
     R: IntoValues,
 {
-    let state = Reg::<Uint<32>>::new(Clock::default(), Uint::zero());
+    let state = Reg::new(Clock::default(), Uint::<32>::zero());
     begin_flow(state);
 
     let mut slot: Option<Pin<Box<dyn Future<Output = R> + 'a>>> = None;
@@ -257,7 +257,7 @@ pub fn lower_async_if<'a, R: IntoValues>(
     else_: Pin<Box<dyn Future<Output = R> + 'a>>,
 ) -> Option<super::RegisterHandle> {
     let out_unit = with_context(|cx| matches!(cx.ty::<R::Out>(), air::Type::Unit));
-    let result = (!out_unit).then(|| super::register::<R::Out>(Clock::default(), None).0);
+    let result = (!out_unit).then(|| super::register(Clock::default(), None::<R::Out>).0);
 
     let (then_start, else_start, merge) = with_flow(|flow| {
         let then_start = flow.next;

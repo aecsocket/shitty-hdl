@@ -5,6 +5,10 @@ use board::arty_a7::A7_100T;
 use platform::Platform;
 use shitty_hdl::prelude::*;
 
+#[derive(Debug, Clone, Copy)]
+pub struct SysClk;
+impl Domain for SysClk {}
+
 fn main() {
     shitty_hdl::cli!(A7_100T, gcd);
 }
@@ -18,22 +22,22 @@ const B: u128 = 462;
 /// Press button 0 to start computing gcd(1071, 462) = 21.
 /// While computing, LED 0 is on. When done, LEDs 1-3 show the low
 /// three bits of the result (0b101 = 5).
-#[module(crate = shitty_hdl)]
+#[module]
 pub fn gcd(platform: Platform) {
-    let clk = platform.default_clock();
+    let clk = platform.clock::<SysClk>().clock;
 
-    let start = platform.button.take(0);
-    let mut busy_led = platform.led.take(0);
+    let start = platform.button.take(0).input(clk);
+    let mut busy_led = platform.led.take(0).output(clk);
     let mut result_leds = [
-        platform.led.take(1),
-        platform.led.take(2),
-        platform.led.take(3),
+        platform.led.take(1).output(clk),
+        platform.led.take(2).output(clk),
+        platform.led.take(3).output(clk),
     ];
 
-    let mut x = Reg::<Uint<32>>::new(clk, uint!(0));
-    let mut y = Reg::<Uint<32>>::new(clk, uint!(0));
-    let mut busy = Reg::<bool>::new(clk, false);
-    let mut done = Reg::<bool>::new(clk, false);
+    let mut x = Reg::new(clk, Uint::<32>::zero());
+    let mut y = Reg::new(clk, Uint::<32>::zero());
+    let mut busy = Reg::new(clk, false);
+    let mut done = Reg::new(clk, false);
 
     // Each rule is an atomic action that fires only when its guard
     // holds; the scheduler picks a consistent set every cycle.
@@ -68,7 +72,7 @@ pub fn gcd(platform: Platform) {
     });
 
     Rule::define_as(|| {
-        busy_led <<= busy;
+        busy_led <<= !busy;
         let value = x.read();
         result_leds[0] <<= done.read() & (value >> 0 == 1u32);
         result_leds[1] <<= done.read() & (value >> 1 == 1u32);

@@ -3,6 +3,7 @@ use std::ops::{Shl, Shr};
 use crate::{
     elab,
     ops::Bits,
+    domain::Domain,
     reg::Reg,
     value::{Shape, Uint, Value},
 };
@@ -59,7 +60,7 @@ impl<const N: usize> ShrTrunc<N> for Value<Uint<N>> {
     }
 }
 
-impl<T: Shape, Rhs> Shl<Rhs> for Reg<T>
+impl<D: Domain, T: Shape, Rhs> Shl<Rhs> for Reg<D, T>
 where
     Value<T>: Shl<Rhs>,
 {
@@ -70,7 +71,7 @@ where
     }
 }
 
-impl<T: Shape, Rhs> Shr<Rhs> for Reg<T>
+impl<D: Domain, T: Shape, Rhs> Shr<Rhs> for Reg<D, T>
 where
     Value<T>: Shr<Rhs>,
 {

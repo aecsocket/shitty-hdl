@@ -1,7 +1,7 @@
 mod demo;
 mod task;
 
-pub use demo::blinky;
+pub use demo::{SysClk, blinky};
 
 use anyhow::{Context as _, Result};
 use board::Board;

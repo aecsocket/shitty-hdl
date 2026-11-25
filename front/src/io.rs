@@ -1,22 +1,28 @@
+use std::marker::PhantomData;
 use std::ops::{BitAnd, BitOr, Not, ShlAssign};
 
 use crate::{
-    domain::Clock,
+    domain::{Clock, Domain},
     elab::{self, ActionHandle, ExprHandle},
     value::{IntoValue, IntoValues, Value},
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct Output {
+pub struct Output<D: Domain> {
     value: ExprHandle,
     writer: ActionHandle,
+    _brand: PhantomData<D>,
 }
 
-impl Output {
+impl<D: Domain> Output<D> {
     #[must_use]
-    pub fn new(clock: Clock, name: &str, active_low: bool) -> Self {
+    pub fn new(clock: Clock<D>, name: &str, active_low: bool) -> Self {
         let (value, writer) = elab::io::output(clock, name, active_low);
-        Self { value, writer }
+        Self {
+            value,
+            writer,
+            _brand: PhantomData,
+        }
     }
 
     #[must_use]
@@ -29,7 +35,7 @@ impl Output {
     }
 }
 
-impl IntoValue for Output {
+impl<D: Domain> IntoValue for Output<D> {
     type Out = bool;
 
     fn into_value(self) -> Value<bool> {
@@ -37,7 +43,7 @@ impl IntoValue for Output {
     }
 }
 
-impl IntoValues for Output {
+impl<D: Domain> IntoValues for Output<D> {
     type Out = bool;
     type Values = Value<bool>;
 
@@ -46,13 +52,13 @@ impl IntoValues for Output {
     }
 }
 
-impl<Rhs: IntoValue<Out = bool>> ShlAssign<Rhs> for Output {
+impl<D: Domain, Rhs: IntoValue<Out = bool>> ShlAssign<Rhs> for Output<D> {
     fn shl_assign(&mut self, rhs: Rhs) {
         self.write(rhs);
     }
 }
 
-impl Not for Output {
+impl<D: Domain> Not for Output<D> {
     type Output = Value<bool>;
 
     fn not(self) -> Self::Output {
@@ -60,7 +66,7 @@ impl Not for Output {
     }
 }
 
-impl<Rhs: IntoValue<Out = bool>> BitAnd<Rhs> for Output {
+impl<D: Domain, Rhs: IntoValue<Out = bool>> BitAnd<Rhs> for Output<D> {
     type Output = Value<bool>;
 
     fn bitand(self, rhs: Rhs) -> Self::Output {
@@ -68,7 +74,7 @@ impl<Rhs: IntoValue<Out = bool>> BitAnd<Rhs> for Output {
     }
 }
 
-impl<Rhs: IntoValue<Out = bool>> BitOr<Rhs> for Output {
+impl<D: Domain, Rhs: IntoValue<Out = bool>> BitOr<Rhs> for Output<D> {
     type Output = Value<bool>;
 
     fn bitor(self, rhs: Rhs) -> Self::Output {
@@ -77,6 +83,6 @@ impl<Rhs: IntoValue<Out = bool>> BitOr<Rhs> for Output {
 }
 
 #[must_use]
-pub fn input(clock: Clock, name: &str, active_low: bool) -> Value<bool> {
+pub fn input<D: Domain>(clock: Clock<D>, name: &str, active_low: bool) -> Value<bool> {
     Value::from_handle(elab::io::input(clock, name, active_low))
 }

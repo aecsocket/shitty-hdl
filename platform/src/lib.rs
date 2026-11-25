@@ -33,7 +33,7 @@ struct ResourceContext {
 }
 
 impl ResourceContext {
-    fn default_clock(&self) -> Option<(Clock, NonZero<u64>)> {
+    fn clock<D: Domain>(&self) -> Option<(Clock<D>, NonZero<u64>)> {
         let resource = self.clock?;
         let clock = Clock::input("clk");
         let mut bindings = self.bindings.borrow_mut();
@@ -62,8 +62,10 @@ pub struct Leds {
 }
 
 impl Leds {
+    /// Claims the LED pin; the domain is chosen when it is driven, via
+    /// [`Led::output`].
     #[must_use]
-    pub fn take(&self, index: usize) -> Output {
+    pub fn take(&self, index: usize) -> Led {
         let resource = *self.resources.get(index).expect("LED index out of range");
         let name = format!("led_{index}");
         assert!(
@@ -76,18 +78,30 @@ impl Leds {
                 .any(|binding| binding.name == name),
             "LED resource is already taken"
         );
-        let clock = self
-            .context
-            .default_clock()
-            .expect("LEDs require a default clock")
-            .0;
-        let output = Output::new(clock, &name, resource.active_on == board::ActiveOn::Low);
-        self.context
-            .bindings
-            .borrow_mut()
-            .led
-            .push(Binding { resource, name });
-        output
+        self.context.bindings.borrow_mut().led.push(Binding {
+            resource,
+            name: name.clone(),
+        });
+        Led { resource, name }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Led {
+    resource: board::Led,
+    name: String,
+}
+
+impl Led {
+    /// Creates the output register driving this pin in the given clock
+    /// domain.
+    #[must_use]
+    pub fn output<D: Domain>(&self, clock: Clock<D>) -> Output<D> {
+        Output::new(
+            clock,
+            &self.name,
+            self.resource.active_on == board::ActiveOn::Low,
+        )
     }
 }
 
@@ -98,8 +112,10 @@ pub struct Buttons {
 }
 
 impl Buttons {
+    /// Claims the button pin; the domain is chosen when it is read, via
+    /// [`Button::input`].
     #[must_use]
-    pub fn take(&self, index: usize) -> Value<bool> {
+    pub fn take(&self, index: usize) -> Button {
         let resource = *self
             .resources
             .get(index)
@@ -115,31 +131,37 @@ impl Buttons {
                 .any(|binding| binding.name == name),
             "button resource is already taken"
         );
-        let clock = self
-            .context
-            .default_clock()
-            .expect("buttons require a default clock")
-            .0;
-        let input = io::input(clock, &name, resource.active_on == board::ActiveOn::Low);
-        self.context
-            .bindings
-            .borrow_mut()
-            .button
-            .push(Binding { resource, name });
-        input
+        self.context.bindings.borrow_mut().button.push(Binding {
+            resource,
+            name: name.clone(),
+        });
+        Button { resource, name }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Button {
+    resource: board::Button,
+    name: String,
+}
+
+impl Button {
+    /// Creates the two-register synchronizer for this pin in the given
+    /// clock domain.
+    #[must_use]
+    pub fn input<D: Domain>(&self, clock: Clock<D>) -> Value<bool> {
+        io::input(
+            clock,
+            &self.name,
+            self.resource.active_on == board::ActiveOn::Low,
+        )
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct BoardClock {
-    pub clock: Clock,
+pub struct BoardClock<D: Domain> {
+    pub clock: Clock<D>,
     pub hz: NonZero<u64>,
-}
-
-impl Domain for BoardClock {
-    fn clock(self) -> Clock {
-        self.clock
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -151,17 +173,17 @@ pub struct Platform {
 }
 
 impl Platform {
-    /// The default clock together with its frequency; a board either has
-    /// both or neither, so they are a single value.
+    /// The board's default clock, branded with the caller's domain
+    /// marker. A board either has a default clock with its frequency or
+    /// neither, so they are a single value.
     #[must_use]
-    pub fn default_clock(&self) -> BoardClock {
-        self.try_default_clock()
-            .expect("design requires a default clock")
+    pub fn clock<D: Domain>(&self) -> BoardClock<D> {
+        self.try_clock().expect("board has no default clock")
     }
 
     #[must_use]
-    pub fn try_default_clock(&self) -> Option<BoardClock> {
-        let (clock, hz) = self.context.default_clock()?;
+    pub fn try_clock<D: Domain>(&self) -> Option<BoardClock<D>> {
+        let (clock, hz) = self.context.clock::<D>()?;
         Some(BoardClock { clock, hz })
     }
 

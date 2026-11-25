@@ -176,6 +176,34 @@ impl<'dsn> Context<'dsn> {
         (index, domain)
     }
 
+    /// Resolves the default domain: adopts the enclosing module's clock
+    /// domain if it already has one, so that registers created with
+    /// `Clock::default()` land in the module's clock instead of a
+    /// separate unconnected domain.
+    pub(crate) fn default_domain(
+        &mut self,
+        identity: TypeId,
+        name: &str,
+    ) -> &'dsn air::Domain<'dsn> {
+        if let Some(domain) = self
+            .parameters
+            .iter()
+            .find_map(|parameter| match parameter {
+                air::Parameter::Clock { domain } => Some(*domain),
+                _ => None,
+            })
+        {
+            let index = self
+                .domains
+                .iter()
+                .position(|existing| ptr::eq(*existing, domain))
+                .expect("module clock domain is not interned");
+            self.domain_cache.insert(identity, (index, domain));
+            return domain;
+        }
+        self.intern_domain(identity, name).1
+    }
+
     pub(crate) fn set_name(&mut self, name: &str) {
         self.name = self.alloc_str(name);
     }

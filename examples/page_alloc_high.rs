@@ -6,6 +6,10 @@ use front::data::{Bram, bram};
 use platform::Platform;
 use shitty_hdl::prelude::*;
 
+#[derive(Debug, Clone, Copy)]
+pub struct SysClk;
+impl Domain for SysClk {}
+
 #[derive(Debug, Clone, Shape, Bits, Arith)]
 pub struct Word(pub Uint<64>);
 
@@ -42,10 +46,10 @@ pub struct PageAlloc {
 }
 
 #[module]
-pub fn page_alloc(clk: Clock, heap: Heap) -> PageAlloc {
-    let mut next_clean = Reg::<PageAddr>::new(clk, PageAddr::zero());
-    let mut free_head = Reg::<PageAddr>::new(clk, PageAddr::invalid());
-    let mut free_count = Reg::<PageAddr>::new(clk, PageAddr::zero());
+pub fn page_alloc(clk: Clock<SysClk>, heap: Heap) -> PageAlloc {
+    let mut next_clean = Reg::new(clk, PageAddr::zero());
+    let mut free_head = Reg::new(clk, PageAddr::invalid());
+    let mut free_count = Reg::new(clk, PageAddr::zero());
 
     let alloc = Method::define_as(async |()| {
         if free_head == PageAddr::invalid() {
@@ -83,10 +87,13 @@ pub fn page_alloc(clk: Clock, heap: Heap) -> PageAlloc {
 
 #[module]
 fn top(platform: Platform) {
-    let clk = platform.default_clock().clock();
-    let mut led = platform.led.take(0);
+    let clk = platform.clock::<SysClk>().clock;
+    let mut led = platform.led.take(0).output(clk);
 
-    let heap = bram::<Addr, Word>().clk(clk).depth(32 * 1024).call();
+    let heap = bram::<SysClk, Addr, Word>()
+        .clk(clk)
+        .depth(32 * 1024)
+        .call();
     let pages = page_alloc(clk, heap);
 
     Rule::define_as(async || {

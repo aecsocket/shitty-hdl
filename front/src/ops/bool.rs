@@ -2,6 +2,7 @@ use std::ops::{BitAnd, BitOr, Not};
 
 use crate::{
     elab,
+    domain::Domain,
     reg::Reg,
     value::{IntoValue, Shape, Value},
 };
@@ -30,7 +31,7 @@ impl<Rhs: IntoValue<Out = bool>> BitAnd<Rhs> for Value<bool> {
     }
 }
 
-impl<T: Shape> Not for Reg<T>
+impl<D: Domain, T: Shape> Not for Reg<D, T>
 where
     Value<T>: Not,
 {
@@ -41,7 +42,7 @@ where
     }
 }
 
-impl<T: Shape, Rhs> BitOr<Rhs> for Reg<T>
+impl<D: Domain, T: Shape, Rhs> BitOr<Rhs> for Reg<D, T>
 where
     Value<T>: BitOr<Rhs>,
 {
@@ -52,7 +53,7 @@ where
     }
 }
 
-impl<T: Shape, Rhs> BitAnd<Rhs> for Reg<T>
+impl<D: Domain, T: Shape, Rhs> BitAnd<Rhs> for Reg<D, T>
 where
     Value<T>: BitAnd<Rhs>,
 {

@@ -1,43 +1,48 @@
-use std::any::TypeId;
+use std::{any::TypeId, marker::PhantomData};
 
 use crate::elab;
 
-pub trait Domain: Copy {
-    fn clock(self) -> Clock;
-}
+/// A type-level clock domain brand.
+///
+/// Each marker type names one clock domain; mixing values of different
+/// brands is rejected by the type system, and each brand must map to
+/// exactly one clock (enforced during elaboration).
+pub trait Domain: Copy + 'static {}
 
 #[derive(Debug, Clone, Copy)]
-pub struct Clock {
-    pub(crate) identity: TypeId,
+pub struct DefaultDomain;
+
+impl Domain for DefaultDomain {}
+
+/// A clock in the domain `D`.
+#[derive(Debug, Clone, Copy)]
+pub struct Clock<D: Domain> {
     pub(crate) handle: Option<elab::ClockHandle>,
+    _brand: PhantomData<D>,
 }
 
-impl Default for Clock {
-    fn default() -> Self {
-        Self {
-            identity: TypeId::of::<Self>(),
-            handle: None,
-        }
-    }
-}
-
-impl Clock {
+impl<D: Domain> Clock<D> {
+    /// Declares the clock input of domain `D`. Elaboration asserts that
+    /// `D` is only ever bound to one clock.
     #[must_use]
     pub fn input(name: &str) -> Self {
-        Self::input_for::<Self>(name)
+        Self {
+            handle: Some(elab::clock_input::<D>(name)),
+            _brand: PhantomData,
+        }
     }
 
-    #[must_use]
-    pub fn input_for<D: 'static>(name: &str) -> Self {
-        Self {
-            identity: TypeId::of::<D>(),
-            handle: Some(elab::clock_input::<D>(name)),
-        }
+    #[allow(clippy::unused_self)]
+    pub(crate) const fn identity(&self) -> TypeId {
+        TypeId::of::<D>()
     }
 }
 
-impl Domain for Clock {
-    fn clock(self) -> Clock {
-        self
+impl Default for Clock<DefaultDomain> {
+    fn default() -> Self {
+        Self {
+            handle: None,
+            _brand: PhantomData,
+        }
     }
 }

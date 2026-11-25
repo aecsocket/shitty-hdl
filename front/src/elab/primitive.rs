@@ -1,10 +1,15 @@
 use std::ptr;
 
-use crate::{data::Bram, domain::Clock, module::Interface, ops::Bits};
+use crate::{
+    data::Bram,
+    domain::{Clock, Domain},
+    module::Interface,
+    ops::Bits,
+};
 
 use super::with_context;
 
-pub fn bram<Addr: Bits, Data: Bits>(clock: Clock, depth: u64) -> Bram<Addr, Data> {
+pub fn bram<D: Domain, Addr: Bits, Data: Bits>(clock: Clock<D>, depth: u64) -> Bram<Addr, Data> {
     assert!(depth != 0, "BRAM depth must be nonzero");
     let address_width = u32::try_from(Addr::WIDTH).expect("BRAM address width exceeds u32");
     let data_width = u32::try_from(Data::WIDTH).expect("BRAM data width exceeds u32");
@@ -20,16 +25,16 @@ pub fn bram<Addr: Bits, Data: Bits>(clock: Clock, depth: u64) -> Bram<Addr, Data
             "cannot construct module instances in action bodies"
         );
         let domain = match clock.handle {
-            None => match cx.domain_cache.get(&clock.identity) {
+            None => match cx.domain_cache.get(&clock.identity()) {
                 Some(&(_, domain)) => domain,
-                None => cx.intern_domain(clock.identity, "clk").1,
+                None => cx.intern_domain(clock.identity(), "clk").1,
             },
             Some(handle) => {
                 cx.check_design(handle.design_id);
                 let domain = cx.domains[handle.index];
                 let canonical = cx
                     .domain_cache
-                    .get(&clock.identity)
+                    .get(&clock.identity())
                     .expect("unregistered clock domain")
                     .1;
                 assert!(ptr::eq(domain, canonical), "clock domain identity mismatch");

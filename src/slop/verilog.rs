@@ -40,7 +40,11 @@ fn number(value: u64, width: Option<u16>, origin: v::Origin) -> v::Expr {
     v::Expr::Lit(v::Lit::Int(v::LitInt {
         origin,
         width: width.and_then(std::num::NonZero::new),
-        radix: v::Radix::Hex,
+        radix: if width.is_some() {
+            v::Radix::Hex
+        } else {
+            v::Radix::Dec
+        },
         value,
     }))
 }
@@ -103,7 +107,7 @@ impl Values<'_> {
     fn get(&self, id: ValueId) -> Result<v::Expr, Error> {
         Ok(v::Expr::Name(self.name(id)?))
     }
-    fn expression(&self, value: &ir::Value, o: v::Origin) -> Result<v::Expr, Error> {
+    fn expression(&self, value: &ir::ValueData, o: v::Origin) -> Result<v::Expr, Error> {
         use ir::BinaryOp as B;
         Ok(match &value.kind {
             ValueKind::Constant(bits) => constant(bits, o),
@@ -234,7 +238,8 @@ pub fn to_ast(design: &ir::Design) -> Result<(v::Ast, v::OriginMap), Error> {
     let mut used = HashSet::new();
     let mut public_names = Vec::new();
     for s in &d.signals {
-        // Keep the first occurrence of a user name, deterministically suffix collisions.
+        // Keep the first occurrence of a user name, deterministically suffix
+        // collisions.
         public_names.push(fresh(&mut used, &s.name)?);
     }
     let mut clocks = HashMap::new();
@@ -402,4 +407,28 @@ pub fn to_ast(design: &ir::Design) -> Result<(v::Ast, v::OriginMap), Error> {
         });
     }
     Ok((v::Ast::Module(module), origins))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bounds_are_decimal_and_data_constants_remain_hex() {
+        let mut design = ir::Design::new("decimal_bounds");
+        design.add_signal(ir::Signal {
+            name: "output".into(),
+            ty: ir::ValueType {
+                width: 64,
+                signed: false,
+            },
+            init: ir::PackedBits::from_u64(64, 63),
+            port: Some(ir::PortDirection::Output),
+            source: None,
+        });
+        let text = lower(&design).unwrap();
+        assert!(text.contains("[63:0]"), "{text}");
+        assert!(!text.contains("['h"), "{text}");
+        assert!(text.contains("64'h3f"), "{text}");
+    }
 }

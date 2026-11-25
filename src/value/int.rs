@@ -1,5 +1,5 @@
 use crate::{
-    expr::{Expr, IntoExpr},
+    expr::{Value, IntoValue},
     signal::SignalView,
     util::ty::fits_unsigned,
     value::{Shape, ShapeSize, Width},
@@ -127,11 +127,11 @@ macro_rules! from_prim {
             }
         }
 
-        impl IntoExpr for $prim {
+        impl IntoValue for $prim {
             type Out = $wrap<$width>;
 
-            fn into_expr(self) -> Expr<Self::Out> {
-                Self::Out::from(self).into_expr()
+            fn into_value(self) -> Value<Self::Out> {
+                Self::Out::from(self).into_value()
             }
         }
     };

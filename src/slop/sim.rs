@@ -61,8 +61,8 @@ impl Simulator {
         self.settle()
     }
     pub fn settle(&mut self) -> Result<(), Error> {
-        // Re-evaluate against the current bit frontier. A vector cache cannot survive
-        // a bit commit: its other bits may have read not-yet-settled state.
+        // Re-evaluate against the current bit frontier. A vector cache cannot
+        // survive a bit commit: its other bits may have read not-yet-settled state.
         for &(signal, bit) in &self.compiled.comb_order {
             let driver = self
                 .compiled
@@ -709,7 +709,7 @@ mod tests {
         let z = constant(&mut d, 0, 0);
         write(&mut d, a, 0, 0, z, None, WriteDomain::Comb);
         assert!(Simulator::from_design(d.clone()).is_ok());
-        d.values.push(Value {
+        d.values.push(ValueData {
             ty: ty(1),
             kind: ValueKind::Read(SignalId(99)),
             source: None,

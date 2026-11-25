@@ -1,7 +1,6 @@
 use std::fmt;
 
-use crate::ast::*;
-use crate::{Origin, OriginMap};
+use crate::{Origin, OriginMap, ast::*};
 
 pub(crate) struct WithOrigins<'a> {
     pub ast: &'a Ast,
@@ -281,7 +280,8 @@ fn concat<T: fmt::Display>(values: &[T], f: &mut fmt::Formatter<'_>) -> fmt::Res
 }
 
 fn selection_base(value: &Expr, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    // Parenthesizing an arbitrary expression does not make it a legal SV select base.
+    // Parenthesizing an arbitrary expression does not make it a legal SV select
+    // base.
     match value {
         Expr::Name(_)
         | Expr::Index { .. }
@@ -303,7 +303,9 @@ impl fmt::Display for Expr {
                 condition,
                 then_value,
                 else_value,
-            } => write!(f, "({condition} ? {then_value} : {else_value})"),
+            } => {
+                write!(f, "({condition} ? {then_value} : {else_value})")
+            }
             Self::Index { value, index } => {
                 selection_base(value, f)?;
                 write!(f, "[{index}]")
@@ -398,7 +400,9 @@ impl fmt::Display for Target {
                 base,
                 width,
                 direction,
-            } => write!(f, "{value}[{base} {direction} {width}]"),
+            } => {
+                write!(f, "{value}[{base} {direction} {width}]")
+            }
             Self::Concat(values) => concat(values, f),
         }
     }

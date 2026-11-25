@@ -1,26 +1,26 @@
 use crate::{
-    expr::{EqExt, Expr, IntoExpr},
+    expr::{EqExt, Value, IntoValue},
     ir::BinaryOp,
 };
 
-impl<Lhs: IntoExpr> EqExt for Lhs {
+impl<Lhs: IntoValue> EqExt for Lhs {
     #[track_caller]
-    fn eq(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool> {
-        Expr {
+    fn eq(self, rhs: impl IntoValue<Out = Self::Out>) -> Value<bool> {
+        Value {
             imp: self
-                .into_expr()
+                .into_value()
                 .imp
-                .compare(rhs.into_expr().imp, BinaryOp::Eq),
+                .compare(rhs.into_value().imp, BinaryOp::Eq),
         }
     }
 
     #[track_caller]
-    fn ne(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool> {
-        Expr {
+    fn ne(self, rhs: impl IntoValue<Out = Self::Out>) -> Value<bool> {
+        Value {
             imp: self
-                .into_expr()
+                .into_value()
                 .imp
-                .compare(rhs.into_expr().imp, BinaryOp::Ne),
+                .compare(rhs.into_value().imp, BinaryOp::Ne),
         }
     }
 }

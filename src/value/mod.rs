@@ -1,7 +1,8 @@
 mod bits;
 mod int;
 
-pub use {bits::*, int::*};
+pub use bits::*;
+pub use int::*;
 
 use crate::signal::SignalView;
 use const_default::ConstDefault;

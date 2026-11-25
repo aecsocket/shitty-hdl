@@ -56,8 +56,8 @@
 // }
 //
 // impl heap {
-//     pub async fn read(&mut self, addr: impl IntoExpr<Out = Addr>) -> Value<Word> {
-//         let read_data = capture(self.read_data);
+//     pub async fn read(&mut self, addr: impl IntoValue<Out = Addr>) ->
+// Value<Word> {         let read_data = capture(self.read_data);
 //         comb(|| {
 //             self.do_read <<= true;
 //             self.read_addr <<= addr;
@@ -67,8 +67,8 @@
 //
 //     pub async fn write(
 //         &mut self,
-//         addr: impl IntoExpr<Out = Addr>,
-//         data: impl IntoExpr<Out = Word>,
+//         addr: impl IntoValue<Out = Addr>,
+//         data: impl IntoValue<Out = Word>,
 //     ) {
 //         comb(|| {
 //             self.do_write <<= true;

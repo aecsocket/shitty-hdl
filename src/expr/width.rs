@@ -1,7 +1,7 @@
 use typenum::{B1, IsGreaterOrEqual, IsLessOrEqual};
 
 use crate::{
-    expr::{Expr, IntoExpr},
+    expr::{Value, IntoValue},
     value::{Shape, Signed, Sint, Uint, Unsigned, Width},
 };
 
@@ -14,9 +14,9 @@ impl<From: Width, To: Width> CanZext<Uint<To>> for Uint<From> where
 }
 
 #[track_caller]
-pub fn zext<To: Shape>(lhs: impl IntoExpr<Out: CanZext<To>>) -> Expr<To> {
-    Expr {
-        imp: lhs.into_expr().imp.resize::<To>(true),
+pub fn zext<To: Shape>(lhs: impl IntoValue<Out: CanZext<To>>) -> Value<To> {
+    Value {
+        imp: lhs.into_value().imp.resize::<To>(true),
     }
 }
 
@@ -29,9 +29,9 @@ impl<From: Width, To: Width> CanSext<Sint<To>> for Sint<From> where
 }
 
 #[track_caller]
-pub fn sext<To: Shape>(lhs: impl IntoExpr<Out: CanSext<To>>) -> Expr<To> {
-    Expr {
-        imp: lhs.into_expr().imp.resize::<To>(true),
+pub fn sext<To: Shape>(lhs: impl IntoValue<Out: CanSext<To>>) -> Value<To> {
+    Value {
+        imp: lhs.into_value().imp.resize::<To>(true),
     }
 }
 
@@ -56,8 +56,8 @@ where
 }
 
 #[track_caller]
-pub fn trunc<To: Shape>(lhs: impl IntoExpr<Out: CanTrunc<To>>) -> Expr<To> {
-    Expr {
-        imp: lhs.into_expr().imp.resize::<To>(false),
+pub fn trunc<To: Shape>(lhs: impl IntoValue<Out: CanTrunc<To>>) -> Value<To> {
+    Value {
+        imp: lhs.into_value().imp.resize::<To>(false),
     }
 }

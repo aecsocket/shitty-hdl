@@ -73,7 +73,12 @@ fn checks(tb: &mut String, sim: &Simulator, case: &str) {
     for (i, signal) in sim.design().signals.iter().enumerate() {
         if signal.port == Some(P::Output) {
             let expected = literal(sim.get_signal(ir::SignalId(i)).unwrap());
-            writeln!(tb, "if ({} !== {expected}) $fatal(1, \"{case}: {} expected %b got %b\", {expected}, {});", signal.name, signal.name, signal.name).unwrap();
+            writeln!(
+        tb,
+        "if ({} !== {expected}) $fatal(1, \"{case}: {} expected %b got %b\", {expected}, {});",
+        signal.name, signal.name, signal.name
+      )
+      .unwrap();
         }
     }
 }
@@ -91,7 +96,8 @@ fn execute(design: &ir::Design, mut tb: String) {
     tb.push_str("$display(\"behavioral equivalence passed\");\n$finish;\nend\nendmodule\n");
     std::fs::write(scratch.join("design.sv"), verilog::lower(design).unwrap()).unwrap();
     std::fs::write(scratch.join("tb.sv"), tb).unwrap();
-    // Keep failed artifacts for reproducing exact simulator/backend discrepancies.
+    // Keep failed artifacts for reproducing exact simulator/backend
+    // discrepancies.
     let build = Command::new("verilator")
         .args([
             "--binary",

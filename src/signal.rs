@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut, ShlAssign};
 pub use crate::ir::signal::{Signal, SignalId, SignalView};
 
 use crate::{
-    expr::{Expr, IntoExpr},
+    expr::{Value, IntoValue},
     ir,
     value::Shape,
 };
@@ -46,22 +46,22 @@ impl<T: Shape> Signal<T> {
     }
 }
 
-impl<T: Shape> IntoExpr for Signal<T> {
+impl<T: Shape> IntoValue for Signal<T> {
     type Out = T;
     #[track_caller]
-    fn into_expr(self) -> Expr<T> {
-        Expr {
-            imp: ir::Expr::read(self.id, 0),
+    fn into_value(self) -> Value<T> {
+        Value {
+            imp: ir::Value::read(self.id, 0),
         }
     }
 }
 
-impl<T: Shape> IntoExpr for SignalView<T> {
+impl<T: Shape> IntoValue for SignalView<T> {
     type Out = T;
     #[track_caller]
-    fn into_expr(self) -> Expr<T> {
-        Expr {
-            imp: ir::Expr::read(self.id, self.offset),
+    fn into_value(self) -> Value<T> {
+        Value {
+            imp: ir::Value::read(self.id, self.offset),
         }
     }
 }
@@ -78,16 +78,16 @@ impl<T: Shape> DerefMut for Signal<T> {
     }
 }
 
-impl<T: Shape, Rhs: IntoExpr<Out = T>> ShlAssign<Rhs> for Signal<T> {
+impl<T: Shape, Rhs: IntoValue<Out = T>> ShlAssign<Rhs> for Signal<T> {
     #[track_caller]
     fn shl_assign(&mut self, rhs: Rhs) {
-        rhs.into_expr().imp.assign(self.id, 0);
+        rhs.into_value().imp.assign(self.id, 0);
     }
 }
 
-impl<T: Shape, Rhs: IntoExpr<Out = T>> ShlAssign<Rhs> for SignalView<T> {
+impl<T: Shape, Rhs: IntoValue<Out = T>> ShlAssign<Rhs> for SignalView<T> {
     #[track_caller]
     fn shl_assign(&mut self, rhs: Rhs) {
-        rhs.into_expr().imp.assign(self.id, self.offset);
+        rhs.into_value().imp.assign(self.id, self.offset);
     }
 }

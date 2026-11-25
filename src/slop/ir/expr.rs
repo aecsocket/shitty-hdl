@@ -6,18 +6,18 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct Expr<T: Shape> {
+pub struct Value<T: Shape> {
     pub(crate) owner: DesignId,
     pub(crate) id: ValueId,
     _phantom: PhantomData<T>,
 }
 
-impl<T: Shape> Clone for Expr<T> {
+impl<T: Shape> Clone for Value<T> {
     fn clone(&self) -> Self {
         *self
     }
 }
-impl<T: Shape> Copy for Expr<T> {}
+impl<T: Shape> Copy for Value<T> {}
 
 pub(crate) fn shape_type<T: Shape>() -> ValueType {
     ValueType {
@@ -26,7 +26,7 @@ pub(crate) fn shape_type<T: Shape>() -> ValueType {
     }
 }
 
-impl<T: Shape> Expr<T> {
+impl<T: Shape> Value<T> {
     #[track_caller]
     pub(crate) fn constant(value: T) -> Self {
         let bits = value.to_bits();
@@ -81,10 +81,10 @@ impl<T: Shape> Expr<T> {
     }
 
     #[track_caller]
-    pub(crate) fn compare(self, rhs: Self, op: ir::BinaryOp) -> Expr<bool> {
+    pub(crate) fn compare(self, rhs: Self, op: ir::BinaryOp) -> Value<bool> {
         runtime::check_owner(self.owner);
         runtime::check_owner(rhs.owner);
-        Expr::node(ValueKind::Binary {
+        Value::node(ValueKind::Binary {
             op,
             lhs: self.id,
             rhs: rhs.id,
@@ -103,15 +103,15 @@ impl<T: Shape> Expr<T> {
     }
 
     #[track_caller]
-    pub(crate) fn resize<To: Shape>(self, extend: bool) -> Expr<To> {
+    pub(crate) fn resize<To: Shape>(self, extend: bool) -> Value<To> {
         runtime::check_owner(self.owner);
         if extend {
-            Expr::node(ValueKind::Extend {
+            Value::node(ValueKind::Extend {
                 value: self.id,
                 sign: T::SIGNED,
             })
         } else {
-            Expr::node(ValueKind::Slice {
+            Value::node(ValueKind::Slice {
                 value: self.id,
                 offset: 0,
             })

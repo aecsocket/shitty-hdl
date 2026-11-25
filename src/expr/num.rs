@@ -1,7 +1,7 @@
 use std::ops::{Add, Mul, Sub};
 
 use crate::{
-    expr::{Expr, IntoExpr},
+    expr::{Value, IntoValue},
     ir::BinaryOp,
     module::{In, Out},
     signal::{Signal, SignalView},
@@ -20,70 +20,70 @@ impl<N: Width> LowerMul for Sint<N> {}
 
 macro_rules! impl_for {
     ($($ty:ident)*) => {$(
-        impl<T: Shape + LowerAdd, Rhs: IntoExpr<Out = T>> Add<Rhs> for $ty<T> {
-            type Output = Expr<T>;
+        impl<T: Shape + LowerAdd, Rhs: IntoValue<Out = T>> Add<Rhs> for $ty<T> {
+            type Output = Value<T>;
             #[track_caller]
-            fn add(self, rhs: Rhs) -> Expr<T> { Expr { imp: self.into_expr().imp.binary(rhs.into_expr().imp, BinaryOp::Add) } }
+            fn add(self, rhs: Rhs) -> Value<T> { Value { imp: self.into_value().imp.binary(rhs.into_value().imp, BinaryOp::Add) } }
         }
-        impl<T: Shape + LowerSub, Rhs: IntoExpr<Out = T>> Sub<Rhs> for $ty<T> {
-            type Output = Expr<T>;
+        impl<T: Shape + LowerSub, Rhs: IntoValue<Out = T>> Sub<Rhs> for $ty<T> {
+            type Output = Value<T>;
             #[track_caller]
-            fn sub(self, rhs: Rhs) -> Expr<T> { Expr { imp: self.into_expr().imp.binary(rhs.into_expr().imp, BinaryOp::Sub) } }
+            fn sub(self, rhs: Rhs) -> Value<T> { Value { imp: self.into_value().imp.binary(rhs.into_value().imp, BinaryOp::Sub) } }
         }
-        impl<T: Shape + LowerMul, Rhs: IntoExpr<Out = T>> Mul<Rhs> for $ty<T> {
-            type Output = Expr<T>;
+        impl<T: Shape + LowerMul, Rhs: IntoValue<Out = T>> Mul<Rhs> for $ty<T> {
+            type Output = Value<T>;
             #[track_caller]
-            fn mul(self, rhs: Rhs) -> Expr<T> { Expr { imp: self.into_expr().imp.binary(rhs.into_expr().imp, BinaryOp::Mul) } }
+            fn mul(self, rhs: Rhs) -> Value<T> { Value { imp: self.into_value().imp.binary(rhs.into_value().imp, BinaryOp::Mul) } }
         }
     )*};
 }
-impl_for!(Expr Signal SignalView In Out);
+impl_for!(Value Signal SignalView In Out);
 
-pub trait CmpExt: IntoExpr {
-    fn gt(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool>;
-    fn lt(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool>;
-    fn ge(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool>;
-    fn le(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool>;
+pub trait CmpExt: IntoValue {
+    fn gt(self, rhs: impl IntoValue<Out = Self::Out>) -> Value<bool>;
+    fn lt(self, rhs: impl IntoValue<Out = Self::Out>) -> Value<bool>;
+    fn ge(self, rhs: impl IntoValue<Out = Self::Out>) -> Value<bool>;
+    fn le(self, rhs: impl IntoValue<Out = Self::Out>) -> Value<bool>;
 }
 
-impl<E: IntoExpr> CmpExt for E
+impl<E: IntoValue> CmpExt for E
 where
     E::Out: LowerAdd,
 {
     #[track_caller]
-    fn gt(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool> {
-        Expr {
+    fn gt(self, rhs: impl IntoValue<Out = Self::Out>) -> Value<bool> {
+        Value {
             imp: self
-                .into_expr()
+                .into_value()
                 .imp
-                .compare(rhs.into_expr().imp, BinaryOp::Gt),
+                .compare(rhs.into_value().imp, BinaryOp::Gt),
         }
     }
     #[track_caller]
-    fn lt(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool> {
-        Expr {
+    fn lt(self, rhs: impl IntoValue<Out = Self::Out>) -> Value<bool> {
+        Value {
             imp: self
-                .into_expr()
+                .into_value()
                 .imp
-                .compare(rhs.into_expr().imp, BinaryOp::Lt),
+                .compare(rhs.into_value().imp, BinaryOp::Lt),
         }
     }
     #[track_caller]
-    fn ge(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool> {
-        Expr {
+    fn ge(self, rhs: impl IntoValue<Out = Self::Out>) -> Value<bool> {
+        Value {
             imp: self
-                .into_expr()
+                .into_value()
                 .imp
-                .compare(rhs.into_expr().imp, BinaryOp::Ge),
+                .compare(rhs.into_value().imp, BinaryOp::Ge),
         }
     }
     #[track_caller]
-    fn le(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool> {
-        Expr {
+    fn le(self, rhs: impl IntoValue<Out = Self::Out>) -> Value<bool> {
+        Value {
             imp: self
-                .into_expr()
+                .into_value()
                 .imp
-                .compare(rhs.into_expr().imp, BinaryOp::Le),
+                .compare(rhs.into_value().imp, BinaryOp::Le),
         }
     }
 }

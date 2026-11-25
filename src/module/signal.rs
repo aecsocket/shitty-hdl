@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut, ShlAssign};
 
 use crate::{
-    expr::{Expr, IntoExpr},
+    expr::{Value, IntoValue},
     ir::PortDirection,
     signal::Signal,
     value::Shape,
@@ -64,7 +64,7 @@ impl<T: Shape> DerefMut for Out<T> {
     }
 }
 
-impl<T: Shape, Rhs: IntoExpr<Out = T>> ShlAssign<Rhs> for Out<T> {
+impl<T: Shape, Rhs: IntoValue<Out = T>> ShlAssign<Rhs> for Out<T> {
     #[track_caller]
     fn shl_assign(&mut self, rhs: Rhs) {
         self.0 <<= rhs;
@@ -82,17 +82,17 @@ impl<T: Shape> From<Out<T>> for Signal<T> {
     }
 }
 
-impl<T: Shape> IntoExpr for In<T> {
+impl<T: Shape> IntoValue for In<T> {
     type Out = T;
     #[track_caller]
-    fn into_expr(self) -> Expr<T> {
-        self.0.into_expr()
+    fn into_value(self) -> Value<T> {
+        self.0.into_value()
     }
 }
-impl<T: Shape> IntoExpr for Out<T> {
+impl<T: Shape> IntoValue for Out<T> {
     type Out = T;
     #[track_caller]
-    fn into_expr(self) -> Expr<T> {
-        self.0.into_expr()
+    fn into_value(self) -> Value<T> {
+        self.0.into_value()
     }
 }

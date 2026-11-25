@@ -5,12 +5,14 @@ pub(crate) mod runtime;
 pub(crate) mod signal;
 
 pub use bits::PackedBits;
-pub use expr::Expr;
+pub use expr::Value;
 pub(crate) use expr::shape_type;
 pub use runtime::elaborate_named as elaborate;
-use std::any::TypeId;
-use std::collections::{BTreeSet, HashMap, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    any::TypeId,
+    collections::{BTreeSet, HashMap, VecDeque},
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DesignId(u64);
@@ -56,7 +58,7 @@ pub struct ClockDomain {
     pub id: DomainId,
 }
 #[derive(Clone, Debug)]
-pub struct Value {
+pub struct ValueData {
     pub ty: ValueType,
     pub kind: ValueKind,
     pub source: Option<SourceLocation>,
@@ -146,7 +148,7 @@ pub struct Design {
     pub id: DesignId,
     pub name: String,
     pub signals: Vec<Signal>,
-    pub values: Vec<Value>,
+    pub values: Vec<ValueData>,
     pub domains: Vec<ClockDomain>,
     pub writes: Vec<Write>,
 }
@@ -210,7 +212,7 @@ impl Design {
         source: Option<SourceLocation>,
     ) -> ValueId {
         let id = ValueId(self.values.len());
-        self.values.push(Value { ty, kind, source });
+        self.values.push(ValueData { ty, kind, source });
         id
     }
     pub fn add_signal(&mut self, signal: Signal) -> SignalId {
@@ -443,12 +445,12 @@ impl Design {
         let mut indices: HashMap<SignalId, usize> = HashMap::new();
         for w in &self.writes {
             if w.target.width == 0
-                || w.condition.is_some_and(|id| {
-                    matches!(&design.values[id.0].kind, ValueKind::Constant(bits) if !bits.bit(0))
-                })
-            {
-                continue;
-            }
+        || w.condition.is_some_and(
+          |id| matches!(&design.values[id.0].kind, ValueKind::Constant(bits) if !bits.bit(0)),
+        )
+      {
+        continue;
+      }
             let s = &self.signals[w.target.signal.0];
             let index = if let Some(&i) = indices.get(&w.target.signal) {
                 require(

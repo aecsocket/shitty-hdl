@@ -142,7 +142,7 @@ fn make_in_outs<'a>(
 ) -> InOuts {
     enum InputKind {
         // e.g. `fn x(capacity: u32)`
-        Arg,
+        Param,
         // e.g. `fn x(start: In<bool>)`
         Signal,
         Domain,
@@ -202,13 +202,13 @@ fn make_in_outs<'a>(
         } else if is_domain {
             InputKind::Domain
         } else {
-            InputKind::Arg
+            InputKind::Param
         };
 
         let ty = &input.ty;
         match kind {
-            InputKind::Arg => {
-                // args like `capacity: u32` are passed directly
+            InputKind::Param => {
+                // params like `capacity: u32` are passed directly
                 let pat = &input.pat;
                 match pat.as_ref() {
                     Pat::Ident(pat) if pat.subpat.is_none() && pat.by_ref.is_none() => {
@@ -248,8 +248,8 @@ fn make_in_outs<'a>(
                 let inner = format_ident!("__module_inner_{idx}", span = Span::mixed_site());
                 let outer = format_ident!("__module_outer_{idx}", span = Span::mixed_site());
                 allocations.push(quote! {
-                    let (#inner, #outer) = <#ty as #crate_::__::SignalFlow>::new_port(stringify!(#ident));
-                });
+            let (#inner, #outer) = <#ty as #crate_::__::SignalFlow>::new_port(stringify!(#ident));
+        });
                 arguments.push(quote! { #inner });
                 initializers.push(quote! { #ident: #outer });
                 let ty = quote! { <#ty as #crate_::__::SignalFlow>::Inverse };
@@ -348,7 +348,7 @@ impl VisitMut for MakeElaborate<'_> {
         let len = block.stmts.len();
         for (index, stmt) in block.stmts.iter_mut().enumerate() {
             self.visit_stmt_mut(stmt);
-            // Rewritten statement expressions may now return Expr<()>. Only
+            // Rewritten statement expressions may now return Value<()>. Only
             // discard non-tail values; branch tails can be value-producing.
             if index + 1 < len
                 && let Stmt::Expr(_, semi) = stmt

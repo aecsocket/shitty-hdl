@@ -68,7 +68,8 @@ impl Ident {
 
 impl fmt::Display for Ident {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Release the interner borrow before invoking a potentially reentrant writer.
+        // Release the interner borrow before invoking a potentially reentrant
+        // writer.
         let name = STRINGS.with_borrow(|strings| strings.resolve(&self.key).to_owned());
         if self.escaped {
             // Whitespace terminates the escaped identifier, even before punctuation.

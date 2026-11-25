@@ -1,8 +1,9 @@
 //! A synthesizable SystemVerilog output subset, not a complete language AST.
 //!
-//! Widths, constant-expression requirements, driver rules, and module interfaces
-//! are the elaborator's responsibility. `Display` preserves expression grouping;
-//! `crate::lower` additionally resolves origins and formats the generated text.
+//! Widths, constant-expression requirements, driver rules, and module
+//! interfaces are the elaborator's responsibility. `Display` preserves
+//! expression grouping; `crate::lower` additionally resolves origins and
+//! formats the generated text.
 
 use std::num::NonZero;
 

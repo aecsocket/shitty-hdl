@@ -65,7 +65,7 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
                         cx.named_type::<Self>(#crate_::air::NamedTypeKind::Enum(variants))
                     }
 
-                    fn air_value<'dsn>(self, cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Expr<'dsn> {
+                    fn air_value<'dsn>(&self, cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Expr<'dsn> {
                         match self { #(#arms,)* }
                     }
 
@@ -114,14 +114,18 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             || syn::Member::Unnamed(syn::Index::from(index)),
             syn::Member::Named,
         );
-        quote! { <#ty as #crate_::value::Shape>::air_value(self.#member, cx) }
+        quote! { <#ty as #crate_::value::Shape>::air_value(&self.#member, cx) }
     });
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let fields = data.fields.iter().map(|field| {
         let ty = &field.ty;
         let vis = &field.vis;
         let view_ty = quote! { <#ty as #crate_::value::Shape>::View };
-        if let Some(ident) = &field.ident { quote! { #vis #ident: #view_ty } } else { quote! { #vis #view_ty } }
+        if let Some(ident) = &field.ident {
+            quote! { #vis #ident: #view_ty }
+        } else {
+            quote! { #vis #view_ty }
+        }
     });
     let view = match &data.fields {
         Fields::Named(_) => quote! {
@@ -159,7 +163,7 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
                 cx.named_type::<Self>(#crate_::air::NamedTypeKind::Struct(fields))
             }
 
-            fn air_value<'dsn>(self, cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Expr<'dsn> {
+            fn air_value<'dsn>(&self, cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Expr<'dsn> {
                 let fields = ::std::vec![#(#values,)*];
                 cx.struct_value::<Self>(fields)
             }

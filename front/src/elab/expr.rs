@@ -1,10 +1,13 @@
-use crate::{domain::Domain, value::{IntoValue, Uint, Value}};
+use crate::{
+    domain::Domain,
+    value::{IntoValue, Uint, Value},
+};
 use std::ptr;
 
 use super::{ExprHandle, with_context};
 use crate::value::Shape;
 
-pub fn literal<D: Domain, T: Shape>(value: T) -> Value<D, T> {
+pub fn literal<D: Domain, T: Shape>(value: &T) -> Value<D, T> {
     Value::from_handle(with_context(|cx| {
         let expr = value.air_value(cx);
         cx.push_expr(expr)
@@ -53,7 +56,11 @@ pub fn unary<D: Domain, T: Shape>(op: air::UnaryOp, value: Value<D, T>) -> Value
 }
 
 #[must_use]
-pub fn binary<D: Domain, T: Shape>(op: air::BinaryOp, lhs: Value<D, T>, rhs: Value<D, T>) -> Value<D, T> {
+pub fn binary<D: Domain, T: Shape>(
+    op: air::BinaryOp,
+    lhs: Value<D, T>,
+    rhs: Value<D, T>,
+) -> Value<D, T> {
     Value::from_handle(with_context(|cx| {
         let lhs = cx.typed_expr::<T>(lhs.handle());
         let rhs = cx.typed_expr::<T>(rhs.handle());
@@ -66,7 +73,11 @@ pub fn binary<D: Domain, T: Shape>(op: air::BinaryOp, lhs: Value<D, T>, rhs: Val
 }
 
 #[must_use]
-pub fn compare<D: Domain, T: Shape>(op: air::BinaryOp, lhs: Value<D, T>, rhs: Value<D, T>) -> Value<D, bool> {
+pub fn compare<D: Domain, T: Shape>(
+    op: air::BinaryOp,
+    lhs: Value<D, T>,
+    rhs: Value<D, T>,
+) -> Value<D, bool> {
     Value::from_handle(with_context(|cx| {
         let lhs = cx.typed_expr::<T>(lhs.handle());
         let rhs = cx.typed_expr::<T>(rhs.handle());
@@ -80,7 +91,10 @@ pub fn compare<D: Domain, T: Shape>(op: air::BinaryOp, lhs: Value<D, T>, rhs: Va
 }
 
 #[must_use]
-pub fn cast<D: Domain, From: Shape, To: Shape>(kind: air::CastKind, value: Value<D, From>) -> Value<D, To> {
+pub fn cast<D: Domain, From: Shape, To: Shape>(
+    kind: air::CastKind,
+    value: Value<D, From>,
+) -> Value<D, To> {
     Value::from_handle(with_context(|cx| {
         let value = cx.typed_expr::<From>(value.handle());
         let ty = cx.ty::<To>();
@@ -130,7 +144,11 @@ pub fn uint_from_u128<D: Domain, const N: usize>(value: u128) -> Value<D, Uint<N
 }
 
 #[must_use]
-pub fn shift<D: Domain, T: Shape>(op: air::BinaryOp, value: Value<D, T>, amount: usize) -> Value<D, T> {
+pub fn shift<D: Domain, T: Shape>(
+    op: air::BinaryOp,
+    value: Value<D, T>,
+    amount: usize,
+) -> Value<D, T> {
     let amount = uint_from_u128::<D, 64>(amount as u128);
     Value::from_handle(with_context(|cx| {
         let lhs = cx.typed_expr::<T>(value.handle());
@@ -155,10 +173,9 @@ pub fn shift_resize<D: Domain, const FROM: usize, const TO: usize>(
             cast::<D, Uint<FROM>, Uint<TO>>(air::CastKind::ZeroExtend, value),
             amount,
         ),
-        air::BinaryOp::ShiftRight => cast::<D, Uint<FROM>, Uint<TO>>(
-            air::CastKind::Truncate,
-            shift(op, value, amount),
-        ),
+        air::BinaryOp::ShiftRight => {
+            cast::<D, Uint<FROM>, Uint<TO>>(air::CastKind::Truncate, shift(op, value, amount))
+        }
         _ => panic!("expected shift operation"),
     }
 }

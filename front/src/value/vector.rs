@@ -17,7 +17,7 @@ impl<T: Shape, const N: usize> Vector<T, N> {
 
     #[must_use]
     pub fn select<D: Domain, const W: usize>(
-        self,
+        &self,
         index: impl IntoValue<D, Out = Uint<W>>,
     ) -> Value<D, T> {
         assert!(
@@ -40,6 +40,15 @@ impl<T: Shape, const N: usize> Vector<T, N> {
     }
 }
 
+impl<T, const N: usize> FromIterator<T> for Vector<T, N> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self(
+            <[T; N]>::try_from(iter.into_iter().collect::<Vec<T>>())
+                .unwrap_or_else(|_| panic!("iterator length does not match vector")),
+        )
+    }
+}
+
 impl<T: Shape, const N: usize> Shape for Vector<T, N> {
     type View = ValueView<Self>;
     type Values<D: Domain> = Value<D, Self>;
@@ -49,14 +58,14 @@ impl<T: Shape, const N: usize> Shape for Vector<T, N> {
         cx.alloc(air::Type::Vector { element, length: N })
     }
 
-    fn air_value<'dsn>(self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {
+    fn air_value<'dsn>(&self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {
         let ty = cx.ty::<Self>();
         let air::Type::Vector { element, length } = ty else {
             panic!("vector literal requires a vector type")
         };
         assert_eq!(*length, N, "vector length mismatch");
         let mut elements = Vec::new();
-        for value in self.0 {
+        for value in &self.0 {
             let expr = value.air_value(cx);
             assert!(ptr::eq(expr.ty, *element), "vector element type mismatch");
             elements.push(expr);

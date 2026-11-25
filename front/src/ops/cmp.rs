@@ -46,6 +46,20 @@ macro_rules! impl_unsigned_cmp_operand {
 
 impl_unsigned_cmp_operand!(u8, u16, u32, u64, u128);
 
+macro_rules! impl_signed_cmp_operand {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl<D: Domain, T: BitCmp + crate::ops::Arith> CmpOperand<D, T> for $ty {
+                fn into_operand(self) -> Value<D, T> {
+                    T::from_u128::<D>(u128::from(self.cast_unsigned()))
+                }
+            }
+        )*
+    };
+}
+
+impl_signed_cmp_operand!(i8, i16, i32, i64, i128);
+
 pub trait BitCmpExt<D: Domain>: IntoValue<D> + Sized
 where
     Self::Out: BitCmp,

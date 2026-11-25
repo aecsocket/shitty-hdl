@@ -24,7 +24,7 @@ impl<const N: usize> Shape for Bit<N> {
         })
     }
 
-    fn air_value<'dsn>(self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {
+    fn air_value<'dsn>(&self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {
         cx.bits::<Self>(&self.0)
     }
 

@@ -1,6 +1,6 @@
 use crate::{
-    elab::{self, Context, ExprHandle},
     domain::Domain,
+    elab::{self, Context, ExprHandle},
     value::{IntoValues, Shape, Value, ValueView},
 };
 
@@ -21,7 +21,7 @@ macro_rules! impl_shape {
             }
 
             #[allow(non_snake_case, unused_variables)]
-            fn air_value<'dsn>(self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {
+            fn air_value<'dsn>(&self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {
                 let ($($T,)*) = self;
                 let elements = vec![$($T::air_value($T, cx),)*];
                 cx.tuple_value::<Self>(elements)
@@ -84,8 +84,8 @@ impl Shape for bool {
         cx.alloc(air::Type::Bool)
     }
 
-    fn air_value<'dsn>(self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {
-        cx.boolean(self)
+    fn air_value<'dsn>(&self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {
+        cx.boolean(*self)
     }
 
     fn make_values<D: Domain>(value: Value<D, Self>) -> Self::Values<D> {
@@ -100,5 +100,3 @@ impl Shape for bool {
         vec![values.handle()]
     }
 }
-
-

@@ -118,6 +118,14 @@ macro_rules! impl_const_arith {
                 }
             }
 
+            impl<D: Domain, T: Shape + Arith> Sub<Value<D, T>> for $ty {
+                type Output = Value<D, T>;
+
+                fn sub(self, rhs: Value<D, T>) -> Self::Output {
+                    T::sub(T::from_u128(self.const_to_u128()), rhs)
+                }
+            }
+
             impl<D: Domain, T: Shape + Arith> Add<$ty> for Reg<D, T> {
                 type Output = Value<D, T>;
 

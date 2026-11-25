@@ -22,19 +22,28 @@ pub fn top(platform: Platform) {
 
     let mut pwm_cycles = Reg::new(clk, uint!(32:0));
     let mut breathe_cycles = Reg::new(clk, uint!(32:0));
-    let mut duty = Reg::new(clk, uint!(32:0));
+    let mut duty = Reg::new(clk, uint!(8:0));
     let gamma_lut = Vector::<Uint<7>, 100>::from_fn(|i| Uint::from(map_duty(i as u64)));
 
     Rule::define_as(|| {
+        // duty cycle for LED
         pwm_cycles <<= (pwm_cycles + 1) % DUTY_PERIOD;
-        if breathe_cycles == cycles_per_duty_step - 1 {
-            breathe_cycles <<= 0;
-            duty <<= (duty + 1) % DUTY_PERIOD;
-        } else {
-            breathe_cycles <<= breathe_cycles + 1;
+
+        // slower logic that controls the duty
+        breathe_cycles <<= (breathe_cycles + 1) % (2 * clk_hz);
+        if breathe_cycles % cycles_per_duty_step == 0 {
+            duty <<= (duty + 1) % (2 * DUTY_PERIOD);
         }
 
-        let duty_out = gamma_lut.select(duty.read().trunc::<7>());
+        // map duty 0..200 to 0..100 triangle shape
+        let linear = if duty < DUTY_PERIOD {
+            *duty
+        } else {
+            199 - *duty
+        };
+
+        // map gamma
+        let duty_out = gamma_lut.select(linear);
         let led_on = pwm_cycles.read() < duty_out.zext::<32>();
         led <<= led_on;
     });

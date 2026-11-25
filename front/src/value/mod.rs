@@ -19,7 +19,7 @@ pub trait Shape: Sized + 'static {
     type Values<D: Domain>;
 
     fn air_type<'dsn>(cx: &mut Context<'dsn>) -> &'dsn air::Type<'dsn>;
-    fn air_value<'dsn>(self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn>;
+    fn air_value<'dsn>(&self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn>;
     fn make_values<D: Domain>(value: Value<D, Self>) -> Self::Values<D>;
     fn pack_values<D: Domain>(values: Self::Values<D>) -> Value<D, Self>;
     fn value_handles<D: Domain>(values: Self::Values<D>) -> Vec<ExprHandle>;
@@ -88,7 +88,7 @@ impl<D: Domain, T: Shape> IntoValue<D> for T {
     type Out = T;
 
     fn into_value(self) -> Value<D, T> {
-        elab::literal(self)
+        elab::literal(&self)
     }
 }
 

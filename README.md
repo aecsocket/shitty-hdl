@@ -96,6 +96,21 @@ pub fn my_module(platform: Platform) {
 [^4]: https://uwplse.org/2026/03/24/hw-coroutines.html
 [^5]: https://www.hdlfactory.com/post/2026/09/12/txhdl-a-hardware-description-language-that-is-a-rust-library/
 
+## Limitations
+
+This repo is still _entirely_ experimental, and there's tons of work to be done on both the implementation and fundamental design. In particular, the design of the `async` lowering to FSM needs more thought onto how exactly the FSM is expressed. Do we merge FSMs between different async `Method` lowerings? How do we schedule rules? Can we check for liveness (otherwise we'd deadlock)? These are things that I haven't looked into, but should really be explored further.
+
+The `front` elaboration lowers into action IR, AIR -- we need a simulator for AIR, or can we just rely on Bluesim? Not sure here.
+
+Can we improve the formal verification story for HDLs? Right now stuff like Yosys etc. exists, but: 
+- for complex enough designs, an SMT solver would probably be intractable to run
+- we have more comprehensive tools for proving statements about a program, like Lean
+    - can we devise a way to extract HDL from Lean? hmmm!
+- AI can help us write proofs for programs _wayy faster_ than by hand
+    - but we have to be careful that we're proving the correct things, and making the right assumptions!
+
+Perhaps the end goal will be something like Bend2 but for HDLs. You write a design, and proofs about what the design does, and the compiler checks that your design satisfies those proofs.
+
 # Features
 
 Get a blinking light demo with a single line of code:

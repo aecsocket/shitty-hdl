@@ -85,8 +85,8 @@ impl<In: Shape, Out: Shape> Action<In, Out> {
         Self::from_handle(elab::define_action::<In, Out>(None, f))
     }
 
-    pub fn call(&mut self, args: In::Values) -> Out::Values {
-        elab::call_action::<In, Out>(self.0, args)
+    pub fn call(&mut self, args: impl IntoValues<Values = In::Values>) -> Out::Values {
+        elab::call_action::<In, Out>(self.0, args.into_values())
     }
 }
 

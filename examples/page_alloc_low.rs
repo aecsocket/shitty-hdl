@@ -135,6 +135,12 @@ fn top(platform: Platform) {
         Alloc2Done,
         Alloc3Wait,
         Alloc3Done,
+        Free2Wait,
+        Free2Done,
+        Free1Wait,
+        Free1Done,
+        Free3Wait,
+        Free3Done,
     }
 
     let clk = platform.default_clock().expect("requires default clock");
@@ -183,6 +189,36 @@ fn top(platform: Platform) {
     });
 
     Rule::when(state == State::Alloc3Done).define_as(|| {
+        pages.free.req.call(page2);
+        state <<= State::Free2Wait;
+    });
+
+    Rule::when(state == State::Free2Wait).define_as(|| {
+        pages.free.out.call(());
+        state <<= State::Free2Done;
+    });
+
+    Rule::when(state == State::Free2Done).define_as(|| {
+        pages.free.req.call(page1);
+        state <<= State::Free1Wait;
+    });
+
+    Rule::when(state == State::Free1Wait).define_as(|| {
+        pages.free.out.call(());
+        state <<= State::Free1Done;
+    });
+
+    Rule::when(state == State::Free1Done).define_as(|| {
+        pages.free.req.call(page3);
+        state <<= State::Free3Wait;
+    });
+
+    Rule::when(state == State::Free3Wait).define_as(|| {
+        pages.free.out.call(());
+        state <<= State::Free3Done;
+    });
+
+    Rule::when(state == State::Free3Done).define_as(|| {
         state <<= State::Idle;
     });
 }

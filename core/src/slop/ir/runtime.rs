@@ -120,6 +120,55 @@ pub(crate) fn signal(
 }
 
 #[track_caller]
+pub(crate) fn physical_signal(name: &str, direction: ir::PortDirection) -> crate::signal::SignalId {
+    let source = location();
+    with(|c| {
+        let raw = c.design.add_signal(ir::Signal {
+            name: name.into(),
+            ty: ValueType {
+                width: 1,
+                signed: false,
+            },
+            init: ir::PackedBits::zero(1),
+            port: Some(direction),
+            source,
+        });
+        crate::signal::SignalId {
+            owner: c.design.id,
+            raw,
+        }
+    })
+}
+
+pub(crate) fn physical_invert(target: crate::signal::SignalId, input: crate::signal::SignalId) {
+    check_owner(target.owner);
+    check_owner(input.owner);
+    let value = read(
+        input,
+        0,
+        ValueType {
+            width: 1,
+            signed: false,
+        },
+    )
+    .1;
+    let value = invert(value);
+    with(|c| {
+        c.design.writes.push(ir::Write {
+            target: ir::Target {
+                signal: target.raw,
+                offset: 0,
+                width: 1,
+            },
+            value,
+            condition: None,
+            domain: WriteDomain::Comb,
+            source: None,
+        })
+    });
+}
+
+#[track_caller]
 pub(crate) fn read(id: crate::signal::SignalId, offset: u32, ty: ValueType) -> (DesignId, ValueId) {
     check_owner(id.owner);
     let source = location();

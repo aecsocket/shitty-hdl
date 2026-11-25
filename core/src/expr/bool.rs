@@ -29,7 +29,7 @@ mod tests {
 
     #[test]
     fn boolean_not() {
-        let (design, (input, inverted, restored)) = ir::elaborate("boolean_not", || {
+        let (design, (input, inverted, restored)) = ir::elaborate_named("boolean_not", || {
             let input = Signal::<bool>::input("input", false);
             let mut inverted = Signal::<bool>::output("inverted", false);
             let mut restored = Signal::<bool>::output("restored", false);

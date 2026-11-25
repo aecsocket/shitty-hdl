@@ -2,9 +2,21 @@ use crate::ir::{self, Error, ValueId, ValueKind, WriteDomain};
 use std::collections::{HashMap, HashSet};
 use verilog_gen as v;
 
+pub struct LoweredVerilog {
+    pub source: String,
+    pub port_names: HashMap<ir::SignalId, String>,
+}
+
 pub fn lower(design: &ir::Design) -> Result<String, Error> {
-    let (ast, origins) = to_ast(design)?;
-    Ok(v::lower(&ast, &origins))
+    Ok(lower_with_ports(design)?.source)
+}
+
+pub fn lower_with_ports(design: &ir::Design) -> Result<LoweredVerilog, Error> {
+    let (ast, origins, port_names) = to_ast_with_ports(design)?;
+    Ok(LoweredVerilog {
+        source: v::lower(&ast, &origins),
+        port_names,
+    })
 }
 
 fn ident(name: &str) -> Result<v::Ident, Error> {
@@ -224,6 +236,13 @@ impl Values<'_> {
 }
 
 pub fn to_ast(design: &ir::Design) -> Result<(v::Ast, v::OriginMap), Error> {
+    let (ast, origins, _) = to_ast_with_ports(design)?;
+    Ok((ast, origins))
+}
+
+fn to_ast_with_ports(
+    design: &ir::Design,
+) -> Result<(v::Ast, v::OriginMap, HashMap<ir::SignalId, String>), Error> {
     let compiled = design.compile()?;
     let d = &compiled.design;
     let mut origins = v::OriginMap::new();
@@ -244,6 +263,10 @@ pub fn to_ast(design: &ir::Design) -> Result<(v::Ast, v::OriginMap), Error> {
     }
     let mut clocks = HashMap::new();
     for domain in &d.domains {
+        if let Some(clock) = domain.clock {
+            clocks.insert(domain.id, public_names[clock.0]);
+            continue;
+        }
         let name = fresh(&mut used, &domain.name)?;
         clocks.insert(domain.id, name);
         module.ports.push(v::Port {
@@ -253,6 +276,7 @@ pub fn to_ast(design: &ir::Design) -> Result<(v::Ast, v::OriginMap), Error> {
             name,
         });
     }
+    let mut port_names = HashMap::new();
     let mut signals = public_names.clone();
     let mut clocked = vec![false; d.signals.len()];
     for driver in &compiled.drivers {
@@ -266,6 +290,7 @@ pub fn to_ast(design: &ir::Design) -> Result<(v::Ast, v::OriginMap), Error> {
         }
         let o = origin(&mut origins, s.source.as_ref())?;
         if let Some(direction) = s.port {
+            port_names.insert(ir::SignalId(i), public_names[i].to_string());
             module.ports.push(v::Port {
                 origin: o,
                 flow: match direction {
@@ -406,12 +431,154 @@ pub fn to_ast(design: &ir::Design) -> Result<(v::Ast, v::OriginMap), Error> {
             }),
         });
     }
-    Ok((v::Ast::Module(module), origins))
+    Ok((v::Ast::Module(module), origins, port_names))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct Clock;
+    impl crate::module::DomainLabel for Clock {}
+
+    fn signal(
+        design: &mut ir::Design,
+        name: &str,
+        width: u32,
+        port: Option<ir::PortDirection>,
+    ) -> ir::SignalId {
+        design.add_signal(ir::Signal {
+            name: name.into(),
+            ty: ir::ValueType {
+                width,
+                signed: false,
+            },
+            init: ir::PackedBits::zero(width),
+            port,
+            source: None,
+        })
+    }
+
+    #[test]
+    fn bound_clock_uses_collision_resolved_port_name() {
+        let mut design = ir::Design::new("bound_clock");
+        signal(&mut design, "clk", 1, None);
+        let clock = signal(&mut design, "clk", 1, Some(ir::PortDirection::Input));
+        let output = signal(&mut design, "q", 1, Some(ir::PortDirection::Output));
+        let domain = design.add_domain::<Clock>("synthetic_clock".into());
+        design
+            .bind_domain_clock::<Clock>(crate::signal::SignalId {
+                owner: design.id,
+                raw: clock,
+            })
+            .unwrap();
+        let value = design.add_value(
+            ir::ValueType {
+                width: 1,
+                signed: false,
+            },
+            ValueKind::Constant(ir::PackedBits::zero(1)),
+            None,
+        );
+        design.writes.push(ir::Write {
+            target: ir::Target {
+                signal: output,
+                offset: 0,
+                width: 1,
+            },
+            value,
+            condition: None,
+            domain: WriteDomain::Clocked(domain),
+            source: None,
+        });
+        let lowered = lower_with_ports(&design).unwrap();
+        assert_eq!(lowered.port_names[&clock], "clk_1");
+        assert!(
+            lowered.source.contains("posedge clk_1"),
+            "{}",
+            lowered.source
+        );
+        assert!(!lowered.source.contains("synthetic_clock"));
+        assert_eq!(lower(&design).unwrap(), lowered.source);
+    }
+
+    #[test]
+    fn port_names_include_escaping_and_exclude_non_ports() {
+        let mut design = ir::Design::new("ports");
+        let first = signal(&mut design, "input", 1, Some(ir::PortDirection::Input));
+        let second = signal(&mut design, "input", 1, Some(ir::PortDirection::Input));
+        signal(&mut design, "hidden", 1, None);
+        signal(&mut design, "empty", 0, Some(ir::PortDirection::Output));
+        let lowered = lower_with_ports(&design).unwrap();
+        assert_eq!(lowered.port_names.len(), 2);
+        assert_eq!(lowered.port_names[&first], "\\input ");
+        assert_eq!(lowered.port_names[&second], "input_1");
+    }
+
+    #[test]
+    fn binding_validates_owner_width_direction_and_creates_domain() {
+        let mut design = ir::Design::new("validation");
+        let clock = signal(&mut design, "clk", 1, Some(ir::PortDirection::Input));
+        let wrong_width = signal(&mut design, "wide", 2, Some(ir::PortDirection::Input));
+        let output = signal(&mut design, "out", 1, Some(ir::PortDirection::Output));
+        for raw in [wrong_width, output, ir::SignalId(100)] {
+            assert!(
+                design
+                    .bind_domain_clock::<Clock>(crate::signal::SignalId {
+                        owner: design.id,
+                        raw
+                    })
+                    .is_err()
+            );
+        }
+        assert!(design.domains.is_empty());
+        let foreign = ir::Design::new("foreign");
+        assert!(
+            design
+                .bind_domain_clock::<Clock>(crate::signal::SignalId {
+                    owner: foreign.id,
+                    raw: clock
+                })
+                .is_err()
+        );
+        design
+            .bind_domain_clock::<Clock>(crate::signal::SignalId {
+                owner: design.id,
+                raw: clock,
+            })
+            .unwrap();
+        assert_eq!(design.domains.len(), 1);
+        assert_eq!(design.domains[0].clock, Some(clock));
+        design.domains[0].clock = Some(output);
+        assert!(lower(&design).is_err());
+    }
+
+    #[test]
+    fn clock_binding_is_idempotent_and_rejects_conflicts() {
+        let mut design = ir::Design::new("binding_conflict");
+        let first = signal(&mut design, "first", 1, Some(ir::PortDirection::Input));
+        let second = signal(&mut design, "second", 1, Some(ir::PortDirection::Input));
+        let first = crate::signal::SignalId {
+            owner: design.id,
+            raw: first,
+        };
+        let second = crate::signal::SignalId {
+            owner: design.id,
+            raw: second,
+        };
+        design.bind_domain_clock::<Clock>(first).unwrap();
+        design.bind_domain_clock::<Clock>(first).unwrap();
+        let error = design.bind_domain_clock::<Clock>(second).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("already bound to a different clock")
+        );
+        assert_eq!(design.domains.len(), 1);
+        assert_eq!(design.domains[0].clock, Some(first.raw));
+        design.bind_domain_clock::<Clock>(first).unwrap();
+        assert!(lower(&design).is_ok());
+    }
 
     #[test]
     fn bounds_are_decimal_and_data_constants_remain_hex() {

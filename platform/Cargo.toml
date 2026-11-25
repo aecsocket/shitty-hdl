@@ -1,0 +1,9 @@
+[package]
+name = "shitty-hdl-platform"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+shitty-hdl-board = { workspace = true }
+shitty-hdl-core = { workspace = true }

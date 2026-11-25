@@ -1,4 +1,5 @@
 pub mod bits;
+pub mod io;
 
 pub(crate) mod expr;
 pub(crate) mod runtime;
@@ -7,7 +8,7 @@ pub(crate) mod signal;
 pub use bits::PackedBits;
 pub use expr::Value;
 pub(crate) use expr::shape_type;
-pub use runtime::elaborate;
+pub use runtime::{elaborate, elaborate_named};
 use std::{
     any::TypeId,
     collections::{BTreeSet, HashMap, VecDeque},
@@ -56,6 +57,7 @@ pub struct Signal {
 pub struct ClockDomain {
     pub name: String,
     pub id: DomainId,
+    pub clock: Option<SignalId>,
 }
 #[derive(Clone, Debug)]
 pub struct ValueData {
@@ -223,10 +225,51 @@ impl Design {
     pub fn add_domain<L: 'static>(&mut self, name: String) -> DomainId {
         let id = DomainId::of::<L>();
         if !self.domains.iter().any(|domain| domain.id == id) {
-            self.domains.push(ClockDomain { name, id });
+            self.domains.push(ClockDomain {
+                name,
+                id,
+                clock: None,
+            });
         }
         id
     }
+    pub fn bind_domain_clock<L: crate::module::DomainLabel>(
+        &mut self,
+        clock: crate::signal::SignalId,
+    ) -> Result<(), Error> {
+        require(
+            clock.owner == self.id,
+            "clock belongs to a different design",
+        )?;
+        self.validate_clock(clock.raw)?;
+        let id = self.add_domain::<L>(std::any::type_name::<L>().into());
+        let domain = self
+            .domains
+            .iter_mut()
+            .find(|domain| domain.id == id)
+            .unwrap();
+        require(
+            domain.clock.is_none() || domain.clock == Some(clock.raw),
+            format!(
+                "clock domain {:?} is already bound to a different clock",
+                id
+            ),
+        )?;
+        domain.clock = Some(clock.raw);
+        Ok(())
+    }
+
+    fn validate_clock(&self, clock: SignalId) -> Result<(), Error> {
+        let signal = self
+            .signals
+            .get(clock.0)
+            .ok_or_else(|| Error(format!("invalid clock signal {}", clock.0)))?;
+        require(
+            signal.port == Some(PortDirection::Input) && signal.ty.width == 1,
+            "bound clock must be a width-1 input signal",
+        )
+    }
+
     pub(crate) fn value_order(&self) -> Result<Vec<usize>, Error> {
         let mut degree = vec![0; self.values.len()];
         let mut users = vec![vec![]; self.values.len()];
@@ -264,6 +307,9 @@ impl Design {
     fn validate(&self) -> Result<(), Error> {
         let mut domains = BTreeSet::new();
         for domain in &self.domains {
+            if let Some(clock) = domain.clock {
+                self.validate_clock(clock)?;
+            }
             require(
                 domains.insert(domain.id),
                 format!("duplicate clock domain {:?}", domain.id),

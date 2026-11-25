@@ -1,13 +1,11 @@
-use shitty_hdl_core::{
-    platform::{Button, Led, Platform},
-    prelude::*,
-};
+use shitty_hdl_core::prelude::*;
+use shitty_hdl_platform::Platform;
 
 #[module]
-pub fn blinky(mut platform: Platform, mut sync: Domain<Sync>) {
-    let half_freq = platform.default_clock_period.hertz() / 2;
-    let mut led = platform.resources.request(Led(0));
-    let button = platform.resources.request(Button(0));
+pub fn blinky(platform: Platform, mut sync: Domain<Sync>) {
+    let half_freq = platform.default_clock_hz.expect("requires default clock") / 2;
+    let mut led = platform.led.take(0);
+    let button = platform.button.take(0);
     let mut timer = Signal::<u<U64>>::new(u!(0));
 
     if timer.eq(half_freq) {

@@ -1,49 +1,39 @@
-mod build;
 mod demo;
+mod slop;
 
+use anyhow::Result;
 pub use demo::blinky;
-use tracing::debug;
-
-use std::path::Path;
-
-use anyhow::{Context, Result};
-
-use shitty_hdl_board::Board;
-use shitty_hdl_core::{module::Module, platform::Platform};
-
-#[derive(clap::Parser)]
-struct Cli {
-    #[command(subcommand)]
-    command: Command,
-}
-
-#[derive(clap::Subcommand)]
-enum Command {
-    Build,
-    Upload,
-}
+use shitty_hdl_board::{Board, Toolchain};
+use shitty_hdl_core::{ir, module::Module};
+use shitty_hdl_platform::{ClockBinding, PinBinding, Platform};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 pub fn cli<Top: Module>(
     manifest_dir: impl AsRef<Path>,
     board: Board,
     make_top: impl FnOnce(Platform) -> Top,
 ) -> Result<()> {
-    let manifest_dir = manifest_dir.as_ref();
-    let metadata = cargo_metadata::MetadataCommand::new()
-        .current_dir(manifest_dir)
-        .manifest_path(manifest_dir.join("Cargo.toml"))
-        .no_deps()
-        .exec()
-        .context("running `cargo metadata`")?;
-    let target = metadata.target_directory.join("hdl");
-    debug!(?target, "using target directory");
+    slop::cli(manifest_dir, board, make_top)
+}
 
-    let platform = todo!();
+pub fn build<Top: Module>(
+    target: impl AsRef<Path>,
+    board: Board,
+    make_top: impl FnOnce(Platform) -> Top,
+) -> Result<PathBuf> {
+    slop::build(target, board, make_top)
+}
 
-    let cli = <Cli as clap::Parser>::parse();
-    match cli.command {
-        Command::Build => build::build(manifest_dir, board, make_top),
-    }
+pub fn render_constraints(
+    toolchain: Toolchain,
+    pins: &[PinBinding],
+    clocks: &[ClockBinding],
+    port_names: &HashMap<ir::SignalId, String>,
+) -> Result<String> {
+    slop::render_constraints(toolchain, pins, clocks, port_names)
 }
 
 #[macro_export]

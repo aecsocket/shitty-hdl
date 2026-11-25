@@ -602,6 +602,7 @@ dependencies = [
  "shitty-hdl-board",
  "shitty-hdl-cli",
  "shitty-hdl-core",
+ "shitty-hdl-platform",
 ]
 
 [[package]]
@@ -617,6 +618,7 @@ dependencies = [
  "clap",
  "shitty-hdl-board",
  "shitty-hdl-core",
+ "shitty-hdl-platform",
  "tracing",
 ]
 
@@ -624,9 +626,9 @@ dependencies = [
 name = "shitty-hdl-core"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bon",
  "const-default",
+ "derive_more",
  "generic-array",
  "shitty-hdl-derive",
  "static_assertions",
@@ -642,6 +644,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "shitty-hdl-platform"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "shitty-hdl-board",
+ "shitty-hdl-core",
 ]
 
 [[package]]

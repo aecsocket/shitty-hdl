@@ -1,42 +1,40 @@
+[package]
+name = "shitty-hdl"
+version.workspace = true
+edition.workspace = true
+
 [workspace]
 resolver = "3"
-members = [".", "cli/", "core/", "board/", "verilog-gen/", "derive/"]
+members = [".", "board/", "cli/", "core/", "derive/", "platform/", "verilog-gen/"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-shitty-hdl-core = { path = "core/" }
-shitty-hdl-cli = { path = "cli/" }
-shitty-hdl-board = { path = "board/" }
-typenum = "1.20.1"
-generic-array = { version = "1.4.5", features = ["const-default"] }
-verilog-gen = { path = "verilog-gen/" }
-const-default = "1.0.0"
 anyhow = { version = "1.0.104" }
+bon = { version = "3.10.3" }
+clap = { version = "4.6.7" }
+const-default = "1.0.0"
+darling = { version = "0.24.1" }
+derive_more = { version = "2.1.1" }
+generic-array = { version = "1.4.5" }
 lasso = { version = "0.7.3" }
+proc-macro2 = { version = "1.0.107" }
+quote = { version = "1.0.47" }
+shitty-hdl-board = { path = "board/" }
+shitty-hdl-cli = { path = "cli/" }
+shitty-hdl-core = { path = "core/" }
+shitty-hdl-derive = { path = "derive/" }
+shitty-hdl-platform = { path = "platform/" }
+smallvec = { version = "2.0.0-beta.4" }
 syn = { version = "3.0.9" }
 tracing = { version = "0.1.44" }
-quote = { version = "1.0.47" }
-proc-macro2 = { version = "1.0.107" }
-shitty-hdl-derive = { path = "derive/" }
-bon = { version = "3.10.3" }
-darling = { version = "0.24.1" }
-smallvec = { version = "2.0.0-beta.4" }
-derive_more = { version = "2.1.1" }
-clap = { version = "4.6.7" }
-
-[package]
-name = "shitty-hdl"
-version.workspace = true
-edition.workspace = true
+typenum = "1.20.1"
+verilog-gen = { path = "verilog-gen/" }
 
 [dependencies]
+shitty-hdl-board = { workspace = true }
+shitty-hdl-cli = { workspace = true }
 shitty-hdl-core = { workspace = true }
-shitty-hdl-cli = { workspace = true, optional = true }
-shitty-hdl-board = { workspace = true, optional = true }
-
-[features]
-default = ["cli"]
-cli = ["dep:shitty-hdl-cli", "dep:shitty-hdl-board"]
+shitty-hdl-platform = { workspace = true }

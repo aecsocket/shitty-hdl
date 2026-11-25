@@ -3,11 +3,11 @@ name = "shitty-hdl-derive"
 version.workspace = true
 edition.workspace = true
 
-[dependencies]
-syn = { workspace = true, features = ["full", "visit-mut"] }
-quote = { workspace = true }
-proc-macro2 = { workspace = true }
-darling = { workspace = true }
-
 [lib]
 proc-macro = true
+
+[dependencies]
+darling = { workspace = true }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true, features = ["full", "visit-mut"] }

@@ -1,7 +1,7 @@
 pub mod data;
 pub mod expr;
 pub mod module;
-pub mod platform;
+
 pub mod signal;
 pub mod util;
 pub mod value;

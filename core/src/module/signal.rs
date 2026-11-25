@@ -1,14 +1,29 @@
 use std::ops::{Deref, DerefMut, ShlAssign};
 
 use crate::{
-    expr::{Value, IntoValue},
+    expr::{IntoValue, Value},
     ir::PortDirection,
     signal::Signal,
     value::Shape,
 };
 
+#[derive(Debug)]
 pub struct In<T: Shape>(Signal<T>);
+
+#[derive(Debug)]
 pub struct Out<T: Shape>(Signal<T>);
+
+impl<T: Shape> In<T> {
+    pub(crate) fn from_signal(signal: Signal<T>) -> Self {
+        Self(signal)
+    }
+}
+
+impl<T: Shape> Out<T> {
+    pub(crate) fn from_signal(signal: Signal<T>) -> Self {
+        Self(signal)
+    }
+}
 
 impl<T: Shape> Clone for In<T> {
     fn clone(&self) -> Self {

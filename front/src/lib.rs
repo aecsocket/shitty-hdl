@@ -28,3 +28,37 @@ pub mod prelude {
 
 pub use air;
 pub use derive::*;
+
+#[doc(hidden)]
+pub mod __ {
+    pub use crate::elab::context::Context;
+    pub use crate::elab::handle::{ActionHandle, ExprHandle, InterfaceHandle};
+    pub use bon;
+
+    pub fn cast<From: crate::value::Shape, To: crate::value::Shape>(
+        kind: air::CastKind,
+        value: crate::value::Value<From>,
+    ) -> crate::value::Value<To> {
+        crate::elab::cast(kind, value)
+    }
+
+    pub fn compare<T: crate::value::Shape>(
+        op: air::BinaryOp,
+        lhs: crate::value::Value<T>,
+        rhs: crate::value::Value<T>,
+    ) -> crate::value::Value<bool> {
+        crate::elab::compare(op, lhs, rhs)
+    }
+
+    pub fn module<I: crate::module::Interface>(name: &str, f: impl FnOnce() -> I) -> I {
+        crate::elab::module(name, f)
+    }
+
+    pub fn subinterface(handle: InterfaceHandle, name: &str) -> InterfaceHandle {
+        crate::elab::subinterface(handle, name)
+    }
+
+    pub fn assert(condition: impl crate::value::IntoValue<Out = bool>, message: &str) {
+        crate::elab::assert(condition, message);
+    }
+}

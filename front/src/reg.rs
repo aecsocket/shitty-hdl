@@ -2,12 +2,13 @@ use std::ops::{Deref, ShlAssign};
 
 use crate::{
     domain::Domain,
+    elab,
     value::{IntoValue, IntoValues, Shape, Value},
 };
 
 #[derive(Debug)]
 pub struct Reg<T: Shape> {
-    id: RegId,
+    id: elab::RegisterHandle,
     value: Value<T>,
 }
 
@@ -22,13 +23,14 @@ impl<T: Shape> Copy for Reg<T> {}
 impl<T: Shape> Reg<T> {
     #[must_use]
     pub fn new(domain: impl Domain, init: T) -> Self {
-        drop(init);
-        todo!();
+        let (id, value) = elab::register::<T>(domain.clock(), Some(init));
+        Self { id, value }
     }
 
     #[must_use]
     pub fn uninit(domain: impl Domain) -> Self {
-        todo!();
+        let (id, value) = elab::register::<T>(domain.clock(), None);
+        Self { id, value }
     }
 
     #[must_use]
@@ -37,8 +39,7 @@ impl<T: Shape> Reg<T> {
     }
 
     pub fn write(&mut self, rhs: impl IntoValue<Out = T>) {
-        _ = rhs.into_value();
-        todo!();
+        elab::write_register(self.id, rhs.into_value());
     }
 }
 
@@ -72,6 +73,3 @@ impl<T: Shape, Rhs: IntoValue<Out = T>> ShlAssign<Rhs> for Reg<T> {
         self.write(rhs);
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RegId(usize);

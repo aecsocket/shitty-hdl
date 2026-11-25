@@ -1,25 +1,45 @@
-mod context;
-
-use std::cell::RefCell;
-
-use scoped_tls_hkt::scoped_thread_local;
+mod body;
+pub(crate) mod context;
+mod design;
+mod expr;
+pub(crate) mod handle;
+mod interface;
+mod state;
+mod types;
 
 pub use bumpalo::Bump;
-pub use context::Context;
+use scoped_tls_hkt::scoped_thread_local;
+use std::cell::RefCell;
+
+pub(crate) use body::{
+    call_action, capture_branch, define_action, define_rule, finish_if, run_ready,
+};
+pub(crate) use context::Context;
+pub(crate) use design::DesignId;
+pub(crate) use expr::{
+    assert, binary, cast, compare, literal, shift, shift_resize, tuple, tuple_element,
+    uint_from_u128, unary,
+};
+pub(crate) use handle::{
+    ActionHandle, BranchHandle, ClockHandle, ExprHandle, InterfaceHandle, RegisterHandle,
+};
+pub(crate) use interface::{input_interface, interface_action, module, subinterface};
+pub(crate) use state::{clock_input, register, write_register};
 
 scoped_thread_local!(static CURRENT: for<'scope> &'scope (dyn ActiveContext + 'scope));
 
 #[must_use]
-pub fn elaborate(arena: &Bump, f: impl FnOnce()) -> air::Module<'_> {
-    let context = RefCell::new(Context::new(arena));
+pub fn elaborate(storage: &Bump, f: impl FnOnce()) -> air::Module<'_> {
+    let design_id = DesignId::new();
+    let context = RefCell::new(Context::new(storage, design_id));
     CURRENT.set(&context as &dyn ActiveContext, f);
     context.into_inner().finish()
 }
 
-pub fn with_context<R>(f: impl for<'dsn> FnOnce(&mut Context<'dsn>) -> R) -> R {
+pub(crate) fn with_context<R>(f: impl for<'dsn> FnOnce(&mut Context<'dsn>) -> R) -> R {
     assert!(
         CURRENT.is_set(),
-        "HDL operations require an active elab::elaborate call"
+        "attempted to access elaboration-time function while not elaborating",
     );
     let mut visitor = Call {
         f: Some(f),

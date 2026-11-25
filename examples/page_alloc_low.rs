@@ -1,7 +1,9 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
-use shitty_hdl::data::Bram;
+use front::data::Bram;
+use front::elab;
+use shitty_hdl::data::bram;
 use shitty_hdl::prelude::*;
 
 #[derive(Debug, Clone, Shape, Bits, Arith)]
@@ -71,7 +73,7 @@ pub fn page_alloc(clk: Clock, mut heap: Heap) -> PageAlloc {
             state <<= State::AllocDone;
         } else {
             // reallocate from free list
-            sim_assert!(free_count > 0);
+            sim_assert!(free_count > 0u64);
 
             heap.read.req.call(Addr::from_page(free_head));
             state <<= State::AllocWait;
@@ -118,4 +120,31 @@ pub fn page_alloc(clk: Clock, mut heap: Heap) -> PageAlloc {
     }
 }
 
-fn main() {}
+fn main() {
+    let storage = elab::Bump::new();
+    let module = elab::elaborate(&storage, || {
+        let clk = Clock::input("clk");
+        let heap = Heap::input("heap");
+        page_alloc(clk, heap);
+    });
+    println!(
+        "{}: {} registers, {} rules, {} actions",
+        module.signature.name,
+        module.registers.len(),
+        module.rules.len(),
+        module.methods.len(),
+    );
+    println!("{module:#?}");
+
+    let package = bsv::from_air(&storage, &module).expect("AIR to BSV lowering failed");
+    println!(
+        "BSV {}: {} type definitions, {} interfaces, {} modules",
+        package.name,
+        package.typedefs.len(),
+        package.interfaces.len(),
+        package.modules.len(),
+    );
+    let mut source = String::new();
+    bsv::fmt::write(&mut source, &package).expect("BSV formatting failed");
+    println!("{source}");
+}

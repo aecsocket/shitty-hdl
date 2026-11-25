@@ -5,9 +5,9 @@ edition.workspace = true
 
 [dependencies]
 bumpalo = { workspace = true }
+derive_more = { workspace = true, features = ["display", "error"] }
 lasso = { workspace = true }
 smallvec = { workspace = true }
-derive_more = { workspace = true, features = ["display", "error"] }
 
 [lints]
 workspace = true

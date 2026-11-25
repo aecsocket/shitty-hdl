@@ -1,0 +1,15 @@
+[package]
+name = "shitty-hdl-bsv"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+air = { workspace = true, optional = true }
+bumpalo = { workspace = true, optional = true }
+
+[features]
+default = []
+from_air = ["dep:air", "dep:bumpalo"]
+
+[lints]
+workspace = true

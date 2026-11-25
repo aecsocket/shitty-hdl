@@ -22,6 +22,12 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
         Data::Struct(data) => data,
         Data::Enum(data) => {
             for variant in &data.variants {
+                if let Some((_, discriminant)) = &variant.discriminant {
+                    return Err(syn::Error::new_spanned(
+                        discriminant,
+                        "Shape cannot represent explicit enum discriminants",
+                    ));
+                }
                 if !variant.fields.is_empty() {
                     return Err(syn::Error::new_spanned(
                         &variant.fields,
@@ -30,10 +36,42 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
                 }
             }
             let ident = &input.ident;
-            let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+            let mut generics = input.generics.clone();
+            let (_, original_ty_generics, _) = input.generics.split_for_impl();
+            generics.make_where_clause().predicates.push(parse_quote! {
+                #ident #original_ty_generics: 'static
+            });
+            let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+            let names = data
+                .variants
+                .iter()
+                .map(|variant| variant.ident.unraw().to_string());
+            let arms = data.variants.iter().map(|variant| {
+                let ident = &variant.ident;
+                let name = ident.unraw().to_string();
+                let pattern = match &variant.fields {
+                    Fields::Named(_) => quote! { Self::#ident {} },
+                    Fields::Unnamed(_) => quote! { Self::#ident() },
+                    Fields::Unit => quote! { Self::#ident },
+                };
+                quote! { #pattern => cx.enum_value::<Self>(#name) }
+            });
             return Ok(quote! {
                 impl #impl_generics #crate_::value::Shape for #ident #ty_generics #where_clause {
                     type View = #crate_::value::ValueView<Self>;
+
+                    fn air_type<'dsn>(cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Type<'dsn> {
+                        let variants = cx.alloc_slice([#(#names,)*]);
+                        cx.named_type::<Self>(#crate_::air::NamedTypeKind::Enum(variants))
+                    }
+
+                    fn air_value<'dsn>(self, cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Expr<'dsn> {
+                        match self { #(#arms,)* }
+                    }
+
+                    fn make_values(value: #crate_::value::Value<Self>) -> Self::Values { value }
+
+                    fn pack_values(values: Self::Values) -> #crate_::value::Value<Self> { values }
                 }
 
                 impl #impl_generics #crate_::value::IntoValues for #ident #ty_generics #where_clause {
@@ -63,6 +101,26 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             #ty: #crate_::value::Shape
         });
     }
+    let (_, original_ty_generics, _) = input.generics.split_for_impl();
+    generics.make_where_clause().predicates.push(parse_quote! {
+        #ident #original_ty_generics: 'static
+    });
+    let metadata = data.fields.iter().enumerate().map(|(index, field)| {
+        let ty = &field.ty;
+        let name = field
+            .ident
+            .as_ref()
+            .map_or_else(|| format!("_{index}"), |ident| ident.unraw().to_string());
+        quote! { #crate_::air::Field { name: #name, ty: cx.ty::<#ty>() } }
+    });
+    let values = data.fields.iter().enumerate().map(|(index, field)| {
+        let ty = &field.ty;
+        let member = field.ident.clone().map_or_else(
+            || syn::Member::Unnamed(syn::Index::from(index)),
+            syn::Member::Named,
+        );
+        quote! { <#ty as #crate_::value::Shape>::air_value(self.#member, cx) }
+    });
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let fields = data.fields.iter().map(|field| {
         let ty = &field.ty;
@@ -93,6 +151,7 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
 
         impl #impl_generics ::core::marker::Copy for #view_ident #ty_generics #where_clause {}
 
+        #[allow(clippy::expl_impl_clone_on_copy)]
         impl #impl_generics ::core::clone::Clone for #view_ident #ty_generics #where_clause {
             fn clone(&self) -> Self {
                 *self
@@ -101,6 +160,21 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
 
         impl #impl_generics #crate_::value::Shape for #ident #ty_generics #where_clause {
             type View = #view_ident #ty_generics;
+
+            fn air_type<'dsn>(cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Type<'dsn> {
+                let fields = [#(#metadata,)*];
+                let fields = cx.alloc_slice(fields);
+                cx.named_type::<Self>(#crate_::air::NamedTypeKind::Struct(fields))
+            }
+
+            fn air_value<'dsn>(self, cx: &mut #crate_::__::Context<'dsn>) -> &'dsn #crate_::air::Expr<'dsn> {
+                let fields = ::std::vec![#(#values,)*];
+                cx.struct_value::<Self>(fields)
+            }
+
+            fn make_values(value: #crate_::value::Value<Self>) -> Self::Values { value }
+
+            fn pack_values(values: Self::Values) -> #crate_::value::Value<Self> { values }
         }
 
         impl #impl_generics #crate_::value::IntoValues for #ident #ty_generics #where_clause {

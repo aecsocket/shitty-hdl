@@ -1,7 +1,7 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
-use shitty_hdl::data::Bram;
+use front::data::Bram;
 use shitty_hdl::prelude::*;
 
 #[derive(Debug, Clone, Shape, Bits, Arith)]
@@ -14,10 +14,12 @@ pub struct Addr(pub Uint<45>);
 pub struct PageAddr(pub Uint<40>);
 
 impl PageAddr {
+    #[must_use]
     pub fn zero() -> Self {
         Self(uint!(0))
     }
 
+    #[must_use]
     pub fn invalid() -> Self {
         Self(uint!(:1))
     }
@@ -38,10 +40,10 @@ pub struct PageAlloc {
 }
 
 #[module]
-pub fn page_alloc(heap: Heap) -> PageAlloc {
-    let mut next_clean = Reg::<PageAddr>::new(PageAddr::zero());
-    let mut free_head = Reg::<PageAddr>::new(PageAddr::invalid());
-    let mut free_count = Reg::<PageAddr>::new(PageAddr::zero());
+pub fn page_alloc(clk: Clock, heap: Heap) -> PageAlloc {
+    let mut next_clean = Reg::<PageAddr>::new(clk, PageAddr::zero());
+    let mut free_head = Reg::<PageAddr>::new(clk, PageAddr::invalid());
+    let mut free_count = Reg::<PageAddr>::new(clk, PageAddr::zero());
 
     let alloc = Method::define_as(async |()| {
         if free_head == PageAddr::invalid() {
@@ -72,10 +74,6 @@ pub fn page_alloc(heap: Heap) -> PageAlloc {
     });
 
     PageAlloc { alloc, free }
-}
-
-fn top(heap: Heap) {
-    let pages = page_alloc(heap);
 }
 
 fn main() {}

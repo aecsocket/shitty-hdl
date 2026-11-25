@@ -1,6 +1,7 @@
 use std::ops::{Shl, Shr};
 
 use crate::{
+    elab,
     ops::Bits,
     reg::Reg,
     value::{Shape, Uint, Value},
@@ -28,13 +29,13 @@ impl<T: Shift> Shr<usize> for Value<T> {
     }
 }
 
-pub trait ShlZext<const N: usize> {
+pub trait ShlZext<const N: usize>: 'static {
     fn shl_zext<const SHIFT: usize>(self) -> Value<Uint<{ N + SHIFT }>>
     where
         [(); N + SHIFT]:;
 }
 
-pub trait ShrTrunc<const N: usize> {
+pub trait ShrTrunc<const N: usize>: 'static {
     fn shr_trunc<const SHIFT: usize>(self) -> Value<Uint<{ N - SHIFT }>>
     where
         [(); N - SHIFT]:;
@@ -45,8 +46,7 @@ impl<const N: usize> ShlZext<N> for Value<Uint<N>> {
     where
         [(); N + SHIFT]:,
     {
-        let _ = self;
-        todo!();
+        elab::shift_resize::<N, { N + SHIFT }>(air::BinaryOp::ShiftLeft, self, SHIFT)
     }
 }
 
@@ -55,8 +55,7 @@ impl<const N: usize> ShrTrunc<N> for Value<Uint<N>> {
     where
         [(); N - SHIFT]:,
     {
-        let _ = self;
-        todo!();
+        elab::shift_resize::<N, { N - SHIFT }>(air::BinaryOp::ShiftRight, self, SHIFT)
     }
 }
 

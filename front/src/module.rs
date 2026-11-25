@@ -1,52 +1,100 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, mem, thread};
 
-use crate::value::{IntoValue, IntoValues, Shape};
+use crate::{
+    air, elab,
+    value::{IntoValue, IntoValues, Shape, Value},
+};
 
-pub trait Interface {}
+pub trait Interface: 'static {
+    fn air_interface<'dsn>(cx: &mut elab::Context<'dsn>) -> &'dsn air::Interface<'dsn>;
+    fn from_handle(handle: elab::InterfaceHandle) -> Self;
+    fn air_bind<'dsn>(&self, cx: &mut elab::Context<'dsn>) -> &'dsn air::InterfaceImpl<'dsn>;
+
+    #[must_use]
+    fn input(name: &str) -> Self
+    where
+        Self: Sized,
+    {
+        elab::input_interface::<Self>(name)
+    }
+}
+
+impl Interface for () {
+    fn air_interface<'dsn>(cx: &mut elab::Context<'dsn>) -> &'dsn air::Interface<'dsn> {
+        cx.alloc(air::Interface {
+            name: "Empty",
+            members: &[],
+        })
+    }
+
+    fn from_handle(_handle: elab::InterfaceHandle) -> Self {}
+
+    fn air_bind<'dsn>(&self, cx: &mut elab::Context<'dsn>) -> &'dsn air::InterfaceImpl<'dsn> {
+        let ty = cx.iface::<Self>();
+        cx.alloc(air::InterfaceImpl { ty, members: &[] })
+    }
+}
 
 pub struct Rule(());
 
 impl Rule {
     pub fn when(cond: impl IntoValue<Out = bool>) -> DefineRule {
-        todo!();
+        DefineRule {
+            cond: cond.into_value(),
+        }
     }
 
     pub fn define_as(f: impl FnOnce()) {
-        todo!();
+        elab::define_rule(None, f);
     }
 }
 
-pub struct DefineRule(());
+pub struct DefineRule {
+    cond: Value<bool>,
+}
 
 impl DefineRule {
     pub fn define_as(self, f: impl FnOnce()) {
-        todo!();
+        elab::define_rule(Some(self.cond), f);
     }
 }
 
-pub struct Action<In: Shape, Out: Shape>(PhantomData<(In, Out)>);
+pub struct Action<In: Shape, Out: Shape>(elab::ActionHandle, PhantomData<(In, Out)>);
 
 impl<In: Shape, Out: Shape> Action<In, Out> {
+    #[must_use]
+    pub const fn from_handle(handle: elab::ActionHandle) -> Self {
+        Self(handle, PhantomData)
+    }
+
+    #[must_use]
+    pub const fn handle(&self) -> elab::ActionHandle {
+        self.0
+    }
+
+    #[must_use]
+    pub fn from_interface(handle: elab::InterfaceHandle, name: &str) -> Self {
+        Self::from_handle(elab::interface_action::<In, Out>(handle, name))
+    }
+
     pub fn when(cond: impl IntoValue<Out = bool>) -> DefineAction<In, Out> {
-        todo!();
+        DefineAction(Some(cond.into_value()), PhantomData)
     }
 
     pub fn define_as(f: impl FnOnce(In::Values) -> Out::Values) -> Self {
-        drop(f);
-        todo!();
+        Self::from_handle(elab::define_action::<In, Out>(None, f))
     }
 
     pub fn call(&mut self, args: In::Values) -> Out::Values {
-        todo!();
+        elab::call_action::<In, Out>(self.0, args)
     }
 }
 
-pub struct DefineAction<In: Shape, Out: Shape>(PhantomData<(In, Out)>);
+pub struct DefineAction<In: Shape, Out: Shape>(Option<Value<bool>>, PhantomData<(In, Out)>);
 
 impl<In: Shape, Out: Shape> DefineAction<In, Out> {
     pub fn define_as(self, f: impl FnOnce(In::Values) -> Out::Values) -> Action<In, Out> {
-        drop(f);
-        todo!();
+        Action::from_handle(elab::define_action::<In, Out>(self.0, f))
     }
 }
 
@@ -54,23 +102,43 @@ pub fn if_<R: IntoValues>(
     cond: impl IntoValue<Out = bool>,
     then: impl AsyncFnOnce() -> R,
 ) -> If<R> {
-    drop((cond, then));
-    todo!();
+    let cond = elab::capture_branch(|| cond.into_value());
+    let branch = elab::capture_branch(|| elab::run_ready(then()));
+    If {
+        cases: vec![(cond, branch)],
+        _phantom: PhantomData,
+    }
 }
 
-pub struct If<T> {
-    _phantom: PhantomData<T>,
+pub struct If<R: IntoValues> {
+    cases: Vec<(elab::BranchHandle, elab::BranchHandle)>,
+    _phantom: PhantomData<R>,
 }
 
-impl<T: IntoValues> If<T> {
+impl<R: IntoValues> If<R> {
     #[must_use]
-    pub fn else_if(self, cond: impl IntoValue<Out = bool>, then: impl AsyncFnOnce() -> T) -> Self {
-        drop((cond, then));
-        todo!();
+    pub fn else_if(
+        mut self,
+        cond: impl FnOnce() -> Value<bool>,
+        then: impl AsyncFnOnce() -> R,
+    ) -> Self {
+        let cond = elab::capture_branch(cond);
+        let branch = elab::capture_branch(|| elab::run_ready(then()));
+        self.cases.push((cond, branch));
+        self
     }
 
-    pub fn else_(self, then: impl AsyncFnOnce() -> T) -> T::Values {
-        drop(then);
-        todo!();
+    pub fn else_(mut self, then: impl AsyncFnOnce() -> R) -> R::Values {
+        let branch = elab::capture_branch(|| elab::run_ready(then()));
+        let value = elab::finish_if::<R::Out>(mem::take(&mut self.cases), Some(branch));
+        R::Out::make_values(value)
+    }
+}
+
+impl<R: IntoValues> Drop for If<R> {
+    fn drop(&mut self) {
+        if !thread::panicking() && !self.cases.is_empty() {
+            let _ = elab::finish_if::<R::Out>(mem::take(&mut self.cases), None);
+        }
     }
 }

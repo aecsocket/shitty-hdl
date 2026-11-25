@@ -7,12 +7,19 @@ pub use int::*;
 
 use std::marker::PhantomData;
 
-pub trait Shape: Sized + IntoValues<Out = Self> {
+use crate::elab::{self, Context, ExprHandle};
+
+pub trait Shape: Sized + 'static + IntoValues<Out = Self> {
     type View: Copy;
+
+    fn air_type<'dsn>(cx: &mut Context<'dsn>) -> &'dsn air::Type<'dsn>;
+    fn air_value<'dsn>(self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn>;
+    fn make_values(value: Value<Self>) -> Self::Values;
+    fn pack_values(values: Self::Values) -> Value<Self>;
 }
 
 pub trait IntoValues {
-    type Out: Shape;
+    type Out: Shape<Values = Self::Values>;
     type Values;
 
     fn into_values(self) -> Self::Values;
@@ -21,7 +28,19 @@ pub trait IntoValues {
 pub type ShapeSize = u32;
 
 #[derive(Debug)]
-pub struct Value<T: Shape>(PhantomData<T>);
+pub struct Value<T: Shape>(ExprHandle, PhantomData<T>);
+
+impl<T: Shape> Value<T> {
+    #[must_use]
+    pub const fn from_handle(handle: ExprHandle) -> Self {
+        Self(handle, PhantomData)
+    }
+
+    #[must_use]
+    pub const fn handle(self) -> ExprHandle {
+        self.0
+    }
+}
 
 impl<T: Shape> Clone for Value<T> {
     fn clone(&self) -> Self {
@@ -41,7 +60,7 @@ impl<T: Shape> IntoValue for T {
     type Out = T;
 
     fn into_value(self) -> Value<Self::Out> {
-        todo!();
+        elab::literal(self)
     }
 }
 

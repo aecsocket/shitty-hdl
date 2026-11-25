@@ -5,7 +5,7 @@ edition.workspace = true
 
 [workspace]
 resolver = "3"
-members = [".", "air/", "board/", "front/", "cli/", "derive/", "platform/"]
+members = [".", "air/", "board/", "bsv/", "cli/", "derive/", "front/", "platform/"]
 
 [workspace.package]
 version = "0.1.0"
@@ -13,42 +13,45 @@ edition = "2024"
 
 [workspace.dependencies]
 air = { package = "shitty-hdl-air", path = "air/" }
-front = { package = "shitty-hdl-front", path = "front/" }
 board = { package = "shitty-hdl-board", path = "board/" }
+bsv = { package = "shitty-hdl-bsv", path = "bsv/" }
 cli = { package = "shitty-hdl-cli", path = "cli/" }
 derive = { package = "shitty-hdl-derive", path = "derive/" }
+front = { package = "shitty-hdl-front", path = "front/" }
 platform = { package = "shitty-hdl-platform", path = "platform/" }
 
 anyhow = { version = "1.0.104" }
 bon = { version = "3.10.3" }
 bumpalo = { version = "3.20.3" }
+cargo_metadata = { version = "0.23.1" }
 clap = { version = "4.6.7" }
-const-default = { version = "1.0.0" }
 darling = { version = "0.24.1" }
-derive_more = { version = "2.1.1" }
-generic-array = { version = "1.4.5" }
-lasso = { version = "0.7.3" }
 proc-macro2 = { version = "1.0.107" }
 quote = { version = "1.0.47" }
 scoped-tls-hkt = { version = "0.1.5" }
 smallvec = { version = "2.0.0-beta.4" }
 syn = { version = "3.0.9" }
-tracing = { version = "0.1.44" }
-typenum = { version = "1.20.1" }
 variadics_please = { version = "2.0.0" }
 
 [workspace.lints.clippy]
 absolute_paths = "warn"
 all = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-option_if_let_else = "allow"
-too_many_lines = "allow"
-similar_names = "allow"
+missing_errors_doc = "allow"
 missing_panics_doc = "allow"
+nursery = { level = "warn", priority = -1 }
+option_if_let_else = "allow"
+pedantic = { level = "warn", priority = -1 }
+similar_names = "allow"
+too_many_lines = "allow"
 
 [dependencies]
 board = { workspace = true }
-# cli = { workspace = true }
+cli = { workspace = true }
 front = { workspace = true }
-# platform = { workspace = true }
+platform = { workspace = true }
+
+[dev-dependencies]
+bsv = { workspace = true, features = ["from_air"] }
+
+[lints]
+workspace = true

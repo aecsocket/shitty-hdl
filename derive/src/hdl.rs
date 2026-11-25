@@ -2,7 +2,8 @@ use darling::FromMeta;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
-    BinOp, Block, Expr, ExprIf, Item, ItemFn, Path, Result, Stmt, parse_quote, visit_mut::VisitMut,
+    BinOp, Block, Expr, ExprIf, Item, ItemFn, Path, Result, Stmt, Token, parse::Parser,
+    parse_quote, punctuated::Punctuated, visit_mut::VisitMut,
 };
 
 #[derive(FromMeta)]
@@ -87,7 +88,7 @@ impl Rewriter<'_> {
                     let cond = &else_if.cond;
                     let then = &else_if.then_branch;
                     chain = quote! {
-                        #chain.else_if(#crate_::value::IntoValue::into_value(#cond), async || #then)
+                        #chain.else_if(|| #crate_::value::IntoValue::into_value(#cond), async || #then)
                     };
                     next = &mut else_if.else_branch;
                 } else {
@@ -102,11 +103,34 @@ impl Rewriter<'_> {
                 return parse_quote! { #(#attrs)* { #chain.else_(async || { #branch }) } };
             }
         }
-        parse_quote! { #(#attrs)* { #chain; } }
+        parse_quote! { #(#attrs)* { ::core::mem::drop(#chain); } }
     }
 }
 
 impl VisitMut for Rewriter<'_> {
+    fn visit_macro_mut(&mut self, mac: &mut syn::Macro) {
+        if !mac
+            .path
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == "sim_assert")
+        {
+            return;
+        }
+        let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
+        match parser.parse2(mac.tokens.clone()) {
+            Ok(mut args) if (1..=2).contains(&args.len()) => {
+                self.visit_expr_mut(args.first_mut().unwrap());
+                mac.tokens = quote! { #args };
+            }
+            Ok(_) => self.errors.push(syn::Error::new_spanned(
+                mac,
+                "expected sim_assert!(condition) or sim_assert!(condition, message)",
+            )),
+            Err(error) => self.errors.push(error),
+        }
+    }
+
     fn visit_item_mut(&mut self, _item: &mut Item) {}
 
     fn visit_block_mut(&mut self, block: &mut Block) {
@@ -175,6 +199,18 @@ impl VisitMut for BranchControlFlow<'_> {
             self.errors.push(syn::Error::new_spanned(
                 &*expr,
                 "unsupported branch control flow: moving this expression into an async branch would change its control-flow target",
+            ));
+        }
+        if matches!(expr, Expr::Assign(_))
+            || matches!(expr, Expr::Binary(binary) if matches!(binary.op,
+                BinOp::AddAssign(_) | BinOp::SubAssign(_) | BinOp::MulAssign(_)
+                | BinOp::DivAssign(_) | BinOp::RemAssign(_) | BinOp::BitXorAssign(_)
+                | BinOp::BitAndAssign(_) | BinOp::BitOrAssign(_) | BinOp::ShrAssign(_)
+            ))
+        {
+            self.errors.push(syn::Error::new_spanned(
+                &*expr,
+                "unsupported assignment in hardware branch: all branches execute during elaboration, so Rust-side mutation is not conditional; use <<= for register writes",
             ));
         }
         syn::visit_mut::visit_expr_mut(self, expr);

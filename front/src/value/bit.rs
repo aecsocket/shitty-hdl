@@ -1,6 +1,7 @@
 use smallvec::SmallVec;
 
 use crate::{
+    elab::{self, Context},
     ops::{BitCmp, Bits, Trunc, Zext},
     value::{IntoValue, IntoValues, Shape, Value, ValueView},
 };
@@ -15,6 +16,24 @@ pub const fn bit_cap<const N: usize>() -> usize {
 
 impl<const N: usize> Shape for Bit<N> {
     type View = ValueView<Self>;
+
+    fn air_type<'dsn>(cx: &mut Context<'dsn>) -> &'dsn air::Type<'dsn> {
+        cx.alloc(air::Type::Bit {
+            width: u32::try_from(N).expect("bit width exceeds u32"),
+        })
+    }
+
+    fn air_value<'dsn>(self, cx: &mut Context<'dsn>) -> &'dsn air::Expr<'dsn> {
+        cx.bits::<Self>(&self.0)
+    }
+
+    fn make_values(value: Value<Self>) -> Self::Values {
+        value
+    }
+
+    fn pack_values(values: Self::Values) -> Value<Self> {
+        values
+    }
 }
 
 impl<const N: usize> IntoValues for Bit<N> {
@@ -41,17 +60,19 @@ impl<const N: usize> Bits for Bit<N> {
 
 impl<const N: usize> BitCmp for Bit<N> {
     fn eq(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
-        let _ = (lhs, rhs);
-        todo!();
+        elab::compare(air::BinaryOp::Equal, lhs, rhs)
     }
 
     fn ne(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
-        let _ = (lhs, rhs);
-        todo!();
+        elab::compare(air::BinaryOp::NotEqual, lhs, rhs)
     }
 }
 
 impl<const N: usize> Bit<N> {
+    pub(super) fn words(&self) -> &[u64] {
+        &self.0
+    }
+
     #[must_use]
     pub fn none() -> Self {
         let mut words = SmallVec::new();
@@ -106,7 +127,7 @@ impl<const N: usize> Trunc for Value<Bit<N>> {
     type To<const TO: usize> = Bit<TO>;
 
     fn trunc<const TO: usize>(self) -> Value<Self::To<TO>> {
-        todo!();
+        elab::cast::<Bit<N>, Bit<TO>>(air::CastKind::Truncate, self)
     }
 }
 
@@ -114,6 +135,6 @@ impl<const N: usize> Zext for Value<Bit<N>> {
     type To<const TO: usize> = Bit<TO>;
 
     fn zext<const TO: usize>(self) -> Value<Self::To<TO>> {
-        todo!();
+        elab::cast::<Bit<N>, Bit<TO>>(air::CastKind::ZeroExtend, self)
     }
 }

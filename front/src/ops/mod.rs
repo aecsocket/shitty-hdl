@@ -1,4 +1,5 @@
 mod arith;
+mod bool;
 mod cast;
 mod cmp;
 mod shift;

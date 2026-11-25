@@ -53,13 +53,11 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             type Packed = #crate_::value::Bit<{ #width }>;
 
             fn pack(this: #crate_::value::Value<Self>) -> #crate_::value::Value<Self::Packed> {
-                let _ = this;
-                ::core::todo!()
+                #crate_::__::cast::<Self, Self::Packed>(#crate_::air::CastKind::Pack, this)
             }
 
             fn unpack(bits: #crate_::value::Value<Self::Packed>) -> #crate_::value::Value<Self> {
-                let _ = bits;
-                ::core::todo!()
+                #crate_::__::cast::<Self::Packed, Self>(#crate_::air::CastKind::Unpack, bits)
             }
         }
     })

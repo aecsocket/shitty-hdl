@@ -2,3 +2,6 @@
 name = "shitty-hdl-board"
 version.workspace = true
 edition.workspace = true
+
+[lints]
+workspace = true

@@ -1,10 +1,12 @@
-use crate::iface::{self, Argument, Field, MethodSignature, NamedType, Type, UnionVariant};
+use crate::{
+    Argument, Field, Interface, InterfaceMember, MethodSignature, NamedType, Type, UnionVariant,
+};
 
 #[derive(Debug, Clone)]
 pub struct ModuleSignature<'dsn> {
     pub name: &'dsn str,
     pub parameters: &'dsn [&'dsn Parameter<'dsn>],
-    pub interface: &'dsn iface::Interface<'dsn>,
+    pub interface: &'dsn Interface<'dsn>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -15,16 +17,17 @@ pub enum Parameter<'dsn> {
     },
     Interface {
         name: &'dsn str,
-        ty: &'dsn iface::Interface<'dsn>,
+        ty: &'dsn Interface<'dsn>,
     },
     Clock {
-        name: &'dsn str,
+        domain: &'dsn Domain<'dsn>,
     },
 }
 
 #[derive(Debug, Clone)]
 pub struct Module<'dsn> {
     pub signature: &'dsn ModuleSignature<'dsn>,
+    pub domains: &'dsn [&'dsn Domain<'dsn>],
     pub types: &'dsn [&'dsn NamedType<'dsn>],
     pub instances: &'dsn [&'dsn Instance<'dsn>],
     pub registers: &'dsn [&'dsn Register<'dsn>],
@@ -39,7 +42,7 @@ pub struct Instance<'dsn> {
     pub name: &'dsn str,
     pub module: &'dsn ModuleSignature<'dsn>,
     pub arguments: &'dsn [InstanceArgument<'dsn>],
-    pub clock: ClockRef<'dsn>,
+    pub domain: &'dsn Domain<'dsn>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -54,7 +57,7 @@ pub enum InstanceArgument<'dsn> {
     },
     Clock {
         parameter: &'dsn Parameter<'dsn>,
-        clock: ClockRef<'dsn>,
+        domain: &'dsn Domain<'dsn>,
     },
 }
 
@@ -65,7 +68,7 @@ pub enum InterfaceRef<'dsn> {
     Local(&'dsn InterfaceImpl<'dsn>),
     Subinterface {
         parent: &'dsn Self,
-        member: &'dsn iface::InterfaceMember<'dsn>,
+        member: &'dsn InterfaceMember<'dsn>,
     },
 }
 
@@ -80,7 +83,7 @@ pub enum MethodRef<'dsn> {
 
 #[derive(Debug, Clone)]
 pub struct InterfaceImpl<'dsn> {
-    pub ty: &'dsn iface::Interface<'dsn>,
+    pub ty: &'dsn Interface<'dsn>,
     pub members: &'dsn [InterfaceBinding<'dsn>],
 }
 
@@ -91,7 +94,7 @@ pub enum InterfaceBinding<'dsn> {
         method: MethodRef<'dsn>,
     },
     Interface {
-        declaration: &'dsn iface::InterfaceMember<'dsn>,
+        declaration: &'dsn InterfaceMember<'dsn>,
         implementation: &'dsn InterfaceImpl<'dsn>,
     },
 }
@@ -120,7 +123,7 @@ pub struct Rule<'dsn> {
 pub struct Register<'dsn> {
     pub name: &'dsn str,
     pub ty: &'dsn Type<'dsn>,
-    pub clock: ClockRef<'dsn>,
+    pub domain: &'dsn Domain<'dsn>,
     pub reset: RegisterReset<'dsn>,
 }
 
@@ -131,11 +134,9 @@ pub enum RegisterReset<'dsn> {
     Asynchronous(&'dsn Expr<'dsn>),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ClockRef<'dsn> {
-    Default,
-    None,
-    Parameter(&'dsn Parameter<'dsn>),
+#[derive(Debug)]
+pub struct Domain<'dsn> {
+    pub name: &'dsn str,
 }
 
 #[derive(Debug, Clone)]
@@ -152,6 +153,7 @@ pub struct BitLiteral<'dsn> {
 
 #[derive(Debug, Clone, Copy)]
 pub enum ExprKind<'dsn> {
+    Undefined,
     Unit,
     Bool(bool),
     Bits(BitLiteral<'dsn>),
@@ -278,6 +280,10 @@ pub struct Block<'dsn> {
 #[derive(Debug, Clone, Copy)]
 pub enum Statement<'dsn> {
     Let {
+        local: &'dsn Local<'dsn>,
+        value: &'dsn Expr<'dsn>,
+    },
+    Assign {
         local: &'dsn Local<'dsn>,
         value: &'dsn Expr<'dsn>,
     },

@@ -54,16 +54,14 @@ fn derive(input: TokenStream, arithmetic: bool) -> Result<TokenStream> {
                     lhs: #crate_::value::Value<Self>,
                     rhs: #crate_::value::Value<Self>,
                 ) -> #crate_::value::Value<bool> {
-                    let _ = (lhs, rhs);
-                    ::core::todo!()
+                    #crate_::__::compare(#crate_::air::BinaryOp::Equal, lhs, rhs)
                 }
 
                 fn ne(
                     lhs: #crate_::value::Value<Self>,
                     rhs: #crate_::value::Value<Self>,
                 ) -> #crate_::value::Value<bool> {
-                    let _ = (lhs, rhs);
-                    ::core::todo!()
+                    #crate_::__::compare(#crate_::air::BinaryOp::NotEqual, lhs, rhs)
                 }
             }
         });

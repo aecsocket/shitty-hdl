@@ -1,9 +1,9 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
-use front::data::Bram;
-use front::elab;
-use shitty_hdl::data::bram;
+use board::arty_a7::A7_100T;
+use front::data::{Bram, bram};
+use platform::Platform;
 use shitty_hdl::prelude::*;
 
 #[derive(Debug, Clone, Shape, Bits, Arith)]
@@ -16,10 +16,12 @@ pub struct Addr(pub Uint<45>);
 pub struct PageAddr(pub Uint<40>);
 
 impl PageAddr {
+    #[must_use]
     pub fn zero() -> Self {
         Self(uint!(0))
     }
 
+    #[must_use]
     pub fn invalid() -> Self {
         Self(uint!(:1))
     }
@@ -122,31 +124,64 @@ pub fn page_alloc(clk: Clock, mut heap: Heap) -> PageAlloc {
     }
 }
 
-fn main() {
-    let storage = elab::Bump::new();
-    let module = elab::elaborate(&storage, || {
-        let clk = Clock::input("clk");
-        let heap = bram::<Addr, Word>().clk(clk).depth(1024).call();
-        page_alloc(clk, heap);
-    });
-    println!(
-        "{}: {} registers, {} rules, {} actions",
-        module.signature.name,
-        module.registers.len(),
-        module.rules.len(),
-        module.methods.len(),
-    );
-    println!("{module:#?}");
+#[module]
+fn top(platform: Platform) {
+    #[derive(Debug, Shape, BitCmp)]
+    enum State {
+        Idle,
+        Alloc1Wait,
+        Alloc1Done,
+        Alloc2Wait,
+        Alloc2Done,
+        Alloc3Wait,
+        Alloc3Done,
+    }
 
-    let (package, _) = bsv::from_air(&storage, &module).expect("AIR to BSV lowering failed");
-    println!(
-        "BSV {}: {} type definitions, {} interfaces, {} modules",
-        package.name,
-        package.typedefs.len(),
-        package.interfaces.len(),
-        package.modules.len(),
-    );
-    let mut source = String::new();
-    bsv::fmt::write(&mut source, &package).expect("BSV formatting failed");
-    println!("{source}");
+    let clk = platform.default_clock().expect("requires default clock");
+    let mut led = platform.led.take(0);
+
+    let heap = bram::<Addr, Word>().clk(clk).depth(32 * 1024).call();
+    let mut pages = page_alloc(clk, heap);
+    let mut state = Reg::<State>::new(clk, State::Idle);
+    let mut page1 = Reg::<PageAddr>::uninit(clk);
+    let mut page2 = Reg::<PageAddr>::uninit(clk);
+    let mut page3 = Reg::<PageAddr>::uninit(clk);
+
+    Rule::when(state == State::Idle).define_as(|| {
+        pages.alloc.req.call(());
+        state <<= State::Alloc1Wait;
+    });
+
+    Rule::when(state == State::Alloc1Wait).define_as(|| {
+        page1 <<= pages.alloc.out.call(());
+        display!("page1 = {page1}");
+        state <<= State::Alloc1Done;
+    });
+
+    Rule::when(state == State::Alloc1Done).define_as(|| {
+        pages.alloc.req.call(());
+        state <<= State::Alloc2Wait;
+    });
+
+    Rule::when(state == State::Alloc2Wait).define_as(|| {
+        page2 <<= pages.alloc.out.call(());
+        display!("page2 = {page2}");
+        state <<= State::Alloc2Done;
+    });
+
+    Rule::when(state == State::Alloc2Done).define_as(|| {
+        pages.alloc.req.call(());
+        state <<= State::Alloc3Wait;
+    });
+
+    Rule::when(state == State::Alloc3Wait).define_as(|| {
+        page3 <<= pages.alloc.out.call(());
+        display!("page3 = {page3}");
+        state <<= State::Alloc3Done;
+        led <<= !led;
+    });
+}
+
+fn main() {
+    shitty_hdl::cli!(A7_100T, top);
 }

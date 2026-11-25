@@ -1,5 +1,5 @@
 use crate::{
-    ops::{Bits, Trunc, Zext},
+    ops::{Arith, Bits, Shift, Trunc, Zext},
     value::{Bit, Shape, Value, ValueView},
 };
 
@@ -20,6 +20,38 @@ impl<const N: usize> Bits for Uint<N> {
     }
 
     fn unpack(bits: Value<Self::Packed>) -> Value<Self> {
+        todo!();
+    }
+}
+
+impl<const N: usize> Arith for Uint<N> {
+    fn add(lhs: Value<Self>, rhs: Value<Self>) -> Value<Self> {
+        let _ = (lhs, rhs);
+        todo!();
+    }
+
+    fn sub(lhs: Value<Self>, rhs: Value<Self>) -> Value<Self> {
+        let _ = (lhs, rhs);
+        todo!();
+    }
+
+    fn from_u128(value: u128) -> Value<Self> {
+        assert!(
+            N >= 128 || (value >> N) == 0,
+            "`{value}` cannot fit in `Uint<{N}>`"
+        );
+        todo!();
+    }
+}
+
+impl<const N: usize> Shift for Uint<N> {
+    fn shl(value: Value<Self>, amount: usize) -> Value<Self> {
+        let _ = (value, amount);
+        todo!();
+    }
+
+    fn shr(value: Value<Self>, amount: usize) -> Value<Self> {
+        let _ = (value, amount);
         todo!();
     }
 }

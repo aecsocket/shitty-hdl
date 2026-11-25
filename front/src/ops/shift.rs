@@ -1,22 +1,30 @@
 use std::ops::{Shl, Shr};
 
-use crate::value::{Uint, Value};
+use crate::{
+    ops::Bits,
+    reg::Reg,
+    value::{Shape, Uint, Value},
+};
 
-impl<const N: usize> Shl<usize> for Value<Uint<N>> {
+pub trait Shift: Bits {
+    fn shl(value: Value<Self>, amount: usize) -> Value<Self>;
+
+    fn shr(value: Value<Self>, amount: usize) -> Value<Self>;
+}
+
+impl<T: Shift> Shl<usize> for Value<T> {
     type Output = Self;
 
     fn shl(self, rhs: usize) -> Self::Output {
-        let _ = (self, rhs);
-        todo!();
+        T::shl(self, rhs)
     }
 }
 
-impl<const N: usize> Shr<usize> for Value<Uint<N>> {
+impl<T: Shift> Shr<usize> for Value<T> {
     type Output = Self;
 
     fn shr(self, rhs: usize) -> Self::Output {
-        let _ = (self, rhs);
-        todo!();
+        T::shr(self, rhs)
     }
 }
 
@@ -49,5 +57,27 @@ impl<const N: usize> ShrTrunc<N> for Value<Uint<N>> {
     {
         let _ = self;
         todo!();
+    }
+}
+
+impl<T: Shape, Rhs> Shl<Rhs> for Reg<T>
+where
+    Value<T>: Shl<Rhs>,
+{
+    type Output = <Value<T> as Shl<Rhs>>::Output;
+
+    fn shl(self, rhs: Rhs) -> Self::Output {
+        self.read() << rhs
+    }
+}
+
+impl<T: Shape, Rhs> Shr<Rhs> for Reg<T>
+where
+    Value<T>: Shr<Rhs>,
+{
+    type Output = <Value<T> as Shr<Rhs>>::Output;
+
+    fn shr(self, rhs: Rhs) -> Self::Output {
+        self.read() >> rhs
     }
 }

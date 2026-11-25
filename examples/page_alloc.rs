@@ -4,13 +4,13 @@
 use shitty_hdl::data::Bram;
 use shitty_hdl::prelude::*;
 
-#[derive(Debug, Clone, Shape, Bits)]
+#[derive(Debug, Clone, Shape, Bits, Arith)]
 pub struct Word(pub Uint<64>);
 
-#[derive(Debug, Clone, Shape, Bits)]
+#[derive(Debug, Clone, Shape, Bits, Arith)]
 pub struct Addr(pub Uint<45>);
 
-#[derive(Debug, Clone, Shape, Bits)]
+#[derive(Debug, Clone, Shape, Bits, Arith)]
 pub struct PageAddr(pub Uint<40>);
 
 impl PageAddr {
@@ -58,7 +58,7 @@ pub fn page_alloc(heap: Heap) -> PageAlloc {
 
             let next_free_head = heap.read(Addr::from_page(free_head)).await;
             free_head <<= next_free_head.repack_trunc::<PageAddr>();
-            free_count <<= free_count - 1;
+            free_count <<= (free_count.repack() - 1).repack();
             free_head
         }
     });
@@ -69,8 +69,8 @@ pub fn page_alloc(heap: Heap) -> PageAlloc {
 
         heap.write(Addr::from_page(page), free_head.repack_zext::<Word>())
             .await;
-        free_head <= page;
-        free_count <= free_count + 1;
+        free_head <<= page;
+        free_count <<= free_count + 1;
     });
 
     PageAlloc { alloc, free }

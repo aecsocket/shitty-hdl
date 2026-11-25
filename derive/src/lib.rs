@@ -1,7 +1,9 @@
+mod arith;
 mod bits;
 mod interface;
 mod module;
 mod shape;
+mod shift;
 
 fn root() -> syn::Path {
     syn::parse_quote! { ::shitty_hdl }
@@ -71,9 +73,19 @@ pub fn interface(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     interface::derive(input.into()).into()
 }
 
+#[proc_macro_derive(Arith, attributes(arith))]
+pub fn arith(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    arith::derive(input.into()).into()
+}
+
 #[proc_macro_derive(Bits, attributes(bits))]
 pub fn bits(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     bits::derive(input.into()).into()
+}
+
+#[proc_macro_derive(Shift, attributes(shift))]
+pub fn shift(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    shift::derive(input.into()).into()
 }
 
 #[proc_macro_derive(Shape, attributes(shape))]

@@ -2,6 +2,7 @@ use std::ops::{Deref, ShlAssign};
 
 use crate::value::{IntoValue, Shape, Value};
 
+#[derive(Debug)]
 pub struct Reg<T: Shape> {
     id: RegId,
     value: Value<T>,
@@ -20,7 +21,13 @@ impl<T: Shape> Reg<T> {
         todo!();
     }
 
-    pub fn assign(&mut self, rhs: impl IntoValue<Out = T>) {
+    #[must_use]
+    pub const fn read(self) -> Value<T> {
+        self.value
+    }
+
+    pub fn write(&mut self, rhs: impl IntoValue<Out = T>) {
+        _ = rhs.into_value();
         todo!();
     }
 }
@@ -37,13 +44,13 @@ impl<T: Shape> IntoValue for Reg<T> {
     type Out = T;
 
     fn into_value(self) -> Value<Self::Out> {
-        self.value
+        self.read()
     }
 }
 
 impl<T: Shape, Rhs: IntoValue<Out = T>> ShlAssign<Rhs> for Reg<T> {
     fn shl_assign(&mut self, rhs: Rhs) {
-        self.assign(rhs);
+        self.write(rhs);
     }
 }
 

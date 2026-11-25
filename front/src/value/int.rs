@@ -1,4 +1,7 @@
-use crate::value::{Bit, Bits, Shape, Trunc, Value, ValueView, Zext, bit_cap};
+use crate::{
+    ops::cast::{Bits, Trunc, Zext},
+    value::{Bit, Shape, Value, ValueView, bit_cap},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Uint<const N: usize>(Bit<N>)

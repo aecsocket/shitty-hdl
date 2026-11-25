@@ -1,10 +1,8 @@
 mod bit;
-mod cast;
 mod int;
 mod prim;
 
 pub use bit::*;
-pub use cast::*;
 pub use int::*;
 
 use std::marker::PhantomData;

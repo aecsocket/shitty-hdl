@@ -61,6 +61,7 @@ fn top(platform: Platform) {
     let clk = platform.clock::<Sync>();
     let mut cursor = Reg::new(clk, PageAddr::zero());
     let heap = bram::<Sync, Addr, Word>().clk(clk).depth(256).call();
+    let heap2 = bram::<Sync, Addr, Word>().clk(clk).depth(256).call();
 
     Rule::define_as(async || {
         // Linked list: page 0 -> 1 -> 2 -> invalid.
@@ -83,6 +84,24 @@ fn top(platform: Platform) {
         cursor <<= PageAddr::zero();
         let end = chase(heap, cursor).await;
         displayln!("chase ended at {end:x}");
+
+        join((
+            heap.write(
+                Addr::from_page(PageAddr(u!(3)).into_value()),
+                Word(u!(42)).into_value(),
+            ),
+            heap2.write(
+                Addr::from_page(PageAddr(u!(3)).into_value()),
+                Word(u!(99)).into_value(),
+            ),
+        ))
+        .await;
+        let (a, b) = join((
+            heap.read(Addr::from_page(PageAddr(u!(3)).into_value())),
+            heap2.read(Addr::from_page(PageAddr(u!(3)).into_value())),
+        ))
+        .await;
+        displayln!("joined a = {a}, b = {b}");
         sim_finish();
     });
 }

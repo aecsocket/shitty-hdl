@@ -8,6 +8,7 @@ pub mod capture;
 pub mod domain;
 pub mod elab;
 pub mod io;
+pub mod join;
 pub mod method;
 pub mod module;
 pub mod ops;
@@ -21,6 +22,7 @@ pub mod prelude {
     pub use crate::elements::sim_finish;
     pub use crate::elements::{DisplayArgHardware, DisplayArgText, DisplaySpec, mux};
     pub use crate::io::Output;
+    pub use crate::join::join;
     pub use crate::method::Method;
     pub use crate::module::elab;
     pub use crate::module::{Action, Interface, Rule};

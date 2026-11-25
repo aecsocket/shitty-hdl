@@ -96,6 +96,63 @@ pub fn my_module(platform: Platform) {
 [^4]: https://uwplse.org/2026/03/24/hw-coroutines.html
 [^5]: https://www.hdlfactory.com/post/2026/09/12/txhdl-a-hardware-description-language-that-is-a-rust-library/
 
+# Features
+
+Get a blinking light demo with a single line of code:
+
+```rs
+use shitty_hdl::board::arty_a7::A7_100T;
+
+fn main() {
+    shitty_hdl::cli!(A7_100T, shitty_hdl::blinky);
+}
+```
+
+- Elaborate into Verilog using `cargo run -- check`
+- Build into a bitstream using `cargo run -- build`
+- Program onto your currently connected board using `cargo run -- program`
+    - Or use `build --program`
+
+Supported toolchains:
+- [x] AMD Vivado
+- [ ] TODO
+
+Write a simple blinky yourself:
+
+```rs
+use shitty_hdl::board::arty_a7::A7_100T;
+
+fn main() {
+    shitty_hdl::cli!(A7_100T, top);
+}
+
+// define a default synchronous clock domain
+#[derive(Domain)]
+pub struct Clk;
+
+#[module(crate = front)]
+pub fn top(platform: Platform) {
+    let clk = platform.clock::<Clk>();
+
+    // get the default LEDs and buttons on the board
+    let mut led = platform.led.take(0).output(clk);
+    let button = platform.button.take(0).input(clk);
+    let mut timer = Reg::new(clk, u!(32:0));
+
+    // define a rule, like in Bluespec SystemVerilog
+    Rule::define_as(|| {
+        if timer == 50_000_000 {
+            led <<= !led;
+            timer <<= u!(0);
+        } else if !button {
+            timer <<= timer + 1;
+        }
+    });
+}
+```
+
+(TODO more examples)
+
 [bsc]: https://github.com/B-Lang-org/bsc
 [amaranth]: https://github.com/amaranth-lang/amaranth
 [spade]: https://spade-lang.org/

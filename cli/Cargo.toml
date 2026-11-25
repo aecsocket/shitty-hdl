@@ -1,0 +1,9 @@
+[package]
+name = "shitty-hdl-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+shitty-hdl-core = { workspace = true }
+shitty-hdl-board = { workspace = true }
+clap = { workspace = true, features = ["derive"] }

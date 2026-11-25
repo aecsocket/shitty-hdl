@@ -1,13 +1,13 @@
 use darling::FromDeriveInput;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Data, DeriveInput, Fields, Result, ext::IdentExt, parse_quote};
+use syn::{Data, DeriveInput, Fields, Path, Result, ext::IdentExt, parse_quote};
 
-#[derive(Default, FromDeriveInput)]
+#[derive(FromDeriveInput)]
 #[darling(attributes(shape))]
 struct Options {
-    #[darling(rename = "crate")]
-    crate_: Option<syn::Path>,
+    #[darling(rename = "crate", default = crate::root)]
+    crate_: Path,
 }
 
 pub fn derive(input: TokenStream) -> TokenStream {
@@ -17,13 +17,11 @@ pub fn derive(input: TokenStream) -> TokenStream {
 fn derive_(input: TokenStream) -> Result<TokenStream> {
     let input = syn::parse2::<DeriveInput>(input)?;
     let options = Options::from_derive_input(&input)?;
-    let crate_ = options
-        .crate_
-        .unwrap_or_else(|| parse_quote! { shitty_hdl });
+    let crate_ = &options.crate_;
     let Data::Struct(data) = &input.data else {
         return Err(syn::Error::new_spanned(
             &input,
-            "Shape can only be derived for structs",
+            "can only be derived for structs",
         ));
     };
     let ident = &input.ident;

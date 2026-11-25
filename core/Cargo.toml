@@ -1,0 +1,15 @@
+[package]
+name = "shitty-hdl-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+verilog-gen = { workspace = true }
+shitty-hdl-derive = { workspace = true }
+bon = { workspace = true }
+typenum = { workspace = true }
+generic-array = { workspace = true }
+const-default = { workspace = true }
+
+[dev-dependencies]
+static_assertions = "1.1.0"

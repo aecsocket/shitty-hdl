@@ -1,22 +1,22 @@
 use std::ops::{Add, Mul, Sub};
 
 use crate::{
-    expr::{Value, IntoValue},
+    expr::{IntoValue, Value},
     ir::BinaryOp,
     module::{In, Out},
     signal::{Signal, SignalView},
-    value::{Shape, Sint, Uint, Width},
+    value::{Shape, Width, i, u},
 };
 
 pub trait LowerAdd {}
-impl<N: Width> LowerAdd for Uint<N> {}
-impl<N: Width> LowerAdd for Sint<N> {}
+impl<N: Width> LowerAdd for u<N> {}
+impl<N: Width> LowerAdd for i<N> {}
 pub trait LowerSub {}
-impl<N: Width> LowerSub for Uint<N> {}
-impl<N: Width> LowerSub for Sint<N> {}
+impl<N: Width> LowerSub for u<N> {}
+impl<N: Width> LowerSub for i<N> {}
 pub trait LowerMul {}
-impl<N: Width> LowerMul for Uint<N> {}
-impl<N: Width> LowerMul for Sint<N> {}
+impl<N: Width> LowerMul for u<N> {}
+impl<N: Width> LowerMul for i<N> {}
 
 macro_rules! impl_for {
     ($($ty:ident)*) => {$(

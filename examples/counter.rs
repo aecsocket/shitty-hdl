@@ -1,23 +1,23 @@
-use shitty_hdl::{ir::Error, prelude::*, sim::Simulator, verilog};
+use shitty_hdl::prelude::*;
 
 #[derive(Debug, Clone, Shape)]
 struct Composite {
-    lo: u32,
-    hi: u32,
+    lo: u<U32>,
+    hi: u<U32>,
 }
 
 #[module]
 pub fn my_counter(
     mut sync: Domain<Sync>,
     start: In<bool>,
-    mut count_times_3: Out<u19>,
+    mut count_times_3: Out<u<U19>>,
     mut done: Out<bool>,
     mut busy: Out<bool>,
     mut composite: Out<Composite>,
 ) {
     let mut started = Signal::<bool>::new(false);
-    let mut count = Signal::<u17>::new(u!(0));
-    let mut count_times_2 = Signal::<u18>::without_init();
+    let mut count = Signal::<u<U17>>::new(u!(0));
+    let mut count_times_2 = Signal::<u<U18>>::without_init();
 
     sync.on(|| done <<= false);
     sync.on(|| busy <<= false);
@@ -53,17 +53,6 @@ pub fn my_counter(
 }
 
 fn main() {
-    main_().unwrap();
-}
-
-fn main_() -> Result<(), Error> {
-    let (sim, dut) = Simulator::new(my_counter)?;
-
-    assert!(!sim.get(dut.done)?);
-    assert!(!sim.get(dut.busy)?);
-
-    let verilog = verilog::lower(sim.design())?;
-    println!("{verilog}");
-
-    Ok(())
+    let board = shitty_hdl::board::arty_a7::A7_100T;
+    shitty_hdl::cli(board, |_| my_counter());
 }

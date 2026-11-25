@@ -1,15 +1,18 @@
 [workspace]
 resolver = "3"
-members = [".", "verilog-gen/", "derive/"]
-
+members = [".", "cli/", "core/", "board/", "verilog-gen/", "derive/"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+shitty-hdl-core = { path = "core/" }
+shitty-hdl-cli = { path = "cli/" }
+shitty-hdl-board = { path = "board/" }
 typenum = "1.20.1"
 generic-array = { version = "1.4.5", features = ["const-default"] }
+verilog-gen = { path = "verilog-gen/" }
 const-default = "1.0.0"
 lasso = { version = "0.7.3" }
 syn = { version = "3.0.9" }
@@ -20,6 +23,7 @@ bon = { version = "3.10.3" }
 darling = { version = "0.24.1" }
 smallvec = { version = "2.0.0-beta.4" }
 derive_more = { version = "2.1.1" }
+clap = { version = "4.6.7" }
 
 [package]
 name = "shitty-hdl"
@@ -27,28 +31,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-verilog-gen = { path = "verilog-gen" }
-shitty-hdl-derive = { workspace = true }
-bon = { workspace = true }
-typenum = { workspace = true }
-generic-array = { workspace = true }
-const-default = { workspace = true }
+shitty-hdl-core = { workspace = true }
+shitty-hdl-cli = { workspace = true, optional = true }
+shitty-hdl-board = { workspace = true, optional = true }
 
-[dev-dependencies]
-static_assertions = "1.1.0"
-
-[[test]]
-name = "hdl_equivalence"
-path = "src/slop/tests/hdl_equivalence.rs"
-
-[[test]]
-name = "hierarchy"
-path = "src/slop/tests/hierarchy.rs"
-
-[[test]]
-name = "pipeline"
-path = "src/slop/tests/pipeline.rs"
-
-[[test]]
-name = "runtime_regressions"
-path = "src/slop/tests/runtime_regressions.rs"
+[features]
+default = ["cli"]
+cli = ["dep:shitty-hdl-cli", "dep:shitty-hdl-board"]

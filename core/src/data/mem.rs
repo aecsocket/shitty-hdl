@@ -6,13 +6,13 @@ use shitty_hdl_derive::module;
 
 #[module(crate = crate, builder)]
 pub fn memory<Addr: Shape, Data: Shape>(
-    depth: u64,
-    read_enable: In<bool>,
-    read_addr: In<Addr>,
-    read_data: Out<Data>,
-    write_enable: In<bool>,
-    write_addr: In<Addr>,
-    write_data: In<Data>,
+    _depth: u64,
+    _read_enable: In<bool>,
+    _read_addr: In<Addr>,
+    _read_data: Out<Data>,
+    _write_enable: In<bool>,
+    _write_addr: In<Addr>,
+    _write_data: In<Data>,
 ) {
     todo!();
 }

@@ -1,5 +1,5 @@
 use crate::{
-    expr::{Value, IntoValue},
+    expr::{IntoValue, Value},
     signal::SignalView,
     util::ty::fits_unsigned,
     value::{Shape, ShapeSize, Width},
@@ -8,12 +8,12 @@ use generic_array::GenericArray;
 use typenum::{B1, IsGreaterOrEqual, U8, U16, U32, U64, U128};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Uint<N: Width>(GenericArray<u64, N::Words>);
+pub struct u<N: Width>(GenericArray<u64, N::Words>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Sint<N: Width>(GenericArray<u64, N::Words>);
+pub struct i<N: Width>(GenericArray<u64, N::Words>);
 
-impl<N: Width> Shape for Uint<N> {
+impl<N: Width> Shape for u<N> {
     const WIDTH: ShapeSize = N::U32;
     type View = SignalView<Self>;
 
@@ -33,7 +33,7 @@ impl<N: Width> Shape for Uint<N> {
     }
 }
 
-impl<N: Width> Shape for Sint<N> {
+impl<N: Width> Shape for i<N> {
     const SIGNED: bool = true;
     const WIDTH: ShapeSize = N::U32;
     type View = SignalView<Self>;
@@ -55,12 +55,12 @@ impl<N: Width> Shape for Sint<N> {
 }
 
 pub trait Unsigned: Shape {}
-impl<N: Width> Unsigned for Uint<N> {}
+impl<N: Width> Unsigned for u<N> {}
 
 pub trait Signed: Shape {}
-impl<N: Width> Signed for Sint<N> {}
+impl<N: Width> Signed for i<N> {}
 
-impl<N: Width> Uint<N> {
+impl<N: Width> u<N> {
     pub const fn constant<const VALUE: u64>() -> Self {
         const {
             assert!(
@@ -80,7 +80,7 @@ impl<N: Width> Uint<N> {
     }
 }
 
-impl<N: Width> Sint<N> {
+impl<N: Width> i<N> {
     pub const fn words(&self) -> &[u64] {
         self.0.as_slice()
     }
@@ -90,7 +90,7 @@ impl<N: Width> Sint<N> {
 macro_rules! u {
     ($value:expr $(,)?) => {{
         const VALUE: u64 = $value;
-        const { $crate::value::Uint::constant::<VALUE>() }
+        const { $crate::value::u::constant::<VALUE>() }
     }};
 }
 
@@ -137,13 +137,13 @@ macro_rules! from_prim {
     };
 }
 
-from_prim!(u8, Uint, U8, false);
-from_prim!(u16, Uint, U16, false);
-from_prim!(u32, Uint, U32, false);
-from_prim!(u64, Uint, U64, false);
-from_prim!(u128, Uint, U128, false);
-from_prim!(i8, Sint, U8, true);
-from_prim!(i16, Sint, U16, true);
-from_prim!(i32, Sint, U32, true);
-from_prim!(i64, Sint, U64, true);
-from_prim!(i128, Sint, U128, true);
+from_prim!(u8, u, U8, false);
+from_prim!(u16, u, U16, false);
+from_prim!(u32, u, U32, false);
+from_prim!(u64, u, U64, false);
+from_prim!(u128, u, U128, false);
+from_prim!(i8, i, U8, true);
+from_prim!(i16, i, U16, true);
+from_prim!(i32, i, U32, true);
+from_prim!(i64, i, U64, true);
+from_prim!(i128, i, U128, true);

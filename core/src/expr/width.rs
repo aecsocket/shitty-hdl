@@ -1,17 +1,15 @@
 use typenum::{B1, IsGreaterOrEqual, IsLessOrEqual};
 
 use crate::{
-    expr::{Value, IntoValue},
-    value::{Shape, Signed, Sint, Uint, Unsigned, Width},
+    expr::{IntoValue, Value},
+    value::{Shape, Signed, Unsigned, Width, i, u},
 };
 
 // zext
 
 pub trait CanZext<To>: Unsigned {}
-impl<From: Width, To: Width> CanZext<Uint<To>> for Uint<From> where
-    To: IsGreaterOrEqual<From, Output = B1>
-{
-}
+impl<From: Width, To: Width> CanZext<u<To>> for u<From> where To: IsGreaterOrEqual<From, Output = B1>
+{}
 
 #[track_caller]
 pub fn zext<To: Shape>(lhs: impl IntoValue<Out: CanZext<To>>) -> Value<To> {
@@ -23,10 +21,8 @@ pub fn zext<To: Shape>(lhs: impl IntoValue<Out: CanZext<To>>) -> Value<To> {
 // sext
 
 pub trait CanSext<To>: Signed {}
-impl<From: Width, To: Width> CanSext<Sint<To>> for Sint<From> where
-    To: IsGreaterOrEqual<From, Output = B1>
-{
-}
+impl<From: Width, To: Width> CanSext<i<To>> for i<From> where To: IsGreaterOrEqual<From, Output = B1>
+{}
 
 #[track_caller]
 pub fn sext<To: Shape>(lhs: impl IntoValue<Out: CanSext<To>>) -> Value<To> {
@@ -41,18 +37,18 @@ pub trait CanTrunc<To>: Shape {
     type Truncated;
 }
 
-impl<From: Width, To: Width> CanTrunc<Uint<To>> for Uint<From>
+impl<From: Width, To: Width> CanTrunc<u<To>> for u<From>
 where
     To: IsLessOrEqual<From, Output = B1>,
 {
-    type Truncated = Uint<To>;
+    type Truncated = u<To>;
 }
 
-impl<From: Width, To: Width> CanTrunc<Sint<To>> for Sint<From>
+impl<From: Width, To: Width> CanTrunc<i<To>> for i<From>
 where
     To: IsLessOrEqual<From, Output = B1>,
 {
-    type Truncated = Sint<To>;
+    type Truncated = i<To>;
 }
 
 #[track_caller]

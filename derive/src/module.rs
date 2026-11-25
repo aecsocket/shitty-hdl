@@ -1,14 +1,14 @@
 use darling::{FromMeta, util::Flag};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{Expr, FnArg, ItemFn, Pat, Result, Stmt, Type, parse_quote, visit_mut::VisitMut};
+use syn::{Expr, FnArg, ItemFn, Pat, Path, Result, Stmt, Type, parse_quote, visit_mut::VisitMut};
 
-#[derive(Default, FromMeta)]
+#[derive(FromMeta)]
 #[darling(derive_syn_parse)]
 struct Options {
     builder: Flag,
-    #[darling(rename = "crate")]
-    crate_: Option<syn::Path>,
+    #[darling(rename = "crate", default = crate::root)]
+    crate_: Path,
 }
 
 pub fn derive(attr: TokenStream, input: TokenStream) -> TokenStream {
@@ -17,10 +17,7 @@ pub fn derive(attr: TokenStream, input: TokenStream) -> TokenStream {
 
 fn derive_(attr: TokenStream, input_: TokenStream) -> Result<TokenStream> {
     let function = syn::parse2::<ItemFn>(input_)?;
-    let mut options = syn::parse2::<Options>(attr)?;
-    options
-        .crate_
-        .get_or_insert_with(|| parse_quote! { ::shitty_hdl });
+    let options = syn::parse2::<Options>(attr)?;
     let crate_ = &options.crate_;
     let mut errors = Vec::new();
 
@@ -298,6 +295,10 @@ fn make_elaborate_stmts(
     mut stmts: Vec<Stmt>,
     errors: &mut Vec<syn::Error>,
 ) -> Vec<Stmt> {
+    let mut assignments = AssignmentsOutsideClosure { errors };
+    for stmt in &mut stmts {
+        assignments.visit_stmt_mut(stmt);
+    }
     let mut rewriter = MakeElaborate { options, errors };
     for stmt in &mut stmts {
         rewriter.visit_stmt_mut(stmt);
@@ -306,6 +307,27 @@ fn make_elaborate_stmts(
         }
     }
     stmts
+}
+
+// Validate before rewriting hardware branches into generated closures.
+struct AssignmentsOutsideClosure<'a> {
+    errors: &'a mut Vec<syn::Error>,
+}
+
+impl VisitMut for AssignmentsOutsideClosure<'_> {
+    fn visit_expr_closure_mut(&mut self, _closure: &mut syn::ExprClosure) {}
+
+    fn visit_item_mut(&mut self, _item: &mut syn::Item) {}
+
+    fn visit_expr_binary_mut(&mut self, expr: &mut syn::ExprBinary) {
+        if matches!(expr.op, syn::BinOp::ShlAssign(_)) {
+            self.errors.push(syn::Error::new_spanned(
+                &*expr,
+                "assignments must be defined inside a domain, such as `comb(|| ...)` or `domain.on(|| ...)`",
+            ));
+        }
+        syn::visit_mut::visit_expr_binary_mut(self, expr);
+    }
 }
 
 struct MakeElaborate<'a> {
@@ -442,6 +464,67 @@ impl VisitMut for MakeElaborate<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_assignments_outside_closures() {
+        let error = derive_(
+            quote! {},
+            quote! {
+                fn example() {
+                    done <<= false;
+                    { output <<= true; }
+                    if enabled {
+                        output <<= true;
+                    } else if other {
+                        output <<= false;
+                    } else {
+                        output <<= true;
+                    }
+                }
+            },
+        )
+        .unwrap_err();
+        let errors: Vec<_> = error.into_iter().collect();
+        assert_eq!(errors.len(), 5);
+        assert!(
+            errors
+                .iter()
+                .all(|error| error.to_string().contains("`<<=` must be inside a closure"))
+        );
+    }
+
+    #[test]
+    fn permits_assignments_in_closures_and_local_items() {
+        derive_(
+            quote! {},
+            quote! {
+                fn example() {
+                    comb(|| done <<= false);
+                    domain.on(|| { if enabled { output <<= true; } });
+                    if enabled { comb(|| output <<= true); }
+                    let callback = || { let nested = || output <<= true; };
+                    fn local_item() { number <<= 1; }
+                    let shifted = number << 1;
+                }
+            },
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn accumulates_assignment_and_branch_errors() {
+        let error = derive_(
+            quote! {},
+            quote! {
+                fn example() {
+                    done <<= false;
+                    if enabled { return; }
+                }
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.into_iter().count(), 2);
+    }
 
     #[test]
     fn domain_parameters_are_injected_without_constructor_arguments() {

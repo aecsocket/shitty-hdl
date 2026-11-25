@@ -1,6 +1,10 @@
 mod module;
 mod shape;
 
+fn root() -> syn::Path {
+    syn::parse_quote! { ::shitty_hdl_core }
+}
+
 /// Turns this function into a `Module`, which can be instantiated as a hardware
 /// circuit.
 ///

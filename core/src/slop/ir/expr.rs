@@ -70,6 +70,12 @@ impl<T: Shape> Value<T> {
     }
 
     #[track_caller]
+    pub(crate) fn unary(self, op: ir::UnaryOp) -> Self {
+        runtime::check_owner(self.owner);
+        Self::node(ValueKind::Unary { op, value: self.id })
+    }
+
+    #[track_caller]
     pub(crate) fn binary(self, rhs: Self, op: ir::BinaryOp) -> Self {
         runtime::check_owner(self.owner);
         runtime::check_owner(rhs.owner);

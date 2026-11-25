@@ -2,8 +2,8 @@ use smallvec::SmallVec;
 
 use crate::{
     domain::Domain,
-    elab::{self, Context, ExprHandle},
-    ops::{BitCmp, Bits},
+    elab::{Context, ExprHandle},
+    ops::Bits,
     value::{Shape, Value, ValueView},
 };
 
@@ -53,16 +53,6 @@ impl<const N: usize> Bits for Bit<N> {
 
     fn unpack<D: Domain>(bits: Value<D, Self::Packed>) -> Value<D, Self> {
         bits
-    }
-}
-
-impl<const N: usize> BitCmp for Bit<N> {
-    fn eq<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        elab::compare(air::BinaryOp::Equal, lhs, rhs)
-    }
-
-    fn ne<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        elab::compare(air::BinaryOp::NotEqual, lhs, rhs)
     }
 }
 

@@ -8,7 +8,8 @@ use crate::{
     air,
     domain::{Clock, Domain},
     elab,
-    module::{Action, AsyncCx, Interface},
+    elab::RegisterHandle,
+    module::{Action, AsyncCx, Interface, SyncCx},
     value::{IntoValues, Shape, Value},
 };
 
@@ -47,41 +48,75 @@ impl<D: Domain, In: Shape, Out: Shape> Interface for Method<D, In, Out> {
     }
 }
 
+/// A method body: a sync closure taking the [`SyncCx`] token, or an async
+/// closure taking [`AsyncCx`]. Both lower to the same state-machine
+/// method; a sync body simply never suspends, completing in one cycle.
+pub trait MethodBody<D: Domain, In: Shape, Out: Shape, Cx> {
+    fn define(self, clk: Clock<D>) -> Method<D, In, Out>;
+}
+
+impl<D: Domain, In: Shape, Out: Shape, F, O> MethodBody<D, In, Out, SyncCx> for F
+where
+    F: FnOnce(SyncCx, Value<D, In>) -> O,
+    O: IntoValues<D, Values = Out::Values<D>>,
+{
+    fn define(self, clk: Clock<D>) -> Method<D, In, Out> {
+        let _ = clk;
+        let (req, out) =
+            elab::define_async_method::<D, In, Out, _>(async move |_async_cx, packed| {
+                self(SyncCx::new(), packed).into_values()
+            });
+        Method::new(req, out)
+    }
+}
+
+impl<D: Domain, In: Shape, Out: Shape, F, O> MethodBody<D, In, Out, AsyncCx> for F
+where
+    F: AsyncFnOnce(AsyncCx, Value<D, In>) -> O,
+    O: IntoValues<D, Values = Out::Values<D>>,
+{
+    fn define(self, clk: Clock<D>) -> Method<D, In, Out> {
+        let _ = clk;
+        let (req, out) = elab::define_async_method::<D, In, Out, _>(async move |cx, packed| {
+            self(cx, packed).await.into_values()
+        });
+        Method::new(req, out)
+    }
+}
+
 impl<D: Domain, In: Shape, Out: Shape> Method<D, In, Out> {
     #[must_use]
     pub const fn new(req: Action<D, In, ()>, out: Action<D, (), Out>) -> Self {
         Self { req, out }
     }
 
-    /// Defines an async method in the given clock domain; the domain
-    /// brands the method's interface, so calls and results are checked
-    /// against it.
-    pub fn define_as<'a, O>(
-        clk: Clock<D>,
-        f: impl AsyncFnOnce(AsyncCx, Value<D, In>) -> O + 'a,
-    ) -> Self
-    where
-        O: IntoValues<D, Values = Out::Values<D>>,
-    {
-        let _ = clk;
-        let (req, out) = elab::define_async_method::<D, In, Out, _>(async move |cx, packed| {
-            f(cx, packed).await.into_values()
-        });
-        Self::new(req, out)
+    /// Defines a method in the given clock domain; the domain brands the
+    /// method's interface, so calls and results are checked against it.
+    /// The closure's context token selects sync (never suspends) versus
+    /// async (may suspend with `.await`) lowering.
+    pub fn define_as<Cx, F: MethodBody<D, In, Out, Cx>>(clk: Clock<D>, f: F) -> Self {
+        f.define(clk)
     }
 }
 
 pub struct Call<D: Domain, Out: IntoValues<D>> {
     issue: Option<Box<dyn FnOnce()>>,
     out: Action<D, (), Out::Out>,
+    result: RegisterHandle,
+    issued: bool,
 }
 
 impl<D: Domain, Out: IntoValues<D>> Call<D, Out> {
     #[must_use]
-    pub fn new(out: Action<D, (), Out::Out>, issue: impl FnOnce() + 'static) -> Self {
+    pub fn new(out: Action<D, (), Out::Out>, issue: impl FnOnce() + 'static) -> Self
+    where
+        Out::Out: 'static,
+    {
         Self {
             issue: Some(Box::new(issue)),
             out,
+            result: elab::register_default::<D, Out::Out>(None).0,
+            issued: false,
         }
     }
 }
@@ -90,13 +125,28 @@ impl<D: Domain, Out: IntoValues<D>> Future for Call<D, Out> {
     type Output = Out::Values;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut TaskContext<'_>) -> Poll<Self::Output> {
+        // Three stages: issue the request, read the output, then suspend
+        // once more before continuing the caller's body. The extra stage
+        // keeps the output read in its own rule, so a body that awaits
+        // the same method twice never issues one call's request in the
+        // same rule as another call's output (their guards conflict).
+        // The output value crosses the stage boundary through a register,
+        // since expressions cannot escape their branch.
         if let Some(issue) = self.issue.take() {
             issue();
-            Poll::Pending
-        } else {
-            let raw = elab::call_action::<D, (), Out::Out>(self.out.handle(), ());
-            Poll::Ready(raw)
+            self.issued = true;
+            return Poll::Pending;
         }
+        if self.issued {
+            self.issued = false;
+            let raw = elab::call_action::<D, (), Out::Out>(self.out.handle(), ());
+            elab::write_register::<D, Out::Out>(self.result, <Out::Out as Shape>::pack_values(raw));
+            return Poll::Pending;
+        }
+        Poll::Ready(<Out::Out as Shape>::make_values(elab::read_register::<
+            D,
+            Out::Out,
+        >(self.result)))
     }
 }
 

@@ -47,6 +47,25 @@ impl Interface for () {
 
 pub struct Rule(());
 
+/// A rule body: a sync closure taking the [`SyncCx`] token, or an async
+/// closure taking [`AsyncCx`]. The token type selects sync (single-cycle
+/// atomic) versus async (state-machine, multi-cycle) lowering.
+pub trait RuleBody<Cx> {
+    fn define(self);
+}
+
+impl<F: FnOnce(SyncCx)> RuleBody<SyncCx> for F {
+    fn define(self) {
+        elab::define_rule(None, self);
+    }
+}
+
+impl<F: AsyncFnOnce(AsyncCx)> RuleBody<AsyncCx> for F {
+    fn define(self) {
+        elab::define_async_rule(self);
+    }
+}
+
 impl Rule {
     pub fn when<D: Domain>(cond: impl IntoValue<D, bool>) -> DefineRule {
         DefineRule {
@@ -54,12 +73,8 @@ impl Rule {
         }
     }
 
-    pub fn define_as(f: impl FnOnce(SyncCx)) {
-        elab::define_rule(None, f);
-    }
-
-    pub fn define_async_as<'a, R>(f: impl AsyncFnOnce(AsyncCx) -> R + 'a) {
-        elab::define_async_rule(f);
+    pub fn define_as<Cx, F: RuleBody<Cx>>(f: F) {
+        f.define();
     }
 }
 

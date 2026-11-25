@@ -194,7 +194,14 @@ where
             if let Some(id) = args {
                 super::write_register::<D, In>(id, args_in);
                 state.write(state_value(1));
-                with_flow(|flow| flow.current = 1);
+                // The body's first segment runs in state 1 (one cycle after
+                // the request); state 0 is consumed, so state 1 must be
+                // consumed as well - otherwise the first `if` would aliase
+                // its branches onto state 1.
+                with_flow(|flow| {
+                    flow.current = 1;
+                    flow.next = 2;
+                });
             } else {
                 let f = body.take().expect("async method body was already consumed");
                 let mut future = Box::pin(f(AsyncCx::new(), Value::from_handle(unit_value())));
@@ -257,6 +264,7 @@ where
 pub fn define_async_rule<'a, F, R>(f: F)
 where
     F: AsyncFnOnce(AsyncCx) -> R + 'a,
+    R: 'a,
 {
     let state = StateReg::new();
     begin_flow(state);

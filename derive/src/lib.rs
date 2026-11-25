@@ -1,5 +1,4 @@
 mod arith;
-mod bits;
 mod cmp;
 mod display;
 mod domain;
@@ -53,12 +52,7 @@ pub fn interface(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     interface::derive(input.into()).into()
 }
 
-#[proc_macro_derive(BitCmp, attributes(bit_cmp))]
-pub fn bit_cmp(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    cmp::bit_cmp(input.into()).into()
-}
-
-#[proc_macro_derive(ArithCmp, attributes(arith_cmp))]
+#[proc_macro_derive(BitCmp, attributes(arith_cmp))]
 pub fn arith_cmp(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     cmp::arith_cmp(input.into()).into()
 }
@@ -66,11 +60,6 @@ pub fn arith_cmp(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro_derive(Arith, attributes(arith))]
 pub fn arith(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     arith::derive(input.into()).into()
-}
-
-#[proc_macro_derive(Bits, attributes(bits))]
-pub fn bits(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    bits::derive(input.into()).into()
 }
 
 #[proc_macro_derive(Shift, attributes(shift))]

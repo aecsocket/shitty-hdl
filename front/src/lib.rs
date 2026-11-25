@@ -21,14 +21,14 @@ pub mod prelude {
     pub use crate::method::Method;
     pub use crate::module::{Action, Interface, Rule};
     pub use crate::ops::{
-        Arith, ArithCmp, ArithCmpExt, BitCmp, BitCmpExt, Bits, Pack, Repack, Shift, ShlZext,
-        ShrTrunc, Trunc, Unpack, Zext,
+        Arith, BitCmp, BitCmpExt, BitEq, BitEqExt, Bits, Pack, Repack, Shift, ShlZext, ShrTrunc,
+        Trunc, Unpack, Zext,
     };
     pub use crate::reg::Reg;
     pub use crate::value::{Bit, Flat, IntoValue, IntoValues, Shape, U, Value, Vector};
     pub use crate::value::{pack, unpack};
     pub use crate::{bit, display, displayln, sim_assert, u};
-    pub use derive::{Arith, ArithCmp, BitCmp, Bits, Domain, Interface, Shape, Shift, hdl, module};
+    pub use derive::{Arith, BitCmp, Domain, Interface, Shape, Shift, hdl, module};
 }
 
 pub use air;

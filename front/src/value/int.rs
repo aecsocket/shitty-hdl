@@ -1,7 +1,7 @@
 use crate::{
     domain::Domain,
     elab::{self, Context, ExprHandle},
-    ops::{Arith, ArithCmp, BitCmp, Bits, Shift},
+    ops::{Arith, BitCmp, Bits, Shift},
     value::{Bit, Shape, Value, ValueView},
 };
 
@@ -50,16 +50,6 @@ impl<const N: usize> Bits for U<N> {
 }
 
 impl<const N: usize> BitCmp for U<N> {
-    fn eq<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        elab::compare(air::BinaryOp::Equal, lhs, rhs)
-    }
-
-    fn ne<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        elab::compare(air::BinaryOp::NotEqual, lhs, rhs)
-    }
-}
-
-impl<const N: usize> ArithCmp for U<N> {
     fn gt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
         elab::compare(air::BinaryOp::Greater, lhs, rhs)
     }

@@ -9,13 +9,13 @@ use shitty_hdl::prelude::*;
 #[derive(Domain)]
 pub struct Sync;
 
-#[derive(Debug, Clone, Shape, Bits, Arith)]
+#[derive(Debug, Clone, Shape, Arith)]
 pub struct Word(pub U<64>);
 
-#[derive(Debug, Clone, Shape, Bits, Arith)]
+#[derive(Debug, Clone, Shape, Arith)]
 pub struct Addr(pub U<45>);
 
-#[derive(Debug, Clone, Shape, Bits, Arith, BitCmp, ArithCmp)]
+#[derive(Debug, Clone, Shape, Arith, BitCmp)]
 pub struct PageAddr(pub U<40>);
 
 impl PageAddr {
@@ -46,7 +46,7 @@ pub struct PageAlloc<D: Domain> {
 
 #[module]
 pub fn page_alloc(clk: Clock<Sync>, mut heap: Heap) -> PageAlloc<Sync> {
-    #[derive(Debug, Shape, BitCmp)]
+    #[derive(Debug, Shape)]
     enum State {
         Idle,
         AllocWait,
@@ -131,7 +131,7 @@ pub fn page_alloc(clk: Clock<Sync>, mut heap: Heap) -> PageAlloc<Sync> {
 
 #[module]
 fn top(platform: Platform) {
-    #[derive(Debug, Shape, BitCmp)]
+    #[derive(Debug, Shape)]
     enum State {
         Idle,
         Alloc1Wait,

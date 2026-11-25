@@ -4,8 +4,13 @@ use darling::FromMeta;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
-    BinOp, Block, Expr, ExprIf, Item, ItemFn, Pat, Path, Result, Stmt, Token, parse::Parser,
-    parse_quote, punctuated::Punctuated, token::Else, visit_mut, visit_mut::VisitMut,
+    BinOp, Block, Expr, ExprIf, Item, ItemFn, Pat, Path, Result, Stmt, Token,
+    parse::Parser,
+    parse_quote,
+    punctuated::Punctuated,
+    token::{Colon, Else},
+    visit_mut,
+    visit_mut::VisitMut,
 };
 
 #[derive(FromMeta)]
@@ -73,9 +78,23 @@ const fn is_async_closure(expr: &Expr) -> bool {
 }
 
 impl Rewriter<'_> {
-    fn prepend_cx(arg: &mut Expr) {
+    fn prepend_cx(&self, arg: &mut Expr) {
         if let Expr::Closure(closure) = arg {
-            closure.inputs.insert(0, parse_quote! { __rule_cx });
+            let crate_ = self.crate_;
+            let cx: syn::Type = if closure.asyncness.is_some() {
+                parse_quote! { #crate_::module::AsyncCx }
+            } else {
+                parse_quote! { #crate_::module::SyncCx }
+            };
+            closure.inputs.insert(
+                0,
+                syn::Pat::Type(syn::PatType {
+                    attrs: Vec::new(),
+                    pat: Box::new(parse_quote! { __rule_cx }),
+                    colon_token: Colon::default(),
+                    ty: Box::new(cx),
+                }),
+            );
             if let Some(pat) = closure.inputs.get_mut(1)
                 && matches!(pat, Pat::Tuple(pat) if pat.elems.is_empty())
             {
@@ -89,10 +108,14 @@ impl Rewriter<'_> {
             errors: &mut self.errors,
         }
         .visit_block_mut(block);
-        RemainingReturns {
-            errors: &mut self.errors,
+        for stmt in &block.stmts {
+            if let Stmt::Expr(Expr::Return(_), _) = stmt {
+                self.errors.push(syn::Error::new_spanned(
+                    stmt,
+                    "early return must be the last statement of an `if` block",
+                ));
+            }
         }
-        .visit_block_mut(block);
     }
 
     fn branch(&mut self, block: &mut Block) {
@@ -231,25 +254,17 @@ impl VisitMut for Rewriter<'_> {
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
         match expr {
             Expr::Call(call) => {
-                let is_define_as = matches!(&*call.func, Expr::Path(path) if
-                    path.path.segments.last().is_some_and(|s| s.ident == "define_as"));
-                if is_define_as {
+                if matches!(&*call.func, Expr::Path(path) if
+                    path.path.segments.last().is_some_and(|s| s.ident == "define_as"))
+                {
                     for arg in &mut call.args {
-                        Self::prepend_cx(arg);
-                    }
-                    if let Expr::Path(path) = &mut *call.func
-                        && path.path.segments.len() == 2
-                        && path.path.segments[0].ident == "Rule"
-                        && call.args.iter().any(is_async_closure)
-                    {
-                        path.path.segments[1].ident =
-                            syn::Ident::new("define_async_as", path.path.segments[1].ident.span());
+                        self.prepend_cx(arg);
                     }
                 }
             }
             Expr::MethodCall(call) if call.method == "define_as" => {
                 for arg in &mut call.args {
-                    Self::prepend_cx(arg);
+                    self.prepend_cx(arg);
                 }
             }
             _ => {}
@@ -279,12 +294,12 @@ impl VisitMut for Rewriter<'_> {
         };
         let crate_ = self.crate_;
         let function: Path = match &binary.op {
-            BinOp::Eq(_) => parse_quote! { #crate_::ops::BitCmpExt::eq },
-            BinOp::Ne(_) => parse_quote! { #crate_::ops::BitCmpExt::ne },
-            BinOp::Gt(_) => parse_quote! { #crate_::ops::ArithCmpExt::gt },
-            BinOp::Ge(_) => parse_quote! { #crate_::ops::ArithCmpExt::ge },
-            BinOp::Lt(_) => parse_quote! { #crate_::ops::ArithCmpExt::lt },
-            BinOp::Le(_) => parse_quote! { #crate_::ops::ArithCmpExt::le },
+            BinOp::Eq(_) => parse_quote! { #crate_::ops::BitEqExt::eq },
+            BinOp::Ne(_) => parse_quote! { #crate_::ops::BitEqExt::ne },
+            BinOp::Gt(_) => parse_quote! { #crate_::ops::BitCmpExt::gt },
+            BinOp::Ge(_) => parse_quote! { #crate_::ops::BitCmpExt::ge },
+            BinOp::Lt(_) => parse_quote! { #crate_::ops::BitCmpExt::lt },
+            BinOp::Le(_) => parse_quote! { #crate_::ops::BitCmpExt::le },
             _ => return,
         };
         let attrs = &binary.attrs;
@@ -363,29 +378,6 @@ impl EarlyReturns<'_> {
     }
 }
 
-/// Flags early returns that the splice transform could not handle.
-struct RemainingReturns<'a> {
-    errors: &'a mut Vec<syn::Error>,
-}
-
-impl VisitMut for RemainingReturns<'_> {
-    fn visit_expr_mut(&mut self, expr: &mut Expr) {
-        if let Expr::Return(ret) = expr {
-            let value = ret
-                .expr
-                .as_ref()
-                .map_or_else(|| quote! { return }, |v| quote! { return #v });
-            self.errors.push(syn::Error::new_spanned(
-                &mut *expr,
-                format!(
-                    "early return must be the last statement of an `if` block, e.g. `{{ if guard {{ {value} }} }}`"
-                ),
-            ));
-        }
-        visit_mut::visit_expr_mut(self, expr);
-    }
-}
-
 impl VisitMut for BranchControlFlow<'_> {
     fn visit_item_mut(&mut self, _item: &mut Item) {}
 
@@ -416,5 +408,14 @@ impl VisitMut for BranchControlFlow<'_> {
             ));
         }
         visit_expr_mut(self, expr);
+    }
+}
+
+#[cfg(test)]
+mod probe_tests {
+    #[test]
+    fn parses_annotated_pat() {
+        let pat: syn::Pat = syn::parse_quote! { __rule_cx };
+        assert!(matches!(pat, syn::Pat::Ident(_)), "plain: {pat:?}");
     }
 }

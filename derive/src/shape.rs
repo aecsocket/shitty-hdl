@@ -98,6 +98,26 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             #ty: #crate_::value::Shape
         });
     }
+    let width = data.fields.iter().map(|field| {
+        let ty = &field.ty;
+        quote! { <#ty as #crate_::ops::Bits>::WIDTH }
+    });
+    let width = quote! { (0usize #(+ #width)*) };
+    if !input.generics.params.is_empty() {
+        for field in &data.fields {
+            let ty = &field.ty;
+            generics.make_where_clause().predicates.push(parse_quote! {
+                #ty: #crate_::ops::Bits
+            });
+        }
+        let (_, original_ty_generics, _) = input.generics.split_for_impl();
+        generics.make_where_clause().predicates.push(parse_quote! {
+            #ident #original_ty_generics: #crate_::value::Shape
+        });
+        generics.make_where_clause().predicates.push(parse_quote! {
+            [(); #width]:
+        });
+    }
     let (_, original_ty_generics, _) = input.generics.split_for_impl();
     generics.make_where_clause().predicates.push(parse_quote! {
         #ident #original_ty_generics: 'static
@@ -180,6 +200,19 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
         }
 
         impl<D: #crate_::domain::Domain> #crate_::value::Flat<D> for #ident #ty_generics #where_clause {}
+
+        impl #impl_generics #crate_::ops::Bits for #ident #ty_generics #where_clause {
+            const WIDTH: usize = #width;
+            type Packed = #crate_::value::Bit<{ #width }>;
+
+            fn pack<D: #crate_::domain::Domain>(this: #crate_::value::Value<D, Self>) -> #crate_::value::Value<D, Self::Packed> {
+                #crate_::__::cast::<D, Self, Self::Packed>(#crate_::air::CastKind::Pack, this)
+            }
+
+            fn unpack<D: #crate_::domain::Domain>(bits: #crate_::value::Value<D, Self::Packed>) -> #crate_::value::Value<D, Self> {
+                #crate_::__::cast::<D, Self::Packed, Self>(#crate_::air::CastKind::Unpack, bits)
+            }
+        }
     })
 }
 

@@ -9,13 +9,13 @@ use shitty_hdl::prelude::*;
 #[derive(Domain)]
 pub struct Sync;
 
-#[derive(Debug, Clone, Shape, Bits, Arith)]
+#[derive(Debug, Clone, Shape, Arith)]
 pub struct Word(pub U<64>);
 
-#[derive(Debug, Clone, Shape, Bits, Arith)]
+#[derive(Debug, Clone, Shape, Arith)]
 pub struct Addr(pub U<45>);
 
-#[derive(Debug, Clone, Shape, Bits, Arith, BitCmp, ArithCmp)]
+#[derive(Debug, Clone, Shape, Arith, BitCmp)]
 pub struct PageAddr(pub U<40>);
 
 impl PageAddr {

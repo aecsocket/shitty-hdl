@@ -25,25 +25,23 @@ impl PageAddr {
 
 impl Addr {
     pub fn from_page(page: impl IntoValue<Out = PageAddr>) -> Value<Self> {
-        page.into_value()
-            .repack::<Uint<40>>()
-            .shl_zext::<5>()
-            .repack::<Self>()
+        page.repack::<Uint<40>>().shl_zext::<5>().repack::<Self>()
     }
 }
 
 pub type Heap = Bram<Addr, Word>;
 
 #[derive(Interface)]
-struct PageAlloc {
-    alloc: Method<(), PageAddr>,
-    free: Method<PageAddr, ()>,
+pub struct PageAlloc {
+    pub alloc: Method<(), PageAddr>,
+    pub free: Method<PageAddr, ()>,
 }
 
+#[module]
 pub fn page_alloc(heap: Heap) -> PageAlloc {
-    let next_clean = Reg::<PageAddr>::new(PageAddr::zero());
-    let free_head = Reg::<PageAddr>::new(PageAddr::invalid());
-    let free_count = Reg::<PageAddr>::new(PageAddr::zero());
+    let mut next_clean = Reg::<PageAddr>::new(PageAddr::zero());
+    let mut free_head = Reg::<PageAddr>::new(PageAddr::invalid());
+    let mut free_count = Reg::<PageAddr>::new(PageAddr::zero());
 
     let alloc = Method::define_as(async |()| {
         if free_head == PageAddr::invalid() {
@@ -51,15 +49,15 @@ pub fn page_alloc(heap: Heap) -> PageAlloc {
             sim_assert!(next_clean != PageAddr::invalid(), "OOM");
 
             next_clean <<= next_clean + 1;
-            next_clean
+            next_clean.read()
         } else {
             // reallocate from free list
             sim_assert!(free_count > 0);
 
             let next_free_head = heap.read(Addr::from_page(free_head)).await;
             free_head <<= next_free_head.repack_trunc::<PageAddr>();
-            free_count <<= (free_count.repack() - 1).repack();
-            free_head
+            free_count <<= free_count - 1;
+            free_head.read()
         }
     });
 

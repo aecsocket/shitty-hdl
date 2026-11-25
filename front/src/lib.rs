@@ -16,7 +16,7 @@ pub mod prelude {
     pub use crate::reg::Reg;
     pub use crate::value::{Bit, IntoValue, Shape, Uint, Value};
     pub use crate::{bit, sim_assert, uint};
-    pub use derive::{Arith, ArithCmp, BitCmp, Bits, Interface, Shape, Shift, module};
+    pub use derive::{Arith, ArithCmp, BitCmp, Bits, Interface, Shape, Shift, hdl, module};
 }
 
 pub use derive::*;

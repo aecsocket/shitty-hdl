@@ -6,3 +6,7 @@ edition.workspace = true
 [dependencies]
 irt = { workspace = true }
 derive_more = { workspace = true, features = ["from"] }
+smallvec = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,9 +1,13 @@
 #![doc = include_str!("../README.md")]
 
+mod bits;
+
+pub use bits::Bits;
+pub use irt::Ident;
+
 use std::ptr;
 
 use derive_more::From;
-pub use irt::Ident;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Design<'d> {
@@ -76,8 +80,50 @@ pub struct Value<'d> {
 
 #[derive(Debug, Clone, Copy)]
 pub enum ValueKind<'d> {
-    Const(&'d BitVec),
+    Const(&'d Bits),
     Signal(Signal<'d>),
+    Unary {
+        op: UnaryOp,
+        value: &'d Value<'d>,
+    },
+    Binary {
+        op: BinaryOp,
+        lhs: &'d Value<'d>,
+        rhs: &'d Value<'d>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UnaryOp {
+    Pos,
+    Neg,
+    Not,
+    Bool,
+    ReduceAnd,
+    ReduceOr,
+    ReduceXor,
+    AsUnsigned,
+    AsSigned,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    FloorDiv,
+    Mod,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    And,
+    Or,
+    Xor,
+    Shl,
+    Shr,
 }
 
 // externally defined values
@@ -145,8 +191,5 @@ impl Eq for Signal<'_> {}
 pub struct SignalDef<'d> {
     pub name: Ident,
     pub ty: Type<'d>,
-    pub init: &'d BitVec,
+    pub init: &'d Bits,
 }
-
-#[derive(Debug)]
-pub struct BitVec(); // todo

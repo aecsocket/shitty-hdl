@@ -17,21 +17,31 @@ fn make_pir() {
 
     let enable: SignalDef = SignalDef {
         name: "enable".into(),
-        init: &BitVec(),
+        init: &Bits::from(false),
         ty: Type(&bool),
     };
     let led_on: SignalDef = SignalDef {
         name: "led_on".into(),
-        init: &BitVec(),
+        init: &Bits::from(false),
         ty: Type(&bool),
     };
     let count: SignalDef = SignalDef {
         name: "count".into(),
-        init: &BitVec(),
+        init: &Bits::from(0u32),
         ty: Type(&u32),
     };
 
-    let design = Design {
+    let count_value = Value {
+        ty: Type(&u32),
+        kind: ValueKind::Signal(Signal(&count)),
+    };
+    let threshold = Bits::from(50_000_000u32);
+    let threshold_value = Value {
+        ty: Type(&u32),
+        kind: ValueKind::Const(&threshold),
+    };
+
+    let _design = Design {
         top: Module {
             name: "top".into(),
             ports: &[
@@ -51,9 +61,17 @@ fn make_pir() {
                 UseDomain {
                     domain: Domain::Comb,
                     stmts: &[Assign {
-                        into: Signal(&led_on),
-                        from: Value {},
-                    }],
+                        into: Signal(&led_on).into(),
+                        from: Value {
+                            ty: Type(&bool),
+                            kind: ValueKind::Binary {
+                                op: BinaryOp::Gt,
+                                lhs: &count_value,
+                                rhs: &threshold_value,
+                            },
+                        },
+                    }
+                    .into()],
                 },
                 UseDomain {
                     domain: ClockedDomain(&sync).into(),

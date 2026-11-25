@@ -10,7 +10,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Output<D: Domain> {
     value: ExprHandle,
-    writer: ActionHandle,
+    pub(crate) writer: ActionHandle,
     _brand: PhantomData<D>,
 }
 
@@ -38,7 +38,9 @@ impl<D: Domain> Output<D> {
         Value::from_handle(self.value)
     }
 
-    pub fn write(&mut self, value: impl IntoValue<D, bool>) {
+    /// By value: [`Output`] is [`Copy`], so async closures can capture
+    /// outputs without `&mut`.
+    pub fn write(self, value: impl IntoValue<D, bool>) {
         elab::call_action::<D, bool, ()>(self.writer, value.into_value());
     }
 }

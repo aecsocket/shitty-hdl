@@ -1,8 +1,11 @@
-use std::ptr;
+use std::{
+    ptr,
+    task::{Context as TaskContext, Poll, Waker},
+};
 
 use crate::{
     domain::Domain,
-    module::SyncCx,
+    module::AsyncCx,
     value::{IntoValues, Shape, Value},
 };
 
@@ -42,7 +45,7 @@ impl Drop for BodyScope {
 
 pub fn define_action<D: Domain, In: Shape, Out: Shape>(
     guard: Option<ExprHandle>,
-    f: impl FnOnce(SyncCx, Value<D, In>) -> Out::Values<D>,
+    f: impl AsyncFnOnce(AsyncCx, Value<D, In>) -> Out::Values<D>,
 ) -> ActionHandle {
     let definition = with_context(|cx| {
         assert!(
@@ -77,7 +80,16 @@ pub fn define_action<D: Domain, In: Shape, Out: Shape>(
         let input = cx.alloc(air::Expr { ty: input_ty, kind });
         cx.push_expr(input)
     });
-    let result = f(SyncCx::new(), Value::from_handle(input));
+    let mut future = Box::pin(f(AsyncCx::new(), Value::from_handle(input)));
+    let result = {
+        let mut task = TaskContext::from_waker(Waker::noop());
+        match future.as_mut().poll(&mut task) {
+            Poll::Ready(value) => value,
+            Poll::Pending => {
+                panic!("action bodies cannot suspend; use a Method for multi-cycle bodies")
+            }
+        }
+    };
     let result = Out::pack_values(result).handle();
     let handle = with_context(|cx| {
         let result = cx.typed_expr::<Out>(result);
@@ -102,22 +114,66 @@ pub fn define_action<D: Domain, In: Shape, Out: Shape>(
     handle
 }
 
-pub fn define_rule(guard: Option<ExprHandle>, f: impl FnOnce(SyncCx)) {
-    with_context(|cx| {
+pub fn define_action_sync<D: Domain, In: Shape, Out: Shape>(
+    guard: Option<ExprHandle>,
+    f: impl FnOnce(AsyncCx, Value<D, In>) -> Out::Values<D>,
+) -> ActionHandle {
+    let definition = with_context(|cx| {
         assert!(
             cx.frames.is_empty(),
-            "define rules at module scope, not inside action bodies"
+            "define actions at module scope, not inside action bodies"
         );
+        let name = format!("action_{}", cx.methods.len());
+        let signature = cx.action_signature::<In, Out>(&name);
+        let definition = cx.definitions.len();
+        cx.definitions.push(signature);
+        definition
     });
     let mut scope = BodyScope::begin();
-    f(SyncCx::new());
-    with_context(|cx| {
+    let input = with_context(|cx| {
+        let signature = cx.definitions[definition];
+        let input_ty = cx.ty::<In>();
+        let inputs: Vec<_> = signature
+            .inputs
+            .iter()
+            .map(|argument| {
+                cx.alloc(air::Expr {
+                    ty: argument.ty,
+                    kind: air::ExprKind::Argument(argument),
+                })
+            })
+            .collect();
+        let kind = match input_ty {
+            air::Type::Unit => air::ExprKind::Unit,
+            air::Type::Tuple(_) => air::ExprKind::Tuple(cx.alloc_slice(inputs)),
+            _ => inputs[0].kind,
+        };
+        let input = cx.alloc(air::Expr { ty: input_ty, kind });
+        cx.push_expr(input)
+    });
+    let result = f(AsyncCx::new(), Value::from_handle(input));
+    let result = Out::pack_values(result).handle();
+    let handle = with_context(|cx| {
+        let result = cx.typed_expr::<Out>(result);
+        cx.emit(air::Statement::Return(
+            if matches!(result.ty, air::Type::Unit) {
+                None
+            } else {
+                Some(result)
+            },
+        ));
         let body = cx.end_body();
+        let signature = cx.definitions[definition];
         let guard = guard.map(|handle| cx.typed_expr::<bool>(handle));
-        let name = cx.alloc_str(&format!("rule_{}", cx.rules.len()));
-        cx.add_rule(air::Rule { name, guard, body });
+        let method = cx.add_method(air::Method {
+            signature,
+            guard,
+            body: air::MethodBody::Action(body),
+        });
+        cx.push_action(air::MethodRef::Local(method))
     });
     scope.active = false;
+    handle
 }
 
 pub fn call_action<D: Domain, In: Shape, Out: Shape>(

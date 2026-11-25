@@ -48,7 +48,9 @@ impl<D: Domain, T: Shape> Reg<D, T> {
         self.value
     }
 
-    pub fn write(&mut self, rhs: impl IntoValue<D, T>) {
+    /// By value: the handle is [`Copy`], and the write targets the same
+    /// register, so async closures can capture registers without `&mut`.
+    pub fn write(self, rhs: impl IntoValue<D, T>) {
         elab::write_register(self.id, rhs.into_value());
     }
 }

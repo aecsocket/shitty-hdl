@@ -9,7 +9,7 @@ use crate::{
     domain::{Clock, Domain},
     elab,
     elab::RegisterHandle,
-    module::{Action, AsyncCx, Interface, SyncCx},
+    module::{Action, AsyncCx, Interface},
     value::{IntoValues, Shape, Value},
 };
 
@@ -48,42 +48,6 @@ impl<D: Domain, In: Shape, Out: Shape> Interface for Method<D, In, Out> {
     }
 }
 
-/// A method body: a sync closure taking the [`SyncCx`] token, or an async
-/// closure taking [`AsyncCx`]. Both lower to the same state-machine
-/// method; a sync body simply never suspends, completing in one cycle.
-pub trait MethodBody<D: Domain, In: Shape, Out: Shape, Cx> {
-    fn define(self, clk: Clock<D>) -> Method<D, In, Out>;
-}
-
-impl<D: Domain, In: Shape, Out: Shape, F, O> MethodBody<D, In, Out, SyncCx> for F
-where
-    F: FnOnce(SyncCx, Value<D, In>) -> O,
-    O: IntoValues<D, Values = Out::Values<D>>,
-{
-    fn define(self, clk: Clock<D>) -> Method<D, In, Out> {
-        let _ = clk;
-        let (req, out) =
-            elab::define_async_method::<D, In, Out, _>(async move |_async_cx, packed| {
-                self(SyncCx::new(), packed).into_values()
-            });
-        Method::new(req, out)
-    }
-}
-
-impl<D: Domain, In: Shape, Out: Shape, F, O> MethodBody<D, In, Out, AsyncCx> for F
-where
-    F: AsyncFnOnce(AsyncCx, Value<D, In>) -> O,
-    O: IntoValues<D, Values = Out::Values<D>>,
-{
-    fn define(self, clk: Clock<D>) -> Method<D, In, Out> {
-        let _ = clk;
-        let (req, out) = elab::define_async_method::<D, In, Out, _>(async move |cx, packed| {
-            self(cx, packed).await.into_values()
-        });
-        Method::new(req, out)
-    }
-}
-
 impl<D: Domain, In: Shape, Out: Shape> Method<D, In, Out> {
     #[must_use]
     pub const fn new(req: Action<D, In, ()>, out: Action<D, (), Out>) -> Self {
@@ -92,10 +56,17 @@ impl<D: Domain, In: Shape, Out: Shape> Method<D, In, Out> {
 
     /// Defines a method in the given clock domain; the domain brands the
     /// method's interface, so calls and results are checked against it.
-    /// The closure's context token selects sync (never suspends) versus
-    /// async (may suspend with `.await`) lowering.
-    pub fn define_as<Cx, F: MethodBody<D, In, Out, Cx>>(clk: Clock<D>, f: F) -> Self {
-        f.define(clk)
+    /// The body may suspend with `.await`; a body that never suspends
+    /// completes in a single cycle after the request.
+    pub fn define_as<O>(clk: Clock<D>, f: impl AsyncFnOnce(AsyncCx, Value<D, In>) -> O) -> Self
+    where
+        O: IntoValues<D, Values = Out::Values<D>>,
+    {
+        let _ = clk;
+        let (req, out) = elab::define_async_method::<D, In, Out, _>(async move |cx, packed| {
+            f(cx, packed).await.into_values()
+        });
+        Method::new(req, out)
     }
 }
 

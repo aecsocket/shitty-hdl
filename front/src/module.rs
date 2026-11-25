@@ -47,25 +47,6 @@ impl Interface for () {
 
 pub struct Rule(());
 
-/// A rule body: a sync closure taking the [`SyncCx`] token, or an async
-/// closure taking [`AsyncCx`]. The token type selects sync (single-cycle
-/// atomic) versus async (state-machine, multi-cycle) lowering.
-pub trait RuleBody<Cx> {
-    fn define(self);
-}
-
-impl<F: FnOnce(SyncCx)> RuleBody<SyncCx> for F {
-    fn define(self) {
-        elab::define_rule(None, self);
-    }
-}
-
-impl<F: AsyncFnOnce(AsyncCx)> RuleBody<AsyncCx> for F {
-    fn define(self) {
-        elab::define_async_rule(self);
-    }
-}
-
 impl Rule {
     pub fn when<D: Domain>(cond: impl IntoValue<D, bool>) -> DefineRule {
         DefineRule {
@@ -73,8 +54,8 @@ impl Rule {
         }
     }
 
-    pub fn define_as<Cx, F: RuleBody<Cx>>(f: F) {
-        f.define();
+    pub fn define_as(f: impl AsyncFnOnce(AsyncCx)) {
+        elab::define_async_rule(None, f);
     }
 }
 
@@ -83,8 +64,8 @@ pub struct DefineRule {
 }
 
 impl DefineRule {
-    pub fn define_as(self, f: impl FnOnce(SyncCx)) {
-        elab::define_rule(Some(self.cond), f);
+    pub fn define_as(self, f: impl AsyncFnOnce(AsyncCx)) {
+        elab::define_async_rule(Some(self.cond), f);
     }
 }
 
@@ -113,12 +94,14 @@ impl<D: Domain, In: Shape, Out: Shape> Action<D, In, Out> {
         DefineAction(Some(cond.into_value()), PhantomData)
     }
 
-    pub fn define_as<O: IntoValues<D, Values = Out::Values<D>>>(
-        f: impl FnOnce(SyncCx, Value<D, In>) -> O,
-    ) -> Self {
-        Self::from_handle(elab::define_action::<D, In, Out>(None, |cx, packed| {
-            f(cx, packed).into_values()
-        }))
+    pub fn define_as<O>(f: impl AsyncFnOnce(AsyncCx, Value<D, In>) -> O) -> Self
+    where
+        O: IntoValues<D, Values = Out::Values<D>>,
+    {
+        Self::from_handle(elab::define_action::<D, In, Out>(
+            None,
+            async move |cx, packed| f(cx, packed).await.into_values(),
+        ))
     }
 
     pub fn call(
@@ -136,63 +119,15 @@ pub struct DefineAction<D: Domain, In: Shape, Out: Shape>(
 );
 
 impl<D: Domain, In: Shape, Out: Shape> DefineAction<D, In, Out> {
-    pub fn define_as<O: IntoValues<D, Values = Out::Values<D>>>(
-        self,
-        f: impl FnOnce(SyncCx, Value<D, In>) -> O,
-    ) -> Action<D, In, Out> {
+    pub fn define_as<O>(self, f: impl AsyncFnOnce(AsyncCx, Value<D, In>) -> O) -> Action<D, In, Out>
+    where
+        O: IntoValues<D, Values = Out::Values<D>>,
+    {
         let guard = self.0.map(super::value::Value::handle);
         Action::from_handle(elab::define_action::<D, In, Out>(
             guard,
-            move |cx, packed| f(cx, packed).into_values(),
+            async move |cx, packed| f(cx, packed).await.into_values(),
         ))
-    }
-}
-
-pub struct If<D: Domain, R: IntoValues<D>> {
-    cases: Vec<(elab::BranchHandle, elab::BranchHandle)>,
-    _phantom: PhantomData<(D, R)>,
-}
-
-impl<D: Domain, R: IntoValues<D>> If<D, R> {
-    #[must_use]
-    pub fn else_if(self, cond: impl FnOnce() -> Value<D, bool>, then: impl FnOnce() -> R) -> Self {
-        self.else_if_cond(cond).then(then)
-    }
-
-    #[must_use]
-    pub fn else_if_cond(self, cond: impl FnOnce() -> Value<D, bool>) -> ElseIf<D, R> {
-        ElseIf {
-            chain: self,
-            cond: elab::capture_branch(cond),
-        }
-    }
-
-    pub fn else_(mut self, then: impl FnOnce() -> R) -> R::Values {
-        let branch = elab::capture_branch(then);
-        let value = elab::finish_if::<D, R::Out>(mem::take(&mut self.cases), Some(branch));
-        R::Out::make_values(value)
-    }
-}
-
-pub struct ElseIf<D: Domain, R: IntoValues<D>> {
-    chain: If<D, R>,
-    cond: elab::BranchHandle,
-}
-
-impl<D: Domain, R: IntoValues<D>> ElseIf<D, R> {
-    #[must_use]
-    pub fn then(mut self, then: impl FnOnce() -> R) -> If<D, R> {
-        let branch = elab::capture_branch(then);
-        self.chain.cases.push((self.cond, branch));
-        self.chain
-    }
-}
-
-impl<D: Domain, R: IntoValues<D>> Drop for If<D, R> {
-    fn drop(&mut self) {
-        if !thread::panicking() && !self.cases.is_empty() {
-            let _ = elab::finish_if::<D, R::Out>(mem::take(&mut self.cases), None);
-        }
     }
 }
 
@@ -243,35 +178,12 @@ impl<D: Domain, V: IntoValues<D>> Future for AsyncIf<'_, D, V> {
             .else_
             .take()
             .expect("async if branch was already lowered");
-        this.result = elab::lower_async_if(this.cond, then, else_);
-        Poll::Pending
-    }
-}
-
-/// Token proving the current body is a sync rule or action. Produced by
-/// `define_rule`/`define_action` and passed into the body closure by the
-/// `hdl` macro; it cannot be constructed by user code.
-#[derive(Debug, Clone, Copy)]
-pub struct SyncCx(());
-
-impl SyncCx {
-    pub(crate) const fn new() -> Self {
-        Self(())
-    }
-
-    /// Two-way hardware branch in a sync rule or action. The branches
-    /// cannot suspend; use `async` bodies with [`AsyncCx::if_`] for that.
-    #[must_use]
-    pub fn if_<D: Domain, R: IntoValues<D>>(
-        self,
-        cond: impl IntoValue<D, bool>,
-        then: impl FnOnce() -> R,
-    ) -> If<D, R> {
-        let cond = elab::capture_branch(|| cond.into_value());
-        let branch = elab::capture_branch(then);
-        If {
-            cases: vec![(cond, branch)],
-            _phantom: PhantomData,
+        match elab::lower_async_if(this.cond, then, else_) {
+            elab::LoweredIf::Mux(value) => Poll::Ready(V::Out::make_values(value)),
+            elab::LoweredIf::Fsm(result) => {
+                this.result = result;
+                Poll::Pending
+            }
         }
     }
 }

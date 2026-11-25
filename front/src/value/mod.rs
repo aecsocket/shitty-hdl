@@ -253,6 +253,20 @@ impl<D: Domain, S: Shape, T: Shape> FieldView<D, S, T> {
     pub fn value(self) -> Value<D, T> {
         self.into_value()
     }
+
+    /// By value: views are [`Copy`], and the read-modify-write targets the
+    /// register the view was taken from, so async closures can capture
+    /// views without `&mut`.
+    pub fn write(self, rhs: impl IntoValue<D, T>) {
+        let Some(index) = self.index else {
+            panic!("cannot assign to a whole-value view")
+        };
+        elab::write_struct_field(
+            Value::<D, S>::from_handle(self.parent),
+            index,
+            rhs.into_value(),
+        );
+    }
 }
 
 impl<D: Domain, S: Shape, T: Shape> IntoValue<D, T> for FieldView<D, S, T> {

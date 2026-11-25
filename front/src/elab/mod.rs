@@ -15,7 +15,7 @@ use scoped_tls_hkt::scoped_thread_local;
 use std::cell::RefCell;
 
 pub(crate) use body::{
-    call_action, capture_branch, define_action, define_rule, finish_if, pack_input,
+    call_action, capture_branch, define_action, define_action_sync, finish_if, pack_input,
 };
 pub(crate) use context::Context;
 pub(crate) use design::DesignId;
@@ -23,7 +23,7 @@ pub use expr::{
     assert, binary, cast, compare, display, finish, literal, shift, shift_resize, struct_field,
     tuple, tuple_element, uint_from_u128, unary, write_struct_field,
 };
-pub use fsm::{define_async_method, define_async_rule, lower_async_if, unit_value};
+pub use fsm::{LoweredIf, define_async_method, define_async_rule, lower_async_if, unit_value};
 pub(crate) use handle::{
     ActionHandle, BranchHandle, ClockHandle, ExprHandle, InterfaceHandle, RegisterHandle,
 };

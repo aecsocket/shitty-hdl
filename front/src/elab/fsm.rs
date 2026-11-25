@@ -53,7 +53,8 @@ impl StateReg {
 }
 
 pub struct Flow {
-    state: StateReg,
+    /// Created lazily: bodies that never suspend never need one.
+    state: Option<StateReg>,
     next: usize,
     current: usize,
     suppress: bool,
@@ -76,39 +77,42 @@ fn with_flow<R>(f: impl FnOnce(&mut Flow) -> R) -> R {
     with_context(|cx| {
         f(cx.async_flow
             .as_mut()
-            .expect("no async method lowering in progress"))
+            .expect("suspend is only supported inside async rule and method bodies"))
     })
 }
 
-const fn transition(flow: &mut Flow) -> StateReg {
-    let next = flow.next;
-    flow.current = next;
-    flow.next += 1;
-    flow.state
+fn flow_state() -> StateReg {
+    let existing = with_flow(|flow| flow.state);
+    existing.unwrap_or_else(|| {
+        let state = StateReg::new();
+        with_flow(|flow| *flow.state.insert(state))
+    })
 }
 
 fn poll_segment<F: Future + ?Sized>(future: Pin<&mut F>) -> Poll<F::Output> {
     let mut task = TaskContext::from_waker(Waker::noop());
     let poll = future.poll(&mut task);
     if matches!(poll, Poll::Pending) {
-        let (suppress, state, next) = with_flow(|flow| {
+        let next = with_flow(|flow| {
             let suppress = flow.suppress;
             flow.suppress = false;
-            if !suppress {
+            if suppress {
+                None
+            } else {
                 let next = flow.next;
                 flow.current = next;
                 flow.next += 1;
+                Some(next)
             }
-            (suppress, flow.state, flow.next - 1)
         });
-        if !suppress {
-            state.write(state_value(next));
+        if let Some(next) = next {
+            flow_state().write(state_value(next));
         }
     }
     poll
 }
 
-fn begin_flow(state: StateReg) {
+fn begin_flow(state: Option<StateReg>) {
     with_context(|cx| {
         assert!(cx.frames.is_empty(), "define async bodies at module scope");
         assert!(cx.async_flow.is_none(), "nested async body definition");
@@ -150,7 +154,7 @@ fn drive<F: Future + ?Sized>(future: &mut Pin<Box<F>>, mut finish: impl FnMut(F:
                 finish(output);
             }
         }
-        close_state(with_flow(|flow| flow.state), current);
+        close_state(flow_state(), current);
         if !suspended {
             break;
         }
@@ -158,12 +162,11 @@ fn drive<F: Future + ?Sized>(future: &mut Pin<Box<F>>, mut finish: impl FnMut(F:
 }
 
 fn finish_state(value: usize) {
-    let state = with_flow(|flow| {
+    with_flow(|flow| {
         flow.done = Some(value);
         flow.current = value;
-        flow.state
     });
-    state.write(state_value(value));
+    flow_state().write(state_value(value));
 }
 
 pub fn define_async_method<'a, D: Domain, In, Out, F>(
@@ -183,12 +186,12 @@ where
     });
     let args = (!in_unit).then(|| StateReg::uninit::<D, In>());
     let result = (!out_unit).then(|| StateReg::uninit::<D, Out>());
-    begin_flow(state);
+    begin_flow(Some(state));
 
     let mut slot: Option<Pin<Box<dyn Future<Output = Out::Values<D>> + 'a>>> = None;
     let mut body = Some(f);
 
-    let req = Action::from_handle(super::define_action::<D, In, ()>(
+    let req = Action::from_handle(super::define_action_sync::<D, In, ()>(
         Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0)).handle()),
         |_cx, args_in| {
             if let Some(id) = args {
@@ -246,7 +249,7 @@ where
     });
 
     let done = with_flow(|flow| flow.done.expect("async method body did not complete"));
-    let out = Action::from_handle(super::define_action::<D, (), Out>(
+    let out = Action::from_handle(super::define_action_sync::<D, (), Out>(
         Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(done)).handle()),
         |_cx, _packed| {
             state.write(state_value(0));
@@ -261,126 +264,360 @@ where
     (req, out)
 }
 
-pub fn define_async_rule<'a, F, R>(f: F)
+/// Lowers an async rule body. A body that completes on its first poll
+/// never crosses a clock edge, so it is emitted as a plain rule that
+/// fires whenever its guard holds; only a suspending body needs the
+/// state machine.
+pub fn define_async_rule<'a, F, R>(guard: Option<super::ExprHandle>, f: F)
 where
     F: AsyncFnOnce(AsyncCx) -> R + 'a,
     R: 'a,
 {
-    let state = StateReg::new();
-    begin_flow(state);
-
-    let mut slot: Option<Pin<Box<dyn Future<Output = R> + 'a>>> = None;
-
-    super::define_rule(
-        Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0)).handle()),
-        |_cx| {
-            let mut future = Box::pin(f(AsyncCx::new()));
-            match poll_segment(future.as_mut()) {
-                Poll::Pending => {}
-                Poll::Ready(_) => {
-                    let done = with_flow(|flow| {
-                        let done = flow.next;
-                        flow.next += 1;
-                        done
-                    });
-                    finish_state(done);
-                }
-            }
-            slot = Some(future);
-        },
-    );
-
-    let mut future = slot.take().expect("async rule body was not polled");
-    drive(&mut future, |_| {
-        let done = with_flow(|flow| {
-            let done = flow.next;
-            flow.next += 1;
-            done
-        });
-        finish_state(done);
+    with_context(|cx| {
+        assert!(
+            cx.frames.is_empty(),
+            "define rules at module scope, not inside action bodies"
+        );
     });
+    begin_flow(None);
+
+    with_context(|cx| cx.begin_body());
+    let mut future = Box::pin(f(AsyncCx::new()));
+    let poll = poll_segment(future.as_mut());
+
+    match poll {
+        Poll::Ready(_) => {
+            with_context(|cx| {
+                let block = cx.end_body();
+                let guard = guard.map(|handle| cx.typed_expr::<bool>(handle));
+                let name = cx.alloc_str(&format!("rule_{}", cx.rules.len()));
+                cx.add_rule(air::Rule {
+                    name,
+                    guard,
+                    body: block,
+                });
+            });
+        }
+        Poll::Pending => {
+            let state = flow_state();
+            with_context(|cx| {
+                // The guard is built and resolved while the speculative
+                // body is still open: its exprs belong to this scope.
+                let check = elab_compare_inline(cx, state, 0);
+                let guard = match guard {
+                    Some(handle) => {
+                        let cond = cx.typed_expr::<bool>(handle);
+                        let expr = cx.alloc(air::Expr {
+                            ty: check.ty,
+                            kind: air::ExprKind::Binary {
+                                op: air::BinaryOp::And,
+                                lhs: cond,
+                                rhs: check,
+                            },
+                        });
+                        cx.push_expr(expr);
+                        cx.expr(handle)
+                    }
+                    None => check,
+                };
+                let block = cx.end_body();
+                let name = cx.alloc_str(&format!("rule_{}", cx.rules.len()));
+                cx.add_rule(air::Rule {
+                    name,
+                    guard: Some(guard),
+                    body: block,
+                });
+            });
+            drive(&mut future, |_| {
+                let done = with_flow(|flow| {
+                    let done = flow.next;
+                    flow.next += 1;
+                    done
+                });
+                finish_state(done);
+            });
+        }
+    }
 
     with_context(|cx| cx.async_flow = None);
+}
+
+/// The result of lowering an async `if`: branches that both completed
+/// speculatively collapse into a combinational mux; otherwise the `if`
+/// joins the enclosing state machine.
+pub enum LoweredIf<D: Domain, R: IntoValues<D>> {
+    Mux(Value<D, R::Out>),
+    Fsm(Option<RegisterHandle>),
 }
 
 #[must_use]
 pub fn lower_async_if<'a, D: Domain, R: IntoValues<D>>(
     cond: Value<D, bool>,
-    then: Pin<Box<dyn Future<Output = R> + 'a>>,
-    else_: Pin<Box<dyn Future<Output = R> + 'a>>,
-) -> Option<super::RegisterHandle> {
-    let out_unit = with_context(|cx| matches!(cx.ty::<R::Out>(), air::Type::Unit));
-    let result = (!out_unit).then(|| super::register_default::<D, R::Out>(None).0);
+    mut then: Pin<Box<dyn Future<Output = R> + 'a>>,
+    mut else_: Pin<Box<dyn Future<Output = R> + 'a>>,
+) -> LoweredIf<D, R> {
+    let cond_branch = super::capture_branch(|| cond);
 
-    let (then_start, else_start, merge) = with_flow(|flow| {
-        let then_start = flow.next;
-        let else_start = then_start + 1;
-        let merge = else_start + 1;
-        flow.next = merge + 1;
-        (then_start, else_start, merge)
-    });
+    with_context(|cx| cx.begin_body());
+    let then_poll = poll_segment(then.as_mut());
+    // Pack while the branch's own body is the innermost frame, so the
+    // result exprs are created in (and can be resolved from) its scope.
+    let then_pending = matches!(then_poll, Poll::Pending);
+    let then_packed = match then_poll {
+        Poll::Ready(value) => Some(R::Out::pack_values::<D>(value.into_values())),
+        Poll::Pending => None,
+    };
+    let then_next = then_pending.then(|| with_flow(|flow| flow.current));
+    with_context(|cx| cx.begin_body());
+    let else_poll = poll_segment(else_.as_mut());
+    let else_pending = matches!(else_poll, Poll::Pending);
+    let else_packed = match else_poll {
+        Poll::Ready(value) => Some(R::Out::pack_values::<D>(value.into_values())),
+        Poll::Pending => None,
+    };
+    let else_next = else_pending.then(|| with_flow(|flow| flow.current));
 
-    let state = with_flow(|flow| flow.state);
-    let then_state = state_value(then_start);
-    let else_state = state_value(else_start);
-    with_context(|cx| {
-        let register = cx.register_for_write(state.id.index);
-        let condition = cx.typed_expr::<bool>(cond.handle());
-        let then_value = cx.typed_expr::<U<32>>(then_state.handle());
-        let else_value = cx.typed_expr::<U<32>>(else_state.handle());
-        cx.emit(air::Statement::If {
-            condition,
-            then_body: air::Block {
-                statements: cx.alloc_slice([air::Statement::RegisterWrite {
-                    register,
-                    value: then_value,
-                }]),
-            },
-            else_body: Some(air::Block {
-                statements: cx.alloc_slice([air::Statement::RegisterWrite {
-                    register,
-                    value: else_value,
-                }]),
-            }),
+    if then_packed.is_some() && else_packed.is_some() {
+        let then_packed = then_packed.expect("then branch completed");
+        let else_packed = else_packed.expect("else branch completed");
+        let (then_branch, else_branch) = with_context(|cx| {
+            // Resolve each branch's result while its own body is the
+            // innermost open frame; the scope check would reject the
+            // exprs once the bodies are closed.
+            let else_result = cx.expr(else_packed.handle());
+            let else_block = cx.end_body();
+            let then_result = cx.expr(then_packed.handle());
+            let then_block = cx.end_body();
+            let else_branch = push_branch_cx(cx, else_block, else_result);
+            let then_branch = push_branch_cx(cx, then_block, then_result);
+            (then_branch, else_branch)
         });
-    });
+        let value =
+            super::finish_if::<D, R::Out>(vec![(cond_branch, then_branch)], Some(else_branch));
+        LoweredIf::Mux(value)
+    } else {
+        // Only a suspending branch needs the state machine, so the states
+        // are allocated (and the state register created) only now, after
+        // the speculative polls.
+        let (then_start, else_start, merge) = with_flow(|flow| {
+            let then_start = flow.next;
+            let else_start = then_start + 1;
+            let merge = else_start + 1;
+            flow.next = merge + 1;
+            (then_start, else_start, merge)
+        });
+        let state = flow_state();
+        let out_unit = with_context(|cx| matches!(cx.ty::<R::Out>(), air::Type::Unit));
+        let result = (!out_unit).then(|| super::register_default::<D, R::Out>(None).0);
+        with_context(|cx| {
+            // Same LIFO resolution as the mux path: each branch's
+            // result expr is only in scope while its body is open.
+            let else_result = else_packed.map(|value| cx.expr(value.handle()));
+            let else_block = cx.end_body();
+            let then_result = then_packed.map(|value| cx.expr(value.handle()));
+            let then_block = cx.end_body();
+            let then_block = finish_entry_cx(cx, state, then_block, then_result, merge, result);
+            let else_block = finish_entry_cx(cx, state, else_block, else_result, merge, result);
+            let then_guard = elab_compare_inline(cx, state, then_start);
+            let name = cx.alloc_str(&format!("rule_{}", cx.rules.len()));
+            cx.add_rule(air::Rule {
+                name,
+                guard: Some(then_guard),
+                body: then_block,
+            });
+            let else_guard = elab_compare_inline(cx, state, else_start);
+            let name = cx.alloc_str(&format!("rule_{}", cx.rules.len()));
+            cx.add_rule(air::Rule {
+                name,
+                guard: Some(else_guard),
+                body: else_block,
+            });
+        });
 
-    drive_chain(then, then_start, merge, result);
-    drive_chain(else_, else_start, merge, result);
+        // The branch selection happens in the cycle the enclosing
+        // segment runs, so it is emitted there - after the branch
+        // bodies above have been closed, back at the enclosing scope.
+        with_context(|cx| {
+            let state_register = cx.register_for_write(state.id.index);
+            let condition = cx.typed_expr::<bool>(cond.handle());
+            let then_value = state_value_cx(cx, then_start);
+            let else_value = state_value_cx(cx, else_start);
+            cx.emit(air::Statement::If {
+                condition,
+                then_body: air::Block {
+                    statements: cx.alloc_slice([air::Statement::RegisterWrite {
+                        register: state_register,
+                        value: then_value,
+                    }]),
+                },
+                else_body: Some(air::Block {
+                    statements: cx.alloc_slice([air::Statement::RegisterWrite {
+                        register: state_register,
+                        value: else_value,
+                    }]),
+                }),
+            });
+        });
 
-    with_flow(|flow| {
-        flow.current = merge;
-        flow.suppress = true;
-    });
-    result
+        if then_pending {
+            drive_branch_rest(then, then_next.expect("pending branch"), merge, result);
+        }
+        if else_pending {
+            drive_branch_rest(else_, else_next.expect("pending branch"), merge, result);
+        }
+
+        with_flow(|flow| {
+            flow.current = merge;
+            flow.suppress = true;
+        });
+        LoweredIf::Fsm(result)
+    }
 }
 
-fn drive_chain<'a, D: Domain, R: IntoValues<D>>(
-    mut future: Pin<Box<dyn Future<Output = R> + 'a>>,
-    start: usize,
+/// The [`state_value`] literal, built on an already-borrowed context.
+fn state_value_cx<'dsn>(
+    cx: &mut crate::elab::Context<'dsn>,
+    value: usize,
+) -> &'dsn air::Expr<'dsn> {
+    let ty = cx.ty::<U<32>>();
+    let words = [value as u64];
+    let lit = cx.bits::<U<32>>(&words);
+    cx.push_expr(lit);
+    lit
+}
+
+/// Closes a branch's entry segment: a completed branch gets its result
+/// write and the transition to the merge state appended; a suspending
+/// branch's block already carries its transition.
+fn finish_entry_cx<'dsn>(
+    cx: &mut crate::elab::Context<'dsn>,
+    state: StateReg,
+    block: air::Block<'dsn>,
+    packed: Option<&'dsn air::Expr<'dsn>>,
     merge: usize,
-    result: Option<super::RegisterHandle>,
-) {
-    let state = with_flow(|flow| flow.state);
-    let mut current = start;
-    loop {
-        // Passing `Context::begin_body` directly fails to infer here.
-        #[allow(clippy::redundant_closure_for_method_calls)]
-        with_context(|cx| cx.begin_body());
-        let ready = match poll_segment(future.as_mut()) {
-            Poll::Pending => None,
-            Poll::Ready(value) => Some(value),
-        };
-        if let Some(value) = ready {
-            if let Some(handle) = result {
-                super::write_register(handle, R::Out::pack_values::<D>(value.into_values()));
+    result: Option<RegisterHandle>,
+) -> air::Block<'dsn> {
+    match packed {
+        None => block,
+        Some(packed) => {
+            let mut statements = block.statements.to_vec();
+            if let Some(register) = result {
+                let register = cx.register_for_write(register.index);
+                statements.push(air::Statement::RegisterWrite {
+                    register,
+                    value: packed,
+                });
             }
-            state.write(state_value(merge));
+            let state_register = cx.register_for_write(state.id.index);
+            let merge_value = state_value_cx(cx, merge);
+            statements.push(air::Statement::RegisterWrite {
+                register: state_register,
+                value: merge_value,
+            });
+            air::Block {
+                statements: cx.alloc_slice(statements),
+            }
+        }
+    }
+}
+
+/// Drives the remaining segments of a suspending branch until merge.
+fn drive_branch_rest<'a, D: Domain, R: IntoValues<D>>(
+    mut future: Pin<Box<dyn Future<Output = R> + 'a>>,
+    first_current: usize,
+    merge: usize,
+    result: Option<RegisterHandle>,
+) {
+    let state = flow_state();
+    let mut current = first_current;
+    loop {
+        with_context(|cx| cx.begin_body());
+        let poll = poll_segment(future.as_mut());
+        let packed = match poll {
+            Poll::Ready(value) => Some(R::Out::pack_values::<D>(value.into_values())),
+            Poll::Pending => None,
+        };
+        let mut ready = false;
+        with_context(|cx| {
+            // Resolve the result while the segment's body is still open.
+            let packed = packed.map(|value| cx.expr(value.handle()));
+            let block = cx.end_body();
+            let block = match packed {
+                None => block,
+                Some(packed) => {
+                    ready = true;
+                    let mut statements = block.statements.to_vec();
+                    if let Some(register) = result {
+                        let register = cx.register_for_write(register.index);
+                        statements.push(air::Statement::RegisterWrite {
+                            register,
+                            value: packed,
+                        });
+                    }
+                    let state_register = cx.register_for_write(state.id.index);
+                    let merge_value = state_value_cx(cx, merge);
+                    statements.push(air::Statement::RegisterWrite {
+                        register: state_register,
+                        value: merge_value,
+                    });
+                    air::Block {
+                        statements: cx.alloc_slice(statements),
+                    }
+                }
+            };
+            let guard = elab_compare_inline(cx, state, current);
+            let name = cx.alloc_str(&format!("rule_{}", cx.rules.len()));
+            cx.add_rule(air::Rule {
+                name,
+                guard: Some(guard),
+                body: block,
+            });
+        });
+        if ready {
             with_flow(|flow| flow.current = merge);
-            close_state(state, current);
             return;
         }
-        close_state(state, current);
         current = with_flow(|flow| flow.current);
     }
+}
+
+fn elab_compare_inline<'dsn>(
+    cx: &mut crate::elab::Context<'dsn>,
+    state: StateReg,
+    index: usize,
+) -> &'dsn air::Expr<'dsn> {
+    let state_register = cx.register_handles[state.id.index].0;
+    let state_ty = cx.ty::<U<32>>();
+    let state_expr = cx.alloc(air::Expr {
+        ty: state_ty,
+        kind: air::ExprKind::Register(state_register),
+    });
+    let index_expr = state_value_cx(cx, index);
+    let bool_ty = cx.ty::<bool>();
+    cx.alloc(air::Expr {
+        ty: bool_ty,
+        kind: air::ExprKind::Binary {
+            op: air::BinaryOp::Equal,
+            lhs: state_expr,
+            rhs: index_expr,
+        },
+    })
+}
+
+fn push_branch_cx<'dsn>(
+    cx: &mut crate::elab::Context<'dsn>,
+    block: air::Block<'dsn>,
+    result: &'dsn air::Expr<'dsn>,
+) -> super::BranchHandle {
+    let handle = super::BranchHandle {
+        design_id: cx.design_id,
+        index: cx.branches.len(),
+    };
+    cx.branches.push(super::context::Branch {
+        module: cx.id,
+        parent_scope: cx.current_scope(),
+        block,
+        result,
+    });
+    handle
 }

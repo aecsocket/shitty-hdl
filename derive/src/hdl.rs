@@ -81,11 +81,8 @@ impl Rewriter<'_> {
     fn prepend_cx(&self, arg: &mut Expr) {
         if let Expr::Closure(closure) = arg {
             let crate_ = self.crate_;
-            let cx: syn::Type = if closure.asyncness.is_some() {
-                parse_quote! { #crate_::module::AsyncCx }
-            } else {
-                parse_quote! { #crate_::module::SyncCx }
-            };
+            closure.asyncness = Some(Default::default());
+            let cx: syn::Type = parse_quote! { #crate_::module::AsyncCx };
             closure.inputs.insert(
                 0,
                 syn::Pat::Type(syn::PatType {
@@ -127,42 +124,6 @@ impl Rewriter<'_> {
         self.visit_block_mut(block);
     }
 
-    fn hardware_if(&mut self, if_: &mut ExprIf) -> Expr {
-        self.visit_expr_mut(&mut if_.cond);
-        self.branch(&mut if_.then_branch);
-        let crate_ = self.crate_;
-        let cond = &if_.cond;
-        let then = &if_.then_branch;
-        let attrs = &if_.attrs;
-        let mut chain = quote! {
-            __rule_cx.if_(#crate_::value::IntoValue::into_value(#cond), || #then)
-        };
-        let mut next = &mut if_.else_branch;
-        while let Some((_, branch)) = next {
-            if matches!(branch.as_ref(), Expr::If(else_if) if !has_let(&else_if.cond)) {
-                if let Expr::If(else_if) = branch.as_mut() {
-                    self.visit_expr_mut(&mut else_if.cond);
-                    self.branch(&mut else_if.then_branch);
-                    let cond = &else_if.cond;
-                    let then = &else_if.then_branch;
-                    chain = quote! {
-                        #chain.else_if_cond(|| #crate_::value::IntoValue::into_value(#cond)).then(|| #then)
-                    };
-                    next = &mut else_if.else_branch;
-                } else {
-                    unreachable!();
-                }
-            } else {
-                BranchControlFlow {
-                    errors: &mut self.errors,
-                }
-                .visit_expr_mut(branch);
-                self.visit_expr_mut(branch);
-                return parse_quote! { #(#attrs)* { #chain.else_(|| { #branch }) } };
-            }
-        }
-        parse_quote! { #(#attrs)* { ::core::mem::drop(#chain); } }
-    }
     fn async_if(&mut self, if_: &mut ExprIf) -> Expr {
         self.visit_expr_mut(&mut if_.cond);
         self.branch(&mut if_.then_branch);
@@ -284,7 +245,13 @@ impl VisitMut for Rewriter<'_> {
             } else if self.async_depth > 0 {
                 *expr = self.async_if(if_);
             } else {
-                *expr = self.hardware_if(if_);
+                // Plain Rust control flow at module scope; visit the
+                // pieces without rewriting the `if` itself.
+                self.visit_expr_mut(&mut if_.cond);
+                self.visit_block_mut(&mut if_.then_branch);
+                if let Some((_, branch)) = &mut if_.else_branch {
+                    self.visit_expr_mut(branch);
+                }
             }
             return;
         }
@@ -300,6 +267,18 @@ impl VisitMut for Rewriter<'_> {
             BinOp::Ge(_) => parse_quote! { #crate_::ops::BitCmpExt::ge },
             BinOp::Lt(_) => parse_quote! { #crate_::ops::BitCmpExt::lt },
             BinOp::Le(_) => parse_quote! { #crate_::ops::BitCmpExt::le },
+            // Register writes go through by-value `write` methods, so
+            // async branch closures capture registers by copy instead of
+            // `&mut` (two branches may write the same register).
+            BinOp::ShlAssign(_) => {
+                let attrs = &binary.attrs;
+                let lhs = &binary.left;
+                let rhs = &binary.right;
+                *expr = parse_quote! {
+                    #(#attrs)* #crate_::ops::WriteExt::write(#lhs, #rhs)
+                };
+                return;
+            }
             _ => return,
         };
         let attrs = &binary.attrs;

@@ -9,7 +9,7 @@ pub fn module(
     module::derive(attr.into(), input.into()).into()
 }
 
-#[proc_macro_derive(Shape)]
+#[proc_macro_derive(Shape, attributes(shape))]
 pub fn shape(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     shape::derive(input.into()).into()
 }

@@ -1,0 +1,12 @@
+[package]
+name = "verilog-gen"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lasso = { workspace = true }
+smallvec = { workspace = true }
+derive_more = { workspace = true, features = ["display", "error"] }
+astli-fmt = "0.5.0"
+astli-syntax = "0.5.0"
+astli-parse = "0.5.0"

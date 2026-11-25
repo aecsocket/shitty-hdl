@@ -1,7 +1,7 @@
 use darling::{FromMeta, util::Flag};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Expr, FnArg, ItemFn, Pat, Result, Stmt, Type, parse_quote};
+use syn::{Expr, FnArg, ItemFn, Pat, Result, Stmt, Type, parse_quote, visit_mut::VisitMut};
 
 #[derive(Default, FromMeta)]
 #[darling(derive_syn_parse)]
@@ -20,7 +20,7 @@ fn derive_(attr: TokenStream, input_: TokenStream) -> Result<TokenStream> {
     let mut options = syn::parse2::<Options>(attr)?;
     options
         .crate_
-        .get_or_insert_with(|| parse_quote! { shitty_hdl });
+        .get_or_insert_with(|| parse_quote! { ::shitty_hdl });
     let crate_ = &options.crate_;
     let mut errors = Vec::new();
 
@@ -177,27 +177,55 @@ fn make_in_outs<'a>(
     }
 }
 
-fn make_elaborate_stmts(options: &Options, original: Vec<Stmt>) -> Vec<Stmt> {
-    let crate_ = &options.crate_;
-    let mut stmts = Vec::new();
-    for stmt in original {
-        let Stmt::Expr(expr, semi) = stmt else {
-            stmts.push(stmt);
-            continue;
-        };
-
-        let stmt = match expr {
-            Expr::If(if_) => {
-                // `if x { then }` -> `if_(x, || then)`
-                let cond = if_.cond;
-                let then = if_.then_branch;
-                parse_quote! {
-                    #crate_::__::if_(#cond, || #then);
-                }
-            }
-            _ => Stmt::Expr(expr, semi),
-        };
-        stmts.push(stmt);
+fn make_elaborate_stmts(options: &Options, mut stmts: Vec<Stmt>) -> Vec<Stmt> {
+    let mut rewriter = MakeElaborate { options };
+    for stmt in &mut stmts {
+        rewriter.visit_stmt_mut(stmt);
     }
     stmts
+}
+
+struct MakeElaborate<'a> {
+    options: &'a Options,
+}
+
+impl VisitMut for MakeElaborate<'_> {
+    fn visit_item_mut(&mut self, _item: &mut syn::Item) {}
+
+    fn visit_expr_mut(&mut self, expr: &mut Expr) {
+        let Expr::If(if_) = expr else {
+            syn::visit_mut::visit_expr_mut(self, expr);
+            return;
+        };
+
+        self.visit_expr_mut(&mut if_.cond);
+        self.visit_block_mut(&mut if_.then_branch);
+
+        let crate_ = &self.options.crate_;
+        let cond = &if_.cond;
+        let then = &if_.then_branch;
+        let mut chain = quote! { #crate_::__::if_(#cond, || #then) };
+
+        // Walk the chain before rewriting its `else if` nodes into calls.
+        let mut next = &mut if_.else_branch;
+        while let Some((_, branch)) = next {
+            match branch.as_mut() {
+                Expr::If(else_if) => {
+                    self.visit_expr_mut(&mut else_if.cond);
+                    self.visit_block_mut(&mut else_if.then_branch);
+                    let cond = &else_if.cond;
+                    let then = &else_if.then_branch;
+                    chain = quote! { #chain.else_if(#cond, || #then) };
+                    next = &mut else_if.else_branch;
+                }
+                branch => {
+                    self.visit_expr_mut(branch);
+                    chain = quote! { #chain.or_else(|| { #branch }) };
+                    break;
+                }
+            }
+        }
+
+        *expr = parse_quote! { { #chain; } };
+    }
 }

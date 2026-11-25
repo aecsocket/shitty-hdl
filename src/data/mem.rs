@@ -5,7 +5,9 @@ use shitty_hdl_derive::module;
 use crate::{In, IntoValue, Out, Shape, Value};
 
 #[module(crate = crate, builder)]
-pub fn memory<Data: Shape, Addr: Shape>(depth: u64, _: PhantomData<(Data, Addr)>) {}
+pub fn memory<Data: Shape, Addr: Shape>(depth: u64, _: PhantomData<(Data, Addr)>) {
+    todo!();
+}
 
 impl<Data: Shape, Addr: Shape> memory<Data, Addr> {
     pub fn read_lane(&mut self) -> ReadLane<Data, Addr> {
@@ -21,7 +23,6 @@ pub struct ReadLane<Data: Shape, Addr: Shape> {
     pub enable: Out<bool>,
     pub addr: Out<Addr>,
     pub data: In<Data>,
-    _phantom: PhantomData<(Data, Addr)>,
 }
 
 impl<Data: Shape, Addr: Shape> ReadLane<Data, Addr> {
@@ -34,7 +35,6 @@ pub struct WriteLane<Data: Shape, Addr: Shape> {
     pub enable: Out<bool>,
     pub addr: Out<Addr>,
     pub data: Out<Data>,
-    _phantom: PhantomData<(Data, Addr)>,
 }
 
 impl<Data: Shape, Addr: Shape> WriteLane<Data, Addr> {

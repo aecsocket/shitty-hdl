@@ -1,30 +1,47 @@
-use shitty_hdl::prelude::*;
+use shitty_hdl::{Bits, prelude::*};
+
+#[derive(Debug, Shape)]
+struct Foo {
+    lo: u32,
+    hi: u32,
+}
 
 #[module]
-pub fn my_counter(start: In<bool>, count_times_4: Out<u32>, done: Out<bool>) {
-    let started = Signal::<bool>::new(false);
-    let count = Signal::<u32>::new(0);
-    let count_times_2 = Signal::<u32>::without_reset();
+pub fn my_counter(
+    clk: Clock,
+    start: In<bool>,
+    mut count_times_4: Out<u19>,
+    mut done: Out<bool>,
+    mut busy: Out<bool>,
+    mut foo: Out<Foo>,
+) {
+    let mut started = Signal::<bool>::new(false);
+    let mut count = Signal::<u17>::new(0);
+    let mut count_times_2 = Signal::<u18>::without_reset();
 
-    sync(|| done <<= false);
+    clk.on(|| done <<= false);
+    clk.on(|| busy <<= false);
 
     if start {
-        sync(|| started <<= true);
+        clk.on(|| started <<= true);
     }
 
     if started {
-        sync(|| count <<= count + 1);
         comb(|| {
             count_times_2 <<= count * 2;
             count_times_4 <<= count * 4;
         });
 
-        if count.eq(100_000) {
-            sync(|| {
+        let new_count: Value<u17> = count + 1;
+        clk.on(|| count <<= new_count);
+        if new_count.eq(100_000) {
+            clk.on(|| {
                 done <<= true;
                 count <<= 0;
                 started <<= false;
             });
+        } else {
+            clk.on(|| busy <<= true);
         }
     }
 }

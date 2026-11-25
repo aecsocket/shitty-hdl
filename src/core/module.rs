@@ -1,4 +1,4 @@
-use std::ops;
+use std::{marker::PhantomData, ops};
 
 use crate::{IntoValue, Shape, Signal, Value};
 
@@ -8,10 +8,37 @@ pub fn capture<T: Shape>(value: impl IntoValue<T>) -> Value<T> {
     todo!();
 }
 
-pub fn sync(f: impl FnOnce()) {}
-pub fn comb(f: impl FnOnce()) {}
+pub fn if_<R>(cond: impl IntoValue<bool>, then: impl FnOnce() -> R) -> If<R> {
+    todo!();
+}
 
-pub fn if_(cond: impl IntoValue<bool>, then: impl FnOnce()) {}
+pub struct If<R> {
+    _phantom: PhantomData<R>,
+}
+
+impl<R: Shape> If<R> {
+    pub fn into_result(self) -> Value<R> {
+        todo!();
+    }
+
+    pub fn else_if(self, cond: impl IntoValue<bool>, then: impl FnOnce() -> R) -> Self {
+        todo!();
+    }
+
+    pub fn or_else(self, then: impl FnOnce() -> R) -> Else<R> {
+        todo!();
+    }
+}
+
+pub struct Else<R> {
+    _phantom: PhantomData<R>,
+}
+
+impl<R: Shape> Else<R> {
+    pub fn into_result(self) -> Value<R> {
+        todo!();
+    }
+}
 
 pub trait SignalFlow {
     type Inverse: SignalFlow;

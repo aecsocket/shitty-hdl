@@ -1,18 +1,22 @@
 [workspace]
 resolver = "3"
-members = [".", "derive/"]
+members = [".", "verilog-gen/", "derive/"]
+
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+lasso = { version = "0.7.3" }
 syn = { version = "3.0.9" }
 quote = { version = "1.0.47" }
 proc-macro2 = { version = "1.0.107" }
 shitty-hdl-derive = { path = "derive/" }
 bon = { version = "3.10.3" }
 darling = { version = "0.24.1" }
+smallvec = { version = "2.0.0-beta.4" }
+derive_more = { version = "2.1.1" }
 
 [package]
 name = "shitty-hdl"
@@ -22,3 +26,4 @@ edition.workspace = true
 [dependencies]
 shitty-hdl-derive = { workspace = true }
 bon = { workspace = true }
+smallvec = { workspace = true }

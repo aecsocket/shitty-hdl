@@ -1,16 +1,36 @@
-use shitty_hdl::{
-    Capture, CmpExt, In, IntoValue, Out, Shape, Signal, capture, comb, data::mem::memory, module,
-    sync,
-};
+use shitty_hdl::{Bits, data::mem::memory, prelude::*, sim::Simulator};
 
 #[derive(Clone, Copy, Shape)]
-pub struct Word(pub u64);
+#[shape(add, sub, mul, div)]
+pub struct Word(pub Bits<64>);
 
 #[derive(Clone, Copy, Shape)]
-pub struct Addr(pub u32);
+#[shape(add, sub)]
+pub struct Addr(pub Bits<45>);
 
-#[module]
+#[derive(Clone, Copy, Shape)]
+pub enum Tag {
+    Wire = 1,
+    Graft = 2,
+    Erase = 3,
+    ExtVal = 4,
+    Comb = 5,
+    ExtFn = 6,
+}
+
+#[derive(Clone, Copy, Shape)]
+pub struct Label(pub Bits<16>);
+
+#[derive(Clone, Copy, Shape)]
+pub struct Port {
+    pub tag: Tag,
+    pub payload: Bits<45>,
+    pub label: Label,
+}
+
+#[module(builder)]
 pub fn heap(
+    capacity: u64,
     do_read: In<bool>,
     read_addr: In<Addr>,
     mut read_data: Out<Word>,
@@ -19,7 +39,7 @@ pub fn heap(
     write_data: In<Word>,
     mut peak_addr: Out<Addr>,
 ) {
-    let mut mem = memory::<Word, Addr>().depth(8).call();
+    let mut mem = memory::<Word, Addr>().depth(capacity).call();
     let mut read = mem.read_lane();
     let mut write = mem.write_lane();
 
@@ -33,12 +53,12 @@ pub fn heap(
     });
 
     if read_addr.ge(peak_addr) {
-        peak_addr <<= read_addr;
+        sync(|| peak_addr <<= read_addr);
     }
 }
 
 impl heap {
-    pub async fn read(&mut self, addr: impl IntoValue<Addr>) -> Capture<Word> {
+    pub async fn read(&mut self, addr: impl IntoValue<Addr>) -> Value<Word> {
         let read_data = capture(self.read_data);
         comb(|| {
             self.do_read <<= true;
@@ -58,8 +78,8 @@ impl heap {
 
 #[module]
 pub async fn top() {
-    let heap = heap();
-    let iters = Signal::<u32>::new(0);
+    let mut heap = heap().capacity(8).call();
+    let mut iters = Signal::<u32>::new(0);
 
     let x = heap.read(Addr(4)).await;
     let y = heap.read(Addr(5)).await;
@@ -69,4 +89,6 @@ pub async fn top() {
     sync(|| iters <<= iters + 1);
 }
 
-fn main() {}
+fn main() {
+    let simulator = Simulator::new(top);
+}

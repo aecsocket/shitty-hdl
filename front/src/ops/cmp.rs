@@ -24,16 +24,8 @@ impl<T: Shape> BitEq for T {
     }
 }
 
-pub trait BitCmp: BitEq + Arith {
-    fn gt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
-
-    fn ge<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
-
-    fn lt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
-
-    fn le<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
-}
-
+/// Operand extension for [`BitEq`]: accepts branded values, registers,
+/// and raw integer constants on either side.
 pub trait BitEqExt<D: Domain, Out>: IntoValue<D, Out> + Sized
 where
     Out: BitEq,
@@ -49,6 +41,18 @@ where
 
 impl<D: Domain, T, Out: BitEq> BitEqExt<D, Out> for T where T: IntoValue<D, Out> {}
 
+pub trait BitCmp: BitEq + Arith {
+    fn gt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
+
+    fn ge<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
+
+    fn lt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
+
+    fn le<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
+}
+
+/// Operand extension for [`BitCmp`]: accepts branded values, registers,
+/// and raw integer constants on either side.
 pub trait BitCmpExt<D: Domain, Out>: IntoValue<D, Out> + Sized
 where
     Out: BitCmp,

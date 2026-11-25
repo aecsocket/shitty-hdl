@@ -15,7 +15,7 @@ pub struct Word(pub U<64>);
 #[derive(Debug, Clone, Shape, Arith)]
 pub struct Addr(pub U<45>);
 
-#[derive(Debug, Clone, Shape, Arith, BitCmp)]
+#[derive(Debug, Clone, Shape, Arith)]
 pub struct PageAddr(pub U<40>);
 
 impl PageAddr {

@@ -41,19 +41,6 @@ pub fn unpack<D: Domain, T: Shape>(value: Value<D, T>) -> <T as Shape>::Values<D
     T::make_values(value)
 }
 
-/// A shape whose method-port form is a single branded value:
-/// `Values<D>` is exactly `Value<D, Self>`.
-///
-/// Generic modules bound their port shapes by this trait so closure
-/// inputs, register writes, and interface-call returns normalize to
-/// `Value<D, T>` instead of opaque projections.
-pub trait Flat<D: Domain>: Shape<Values<D> = Value<D, Self>> {}
-
-impl<D: Domain, const N: usize> Flat<D> for U<N> {}
-impl<D: Domain, const N: usize> Flat<D> for Bit<N> {}
-impl<D: Domain> Flat<D> for bool {}
-impl<D: Domain, T: Shape, const N: usize> Flat<D> for Vector<T, N> {}
-
 /// A hardware expression branded with the clock domain `D` it belongs
 /// to. Values of different domains cannot be combined; crossing domains
 /// requires an explicit synchronizer.

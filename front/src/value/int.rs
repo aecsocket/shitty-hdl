@@ -1,7 +1,7 @@
 use crate::{
     domain::Domain,
     elab::{self, Context, ExprHandle},
-    ops::{Arith, BitCmp, Bits, Shift},
+    ops::{Arith, BitCmp, BitShift, Bits},
     value::{Bit, Shape, Value, ValueView},
 };
 
@@ -85,7 +85,7 @@ impl<const N: usize> Arith for U<N> {
     }
 }
 
-impl<const N: usize> Shift for U<N> {
+impl<const N: usize> BitShift for U<N> {
     fn shl<D: Domain>(value: Value<D, Self>, amount: usize) -> Value<D, Self> {
         elab::shift(air::BinaryOp::ShiftLeft, value, amount)
     }

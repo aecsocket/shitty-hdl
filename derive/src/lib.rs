@@ -1,12 +1,10 @@
 mod arith;
-mod cmp;
 mod display;
 mod domain;
 mod hdl;
 mod interface;
 mod module;
 mod shape;
-mod shift;
 
 #[proc_macro]
 pub fn display_format(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -52,19 +50,9 @@ pub fn interface(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     interface::derive(input.into()).into()
 }
 
-#[proc_macro_derive(BitCmp, attributes(arith_cmp))]
-pub fn arith_cmp(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    cmp::arith_cmp(input.into()).into()
-}
-
 #[proc_macro_derive(Arith, attributes(arith))]
 pub fn arith(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     arith::derive(input.into()).into()
-}
-
-#[proc_macro_derive(Shift, attributes(shift))]
-pub fn shift(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    shift::derive(input.into()).into()
 }
 
 #[proc_macro_derive(Shape, attributes(shape))]

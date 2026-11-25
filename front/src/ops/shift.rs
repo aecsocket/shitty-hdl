@@ -9,13 +9,13 @@ use crate::{
     value::{Shape, U, Value},
 };
 
-pub trait Shift: Bits {
+pub trait BitShift: Bits {
     fn shl<D: Domain>(value: Value<D, Self>, amount: usize) -> Value<D, Self>;
 
     fn shr<D: Domain>(value: Value<D, Self>, amount: usize) -> Value<D, Self>;
 }
 
-impl<D: Domain, T: Shape + Shift> Shl<usize> for Value<D, T> {
+impl<D: Domain, T: Shape + BitShift> Shl<usize> for Value<D, T> {
     type Output = Self;
 
     fn shl(self, rhs: usize) -> Self::Output {
@@ -23,7 +23,7 @@ impl<D: Domain, T: Shape + Shift> Shl<usize> for Value<D, T> {
     }
 }
 
-impl<D: Domain, T: Shape + Shift> Shr<usize> for Value<D, T> {
+impl<D: Domain, T: Shape + BitShift> Shr<usize> for Value<D, T> {
     type Output = Self;
 
     fn shr(self, rhs: usize) -> Self::Output {

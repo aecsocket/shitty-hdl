@@ -1,17 +1,26 @@
-use crate::expr::{Expr, IntoExpr};
-
-pub trait EqExt: IntoExpr {
-    fn eq(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool>;
-
-    fn ne(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool>;
-}
+use crate::{
+    expr::{EqExt, Expr, IntoExpr},
+    ir::BinaryOp,
+};
 
 impl<Lhs: IntoExpr> EqExt for Lhs {
+    #[track_caller]
     fn eq(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool> {
-        todo!();
+        Expr {
+            imp: self
+                .into_expr()
+                .imp
+                .compare(rhs.into_expr().imp, BinaryOp::Eq),
+        }
     }
 
+    #[track_caller]
     fn ne(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool> {
-        todo!();
+        Expr {
+            imp: self
+                .into_expr()
+                .imp
+                .compare(rhs.into_expr().imp, BinaryOp::Ne),
+        }
     }
 }

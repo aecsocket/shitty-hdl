@@ -2,15 +2,13 @@ mod bool;
 mod num;
 mod width;
 
-use std::marker::PhantomData;
+pub use {bool::*, num::CmpExt, width::*};
 
-pub use {bool::*, width::*};
-
-use crate::value::Shape;
+use crate::{ir, value::Shape};
 
 #[derive(Debug)]
 pub struct Expr<T: Shape> {
-    _phantom: PhantomData<T>,
+    pub(crate) imp: ir::Expr<T>,
 }
 
 impl<T: Shape> Clone for Expr<T> {
@@ -18,7 +16,6 @@ impl<T: Shape> Clone for Expr<T> {
         *self
     }
 }
-
 impl<T: Shape> Copy for Expr<T> {}
 
 pub trait IntoExpr {
@@ -30,15 +27,26 @@ pub trait IntoExpr {
 impl<T: Shape> IntoExpr for T {
     type Out = T;
 
-    fn into_expr(self) -> Expr<Self::Out> {
-        todo!();
+    #[track_caller]
+    fn into_expr(self) -> Expr<T> {
+        Expr {
+            imp: ir::Expr::constant(self),
+        }
     }
 }
 
 impl<T: Shape> IntoExpr for Expr<T> {
     type Out = T;
 
+    #[track_caller]
     fn into_expr(self) -> Expr<T> {
-        self
+        Self {
+            imp: self.imp.checked(),
+        }
     }
+}
+
+pub trait EqExt: IntoExpr {
+    fn eq(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool>;
+    fn ne(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool>;
 }

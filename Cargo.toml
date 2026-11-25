@@ -27,6 +27,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+verilog-gen = { path = "verilog-gen" }
 shitty-hdl-derive = { workspace = true }
 bon = { workspace = true }
 typenum = { workspace = true }
@@ -35,3 +36,19 @@ const-default = { workspace = true }
 
 [dev-dependencies]
 static_assertions = "1.1.0"
+
+[[test]]
+name = "hdl_equivalence"
+path = "src/slop/tests/hdl_equivalence.rs"
+
+[[test]]
+name = "hierarchy"
+path = "src/slop/tests/hierarchy.rs"
+
+[[test]]
+name = "pipeline"
+path = "src/slop/tests/pipeline.rs"
+
+[[test]]
+name = "runtime_regressions"
+path = "src/slop/tests/runtime_regressions.rs"

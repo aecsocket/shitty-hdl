@@ -66,6 +66,29 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
         let ty = &field.ty;
         quote! { <#ty as #crate_::value::Shape>::WIDTH }
     });
+    let members: Vec<_> = data
+        .fields
+        .iter()
+        .enumerate()
+        .map(|(index, field)| {
+            field
+                .ident
+                .clone()
+                .map(syn::Member::Named)
+                .unwrap_or_else(|| syn::Member::Unnamed(syn::Index::from(index)))
+        })
+        .collect();
+    let types: Vec<_> = data.fields.iter().map(|field| &field.ty).collect();
+    let locals: Vec<_> = (0..types.len())
+        .map(|i| format_ident!("__shape_field_{i}"))
+        .collect();
+    let construct = |values: Vec<TokenStream>| match &data.fields {
+        Fields::Named(_) => quote! { { #(#members: #values,)* } },
+        Fields::Unnamed(_) => quote! { ( #(#values,)* ) },
+        Fields::Unit => quote! {},
+    };
+    let decoded = construct(locals.iter().map(|local| quote! { #local }).collect());
+    let views = decoded.clone();
     Ok(quote! {
         #view
 
@@ -78,8 +101,48 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
         }
 
         impl #impl_generics #crate_::value::Shape for #ident #ty_generics #where_clause {
-            const WIDTH: #crate_::value::ShapeSize = 0 #(+ #widths)*;
+            const WIDTH: #crate_::value::ShapeSize = {
+                let mut width: #crate_::value::ShapeSize = 0;
+                #(width = width.checked_add(#widths).expect("Shape width overflow");)*
+                width
+            };
             type View = #view_ident #ty_generics;
+
+            fn to_bits(&self) -> #crate_::ir::PackedBits {
+                let mut bits = #crate_::ir::PackedBits::zero(<Self as #crate_::value::Shape>::WIDTH);
+                let mut offset: #crate_::value::ShapeSize = 0;
+                #(
+                    bits.replace(offset, &<#types as #crate_::value::Shape>::to_bits(&self.#members));
+                    offset = offset.checked_add(<#types as #crate_::value::Shape>::WIDTH)
+                        .expect("Shape offset overflow");
+                )*
+                let _ = offset;
+                bits
+            }
+
+            fn from_bits(bits: &#crate_::ir::PackedBits) -> Self {
+                assert_eq!(bits.width(), <Self as #crate_::value::Shape>::WIDTH, "Shape width mismatch");
+                let mut offset: #crate_::value::ShapeSize = 0;
+                #(
+                    let #locals = <#types as #crate_::value::Shape>::from_bits(
+                        &bits.slice(offset, <#types as #crate_::value::Shape>::WIDTH));
+                    offset = offset.checked_add(<#types as #crate_::value::Shape>::WIDTH)
+                        .expect("Shape offset overflow");
+                )*
+                let _ = offset;
+                Self #decoded
+            }
+
+            fn make_view(id: #crate_::signal::SignalId, offset: #crate_::value::ShapeSize) -> Self::View {
+                let mut offset = offset;
+                #(
+                    let #locals = <#types as #crate_::value::Shape>::make_view(id, offset);
+                    offset = offset.checked_add(<#types as #crate_::value::Shape>::WIDTH)
+                        .expect("Shape offset overflow");
+                )*
+                let _ = (id, offset);
+                #view_ident #views
+            }
         }
     })
 }

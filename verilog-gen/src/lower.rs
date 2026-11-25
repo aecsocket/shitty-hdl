@@ -21,7 +21,14 @@ fn source_location(origin: Origin, origins: &OriginMap, f: &mut fmt::Formatter<'
         .get(origin)
         .expect("origin is missing from the supplied OriginMap");
     write!(f, "\"")?;
-    escaped_string(&span.file, f)?;
+    // Source locations also appear inside block comments. An octal escape
+    // preserves '*' in attributes without allowing a path to terminate one.
+    for (index, part) in span.file.split('*').enumerate() {
+        if index != 0 {
+            write!(f, "\\052")?;
+        }
+        escaped_string(part, f)?;
+    }
     write!(
         f,
         ":{}.{}-{}.{}\"",

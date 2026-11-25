@@ -14,4 +14,5 @@ pub fn memory<Addr: Shape, Data: Shape>(
     write_addr: In<Addr>,
     write_data: In<Data>,
 ) {
+    todo!();
 }

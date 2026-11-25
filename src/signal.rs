@@ -1,98 +1,93 @@
-use std::{
-    marker::PhantomData,
-    ops::{Deref, DerefMut, ShlAssign},
-};
+use std::ops::{Deref, DerefMut, ShlAssign};
+
+pub use crate::ir::signal::{Signal, SignalId, SignalView};
 
 use crate::{
-    expr::IntoExpr,
-    value::{Shape, ShapeSize},
+    expr::{Expr, IntoExpr},
+    ir,
+    value::Shape,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SignalId(u32);
-
-#[derive(Debug)]
-pub struct Signal<T: Shape> {
-    id: SignalId,
-    view: T::View,
-}
-
-impl<T: Shape> Clone for Signal<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T: Shape> Copy for Signal<T> {}
 
 impl<T: Shape> Signal<T> {
     #[must_use]
+    #[track_caller]
     pub fn new(init: impl Into<T>) -> Self {
-        todo!();
+        Self::allocate(init.into().to_bits(), None, None)
     }
 
     #[must_use]
+    #[track_caller]
     pub fn without_init() -> Self {
-        todo!();
+        Self::allocate(ir::PackedBits::zero(T::WIDTH), None, None)
+    }
+
+    #[must_use]
+    #[track_caller]
+    pub fn input(name: impl Into<String>, init: impl Into<T>) -> Self {
+        Self::allocate(
+            init.into().to_bits(),
+            Some(name.into()),
+            Some(ir::PortDirection::Input),
+        )
+    }
+
+    #[must_use]
+    #[track_caller]
+    pub fn output(name: impl Into<String>, init: impl Into<T>) -> Self {
+        Self::allocate(
+            init.into().to_bits(),
+            Some(name.into()),
+            Some(ir::PortDirection::Output),
+        )
+    }
+
+    pub fn id(&self) -> SignalId {
+        self.id
     }
 }
-
-/// Accessor to a slice of packed bits inside a [`Signal`].
-///
-/// The slice accessed by this view is defined as `offset..(offset + T::WIDTH)`.
-#[derive(Debug)]
-pub struct SignalView<T: Shape> {
-    id: SignalId,
-    offset: ShapeSize,
-    _phantom: PhantomData<T>,
-}
-
-impl<T: Shape> Clone for SignalView<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T: Shape> Copy for SignalView<T> {}
-
-// read
 
 impl<T: Shape> IntoExpr for Signal<T> {
     type Out = T;
-
-    fn into_expr(self) -> crate::expr::Expr<Self::Out> {
-        todo!();
+    #[track_caller]
+    fn into_expr(self) -> Expr<T> {
+        Expr {
+            imp: ir::Expr::read(self.id, 0),
+        }
     }
 }
 
 impl<T: Shape> IntoExpr for SignalView<T> {
     type Out = T;
-
-    fn into_expr(self) -> crate::expr::Expr<Self::Out> {
-        todo!();
+    #[track_caller]
+    fn into_expr(self) -> Expr<T> {
+        Expr {
+            imp: ir::Expr::read(self.id, self.offset),
+        }
     }
 }
 
 impl<T: Shape> Deref for Signal<T> {
     type Target = T::View;
-
-    fn deref(&self) -> &Self::Target {
+    fn deref(&self) -> &T::View {
         &self.view
     }
 }
-
-// write
+impl<T: Shape> DerefMut for Signal<T> {
+    fn deref_mut(&mut self) -> &mut T::View {
+        &mut self.view
+    }
+}
 
 impl<T: Shape, Rhs: IntoExpr<Out = T>> ShlAssign<Rhs> for Signal<T> {
-    fn shl_assign(&mut self, rhs: Rhs) {}
+    #[track_caller]
+    fn shl_assign(&mut self, rhs: Rhs) {
+        rhs.into_expr().imp.assign(self.id, 0);
+    }
 }
 
 impl<T: Shape, Rhs: IntoExpr<Out = T>> ShlAssign<Rhs> for SignalView<T> {
-    fn shl_assign(&mut self, rhs: Rhs) {}
-}
-
-impl<T: Shape> DerefMut for Signal<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.view
+    #[track_caller]
+    fn shl_assign(&mut self, rhs: Rhs) {
+        rhs.into_expr().imp.assign(self.id, self.offset);
     }
 }

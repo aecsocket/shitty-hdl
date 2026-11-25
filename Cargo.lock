@@ -393,6 +393,7 @@ dependencies = [
  "shitty-hdl-derive",
  "static_assertions",
  "typenum",
+ "verilog-gen",
 ]
 
 [[package]]

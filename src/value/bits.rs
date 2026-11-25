@@ -15,6 +15,21 @@ pub struct Bits<N: Width>(GenericArray<u64, N::Words>);
 impl<N: Width> Shape for Bits<N> {
     const WIDTH: ShapeSize = N::U32;
     type View = SignalView<Self>;
+
+    fn to_bits(&self) -> crate::ir::PackedBits {
+        crate::ir::PackedBits::from_words(<Self as Shape>::WIDTH, self.0.as_slice().to_vec())
+    }
+
+    fn from_bits(bits: &crate::ir::PackedBits) -> Self {
+        assert_eq!(bits.width(), <Self as Shape>::WIDTH, "Shape width mismatch");
+        let mut words = GenericArray::<u64, N::Words>::const_default();
+        words.as_mut_slice().copy_from_slice(bits.words());
+        Self(words)
+    }
+
+    fn make_view(id: crate::signal::SignalId, offset: ShapeSize) -> Self::View {
+        SignalView::new(id, offset)
+    }
 }
 
 impl<N: Width> Bits<N> {

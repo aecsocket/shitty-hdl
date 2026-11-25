@@ -13,8 +13,11 @@ impl<From: Width, To: Width> CanZext<Uint<To>> for Uint<From> where
 {
 }
 
+#[track_caller]
 pub fn zext<To: Shape>(lhs: impl IntoExpr<Out: CanZext<To>>) -> Expr<To> {
-    todo!();
+    Expr {
+        imp: lhs.into_expr().imp.resize::<To>(true),
+    }
 }
 
 // sext
@@ -25,8 +28,11 @@ impl<From: Width, To: Width> CanSext<Sint<To>> for Sint<From> where
 {
 }
 
+#[track_caller]
 pub fn sext<To: Shape>(lhs: impl IntoExpr<Out: CanSext<To>>) -> Expr<To> {
-    todo!();
+    Expr {
+        imp: lhs.into_expr().imp.resize::<To>(true),
+    }
 }
 
 // trunc
@@ -49,6 +55,9 @@ where
     type Truncated = Sint<To>;
 }
 
+#[track_caller]
 pub fn trunc<To: Shape>(lhs: impl IntoExpr<Out: CanTrunc<To>>) -> Expr<To> {
-    todo!();
+    Expr {
+        imp: lhs.into_expr().imp.resize::<To>(false),
+    }
 }

@@ -1,4 +1,4 @@
-use shitty_hdl::prelude::*;
+use shitty_hdl::{ir::Error, prelude::*, sim::Simulator, verilog};
 
 #[derive(Debug, Clone, Shape)]
 struct Composite {
@@ -8,7 +8,7 @@ struct Composite {
 
 #[module]
 pub fn my_counter(
-    mut clk: Clock,
+    mut sync: Domain<Sync>,
     start: In<bool>,
     mut count_times_3: Out<Uint<U19>>,
     mut done: Out<bool>,
@@ -19,8 +19,8 @@ pub fn my_counter(
     let mut count = Signal::<Uint<U17>>::new(u!(0));
     let mut count_times_2 = Signal::<Uint<U18>>::without_init();
 
-    clk.on(|| done <<= false);
-    clk.on(|| busy <<= false);
+    sync.on(|| done <<= false);
+    sync.on(|| busy <<= false);
 
     comb(|| {
         composite.lo <<= u!((1 << 32) - 1);
@@ -28,7 +28,7 @@ pub fn my_counter(
     });
 
     if start {
-        clk.on(|| started <<= true);
+        sync.on(|| started <<= true);
     }
 
     if started {
@@ -38,18 +38,32 @@ pub fn my_counter(
         });
 
         let new_count = count + u!(1);
-        clk.on(|| count <<= new_count);
+        sync.on(|| count <<= new_count);
 
         if new_count.eq(u!(100_000)) {
-            clk.on(|| {
+            sync.on(|| {
                 done <<= true;
                 count <<= u!(0);
                 started <<= false;
             });
         } else {
-            clk.on(|| busy <<= true);
+            sync.on(|| busy <<= true);
         }
     }
 }
 
-fn main() {}
+fn main() {
+    main_().unwrap();
+}
+
+fn main_() -> Result<(), Error> {
+    let (sim, dut) = Simulator::new(my_counter)?;
+
+    assert!(!sim.get(dut.done)?);
+    assert!(!sim.get(dut.busy)?);
+
+    let verilog = verilog::lower(sim.design())?;
+    println!("{verilog}");
+
+    Ok(())
+}

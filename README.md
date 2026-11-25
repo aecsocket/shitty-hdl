@@ -1,0 +1,15 @@
+general ideas:
+- very similar to amaranth in semantics, except there is no inherent `sync` clock domain; you have to pass a `clk: Clock` and `clk.on(..)`
+- lowers to verilog because everything lowers to verilog
+- core datatypes:
+  - boolean
+    - `bool`: single bit/wire
+    - `Bits<const N: usize>`: _N_ bits packed together
+    - these types have no arithmetic operators
+  - integer
+    - `Uint<const N: usize>`: _N_-wide unsigned integer
+      - the most generic, unoptimized type; use only when you need something outside the range `u2` to `u128` 
+      - note: unoptimized for _simulation_; lowers to the same verilog (`u<64> == u64` in verilog)
+    - `Sint<const N: usize>`: _N_-wide signed integer
+    - `(u|i)(2..=128)` i.e. `u67`, `i45`: optimized forms of integers
+    - these have arithmetic operators

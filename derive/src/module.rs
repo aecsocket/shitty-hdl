@@ -220,7 +220,7 @@ impl VisitMut for MakeElaborate<'_> {
                 }
                 branch => {
                     self.visit_expr_mut(branch);
-                    chain = quote! { #chain.or_else(|| { #branch }) };
+                    chain = quote! { #chain.else_(|| { #branch }) };
                     break;
                 }
             }

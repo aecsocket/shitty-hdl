@@ -26,6 +26,7 @@ pub fn build(mut cx: Context) -> Result<()> {
         board: cx.board,
         bindings: Bindings::default(), // todo
         verilog_path: verilog.verilog_path,
+        verilog_library_dirs: verilog.verilog_library_dirs,
         module: verilog.module_name,
         out_dir: vivado_dir,
     };
@@ -36,11 +37,6 @@ pub fn build(mut cx: Context) -> Result<()> {
             info!("started stage {event:?}");
         })
         .context("making bitstream")?;
-
-    //     toolchain_vivado::Vivado::default().make_bitstream(input, progress)
-    //
-    //     info!("- BSV output to {:?}", verilog.bsv_path);
-    //     info!("- Verilog output to {:?}", verilog.verilog_path);
     Ok(())
 }
 
@@ -52,6 +48,7 @@ struct GenVerilog {
     module_name: String,
     bsv_path: PathBuf,
     verilog_path: PathBuf,
+    verilog_library_dirs: Vec<PathBuf>,
 }
 
 fn gen_verilog(cx: &mut Context) -> Result<GenVerilog> {
@@ -70,7 +67,7 @@ fn gen_verilog(cx: &mut Context) -> Result<GenVerilog> {
     fs::write(&bsv_path, package.to_string())
         .with_context(|| anyhow!("writing BSV to {bsv_path:?}"))?;
 
-    let v_path = cx
+    let verilog_path = cx
         .bsc
         .emit_verilog(&bsv_path, module.name, &bluespec_dir, &verilog_dir)
         .context("lowering BSV to Verilog")?;
@@ -78,6 +75,7 @@ fn gen_verilog(cx: &mut Context) -> Result<GenVerilog> {
     Ok(GenVerilog {
         module_name: module.name.to_string(),
         bsv_path,
-        verilog_path: v_path,
+        verilog_path,
+        verilog_library_dirs: vec![verilog_dir, cx.bsc.verilog_library_dir()?],
     })
 }

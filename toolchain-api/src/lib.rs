@@ -22,6 +22,7 @@ pub struct BitstreamInput {
     pub board: Board,
     pub bindings: Bindings,
     pub verilog_path: PathBuf,
+    pub verilog_library_dirs: Vec<PathBuf>,
     pub module: String,
     pub out_dir: PathBuf,
 }

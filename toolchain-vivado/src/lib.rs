@@ -61,6 +61,7 @@ impl Toolchain for Vivado {
             .arg(&xdc_path)
             .arg(input.module)
             .arg(part)
+            .args(&input.verilog_library_dirs)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         debug!("spawning {command:?}");

@@ -23,6 +23,27 @@ impl Default for SystemBluespec {
 }
 
 impl BluespecCompiler for SystemBluespec {
+    fn verilog_library_dir(&self) -> Result<PathBuf> {
+        let output = Command::new(&self.bin)
+            .arg("-print-flags")
+            .output()
+            .with_context(|| anyhow!("querying BSC library directory ({:?})", self.bin))?;
+        ensure!(
+            output.status.success(),
+            "querying BSC library directory failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let flags = str::from_utf8(&output.stdout).context("decoding BSC flags")?;
+        let library = flags
+            .lines()
+            .find_map(|line| line.trim().strip_prefix("-i ").map(str::trim))
+            .filter(|path| !path.is_empty())
+            .context("BSC did not report its library directory")?;
+        let path = Path::new(library).join("Verilog");
+        path.canonicalize()
+            .with_context(|| anyhow!("locating BSC Verilog library {path:?}"))
+    }
+
     fn emit_verilog(
         &self,
         bsv_path: &Path,

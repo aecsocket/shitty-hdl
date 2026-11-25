@@ -1,16 +1,28 @@
 # init args
-if {$argc != 5} {
-    error "usage: build.ctl OUT_DIR VERILOG XDC TOP_MODULE PART"
+if {$argc < 5} {
+    error "usage: build.tcl OUT_DIR VERILOG XDC TOP_MODULE PART ?VERILOG_LIBRARY_DIR ...?"
 }
 lassign $argv out_dir verilog xdc top_module part
 set out_dir [file normalize $out_dir]
 set verilog [file normalize $verilog]
 set xdc [file normalize $xdc]
+set verilog_dirs {}
+foreach dir [lrange $argv 5 end] {
+    lappend verilog_dirs [file normalize $dir]
+}
 
 # make the design
 
 file mkdir $out_dir
-read_verilog $verilog
+set verilog_sources [list $verilog]
+foreach dir $verilog_dirs {
+    foreach source [glob -nocomplain -directory $dir *.v] {
+        lappend verilog_sources [file normalize $source]
+    }
+}
+set_property include_dirs $verilog_dirs [current_fileset]
+set_property verilog_define {BSV_NO_MAIN_V BSV_NO_INITIAL_BLOCKS} [current_fileset]
+read_verilog [lsort -unique $verilog_sources]
 read_xdc $xdc
 
 puts {shitty_hdl:Synthesis}

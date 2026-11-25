@@ -16,6 +16,13 @@ pub fn display_format(input: proc_macro::TokenStream) -> proc_macro::TokenStream
         .into()
 }
 
+#[proc_macro]
+pub fn displayln_format(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    display::displayln_format(input.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
 fn root() -> syn::Path {
     syn::parse_quote! { ::shitty_hdl }
 }

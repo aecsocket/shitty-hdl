@@ -5,10 +5,10 @@ use crate::{
     domain::Domain,
     elab,
     reg::Reg,
-    value::{IntoValue, Raw, Value},
+    value::{IntoValue, Value},
 };
 
-impl Not for Raw<bool> {
+impl<D: Domain> Not for Value<D, bool> {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -16,35 +16,11 @@ impl Not for Raw<bool> {
     }
 }
 
-impl BitOr<Raw<bool>> for Raw<bool> {
-    type Output = Self;
-
-    fn bitor(self, rhs: Raw<bool>) -> Self::Output {
-        elab::binary(air::BinaryOp::Or, self, rhs)
-    }
-}
-
-impl BitAnd<Raw<bool>> for Raw<bool> {
-    type Output = Self;
-
-    fn bitand(self, rhs: Raw<bool>) -> Self::Output {
-        elab::binary(air::BinaryOp::And, self, rhs)
-    }
-}
-
-impl<D: Domain> Not for Value<D, bool> {
-    type Output = Self;
-
-    fn not(self) -> Self::Output {
-        Self::wrap(!self.raw())
-    }
-}
-
 impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitOr<Rhs> for Value<D, bool> {
     type Output = Self;
 
     fn bitor(self, rhs: Rhs) -> Self::Output {
-        Self::wrap(self.raw() | rhs.into_value().raw())
+        elab::binary(air::BinaryOp::Or, self, rhs.into_value())
     }
 }
 
@@ -52,7 +28,7 @@ impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitAnd<Rhs> for Value<D, bool> {
     type Output = Self;
 
     fn bitand(self, rhs: Rhs) -> Self::Output {
-        Self::wrap(self.raw() & rhs.into_value().raw())
+        elab::binary(air::BinaryOp::And, self, rhs.into_value())
     }
 }
 

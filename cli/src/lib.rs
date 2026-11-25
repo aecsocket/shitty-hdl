@@ -4,7 +4,7 @@
 mod demo;
 mod task;
 
-pub use demo::{Sync, blinky};
+pub use demo::{Clk, blinky};
 
 use anyhow::{Context as _, Result};
 use board::Board;
@@ -45,9 +45,20 @@ enum Command {
 
 struct Context {
     out_dir: PathBuf,
+    design_key: Option<String>,
     board: Board,
     make_top: Box<dyn FnOnce(Platform)>,
     bsc: Box<dyn BluespecCompiler>,
+}
+
+impl Context {
+    fn tool_dir(&self, tool: &str) -> PathBuf {
+        self.out_dir.join(tool).join(
+            self.design_key
+                .as_ref()
+                .expect("design has not been elaborated"),
+        )
+    }
 }
 
 #[macro_export]
@@ -87,11 +98,11 @@ pub fn cli<R>(
     let out_dir = metadata
         .target_directory
         .join("hdl")
-        .join(env!("CARGO_CRATE_NAME"))
         .into_std_path_buf();
     let bsc = toolchain_bsc::SystemBluespec::default();
     let cx = Context {
         out_dir,
+        design_key: None,
         board,
         make_top: Box::new(|platform| drop(make_top(platform))),
         bsc: Box::new(bsc),

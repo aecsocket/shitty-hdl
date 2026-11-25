@@ -2,12 +2,12 @@
 #![allow(incomplete_features)]
 
 use board::arty_a7::A7_100T;
-use front::data::{Bram, bram};
+use front::elements::{Bram, bram};
 use platform::Platform;
 use shitty_hdl::prelude::*;
 
 #[derive(Domain)]
-pub struct SysClk;
+pub struct Sync;
 
 #[derive(Debug, Clone, Shape, Bits, Arith)]
 pub struct Word(pub Uint<64>);
@@ -36,7 +36,7 @@ impl Addr {
     }
 }
 
-pub type Heap = Bram<SysClk, Addr, Word>;
+pub type Heap = Bram<Sync, Addr, Word>;
 
 #[derive(Interface)]
 pub struct PageAlloc<D: Domain> {
@@ -45,7 +45,7 @@ pub struct PageAlloc<D: Domain> {
 }
 
 #[module]
-pub fn page_alloc(clk: Clock<SysClk>, heap: Heap) -> PageAlloc<SysClk> {
+pub fn page_alloc(clk: Clock<Sync>, heap: Heap) -> PageAlloc<Sync> {
     let mut next_clean = Reg::new(clk, PageAddr::zero());
     let mut free_head = Reg::new(clk, PageAddr::invalid());
     let mut free_count = Reg::new(clk, PageAddr::zero());
@@ -54,14 +54,14 @@ pub fn page_alloc(clk: Clock<SysClk>, heap: Heap) -> PageAlloc<SysClk> {
         if free_head == PageAddr::invalid() {
             // bump allocate
             sim_assert!(next_clean != PageAddr::invalid(), "OOM");
-            display!("allocating page {next_clean:x}");
+            displayln!("allocating page {next_clean:x}");
 
             next_clean <<= next_clean + 1;
             next_clean.read()
         } else {
             // reallocate from free list
             sim_assert!(free_count > 0u64);
-            display!("reallocating from free list");
+            displayln!("reallocating from free list");
 
             let next_free_head = heap.read(Addr::from_page(free_head)).await;
             free_head <<= next_free_head.repack_trunc::<PageAddr>();
@@ -70,10 +70,10 @@ pub fn page_alloc(clk: Clock<SysClk>, heap: Heap) -> PageAlloc<SysClk> {
         }
     });
 
-    let free = Method::define_as(clk, async |page: Value<SysClk, PageAddr>| {
+    let free = Method::define_as(clk, async |page: Value<Sync, PageAddr>| {
         sim_assert!(page != PageAddr::invalid(), "freeing invalid page");
         sim_assert!(free_count < PageAddr::invalid(), "freeing too many pages");
-        display!("freeing page {page:x}");
+        displayln!("freeing page {page:x}");
 
         heap.write(Addr::from_page(page), free_head.repack_zext::<Word>())
             .await;
@@ -86,29 +86,26 @@ pub fn page_alloc(clk: Clock<SysClk>, heap: Heap) -> PageAlloc<SysClk> {
 
 #[module]
 fn top(platform: Platform) {
-    let clk = platform.clock::<SysClk>().clock;
+    let clk = platform.clock::<Sync>().clock;
     let mut led = platform.led.take(0).output(clk);
 
-    let heap = bram::<SysClk, Addr, Word>()
-        .clk(clk)
-        .depth(32 * 1024)
-        .call();
+    let heap = bram::<Sync, Addr, Word>().clk(clk).depth(32 * 1024).call();
     let pages = page_alloc(clk, heap);
 
     Rule::define_as(async || {
-        display!("idle!");
+        displayln!("idle!");
 
         let page1 = pages.alloc().await;
-        display!("page1 = {page1}");
+        displayln!("page1 = {page1}");
         led <<= !led;
         pages.free(page1).await;
 
         let page2 = pages.alloc().await;
-        display!("page2 = {page2}");
+        displayln!("page2 = {page2}");
         led <<= !led;
         pages.free(page2).await;
 
-        display!("done!");
+        displayln!("done!");
         sim_finish();
     });
 }

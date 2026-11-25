@@ -846,8 +846,8 @@ impl Emit for Statement<'_> {
                 p.write_str(";\n")
             }
             Self::Return(None) => Err(fmt::Error),
-            Self::Display { format, arguments } => {
-                p.write_str("$display(")?;
+            Self::Display { format, arguments, newline } => {
+                p.write_str(if *newline { "$display(" } else { "$write(" })?;
                 p.quoted(format)?;
                 if !arguments.is_empty() {
                     p.write_str(", ")?;

@@ -31,19 +31,20 @@ macro_rules! impl_shape {
             fn make_values<D: Domain>(value: Value<D, Self>) -> Self::Values<D> {
                 let mut index = 0;
                 ($({
-                    let element = elab::tuple_element::<Self, $T>(value.raw(), index);
+                    let element = elab::tuple_element::<D, Self, $T>(value, index);
                     index += 1;
-                    $T::make_values(Value::wrap(element))
+                    $T::make_values(element)
                 },)*)
             }
 
             #[allow(non_snake_case)]
             fn pack_values<D: Domain>(values: Self::Values<D>) -> Value<D, Self> {
-                Value::wrap(elab::tuple::<Self>(&Self::value_handles::<D>(values)))
+                elab::tuple(&Self::value_handles::<D>(values))
             }
 
             fn value_handles<D: Domain>(values: Self::Values<D>) -> Vec<ExprHandle> {
                 let ($($T,)*) = values;
+                #[allow(unused_mut)]
                 let mut handles = Vec::new();
                 $(
                     handles.extend(<$T as Shape>::value_handles($T));

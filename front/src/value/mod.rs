@@ -25,58 +25,24 @@ pub trait Shape: Sized + 'static {
 
 pub type ShapeSize = u32;
 
-/// An unbranded hardware expression. Internal representation used by the
-/// elaboration machinery; the public API deals in domain-branded
-/// [`Value`]s.
-#[derive(Debug)]
-pub struct Raw<T: Shape>(pub(crate) ExprHandle, PhantomData<T>);
-
-impl<T: Shape> Raw<T> {
-    #[must_use]
-    pub const fn from_handle(handle: ExprHandle) -> Self {
-        Self(handle, PhantomData)
-    }
-
-    #[must_use]
-    pub const fn handle(self) -> ExprHandle {
-        self.0
-    }
-}
-
-impl<T: Shape> Clone for Raw<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T: Shape> Copy for Raw<T> {}
-
 /// A hardware expression branded with the clock domain `D` it belongs
 /// to. Values of different domains cannot be combined; crossing domains
 /// requires an explicit synchronizer.
 #[derive(Debug)]
 pub struct Value<D: Domain, T: Shape> {
-    raw: Raw<T>,
-    _brand: PhantomData<D>,
+    handle: ExprHandle,
+    _brand: PhantomData<(D, T)>,
 }
 
 impl<D: Domain, T: Shape> Value<D, T> {
     #[must_use]
-    pub const fn wrap(raw: Raw<T>) -> Self {
-        Self {
-            raw,
-            _brand: PhantomData,
-        }
+    pub(crate) const fn from_handle(handle: ExprHandle) -> Self {
+        Self { handle, _brand: PhantomData }
     }
 
     #[must_use]
-    pub const fn raw(self) -> Raw<T> {
-        self.raw
-    }
-
-    #[must_use]
-    pub fn handle(self) -> ExprHandle {
-        self.raw.handle()
+    pub const fn handle(self) -> ExprHandle {
+        self.handle
     }
 }
 
@@ -100,15 +66,11 @@ pub trait IntoValue<D: Domain>: private::Sealed {
 }
 
 mod private {
-    use crate::{
-        domain::Domain,
-        value::{Raw, Shape},
-    };
+    use crate::{domain::Domain, value::Shape};
 
     pub trait Sealed {}
 
     impl<T: Shape> Sealed for T {}
-    impl<T: Shape> Sealed for Raw<T> {}
     impl<D: Domain, T: Shape> Sealed for super::Value<D, T> {}
     impl<D: Domain> Sealed for crate::io::Output<D> {}
     impl<D: Domain, T: Shape> Sealed for crate::reg::Reg<D, T> {}
@@ -118,7 +80,7 @@ impl<D: Domain, T: Shape> IntoValue<D> for T {
     type Out = T;
 
     fn into_value(self) -> Value<D, T> {
-        Value::wrap(elab::literal(self))
+        elab::literal(self)
     }
 }
 
@@ -158,8 +120,8 @@ impl<D: Domain, T: Shape> IntoValues<D> for Value<D, T> {
 
 #[derive(Debug)]
 pub struct ValueView<T: Shape> {
-    value: Raw<T>,
-    offset: ShapeSize,
+    handle: ExprHandle,
+    _shape: PhantomData<T>,
 }
 
 impl<T: Shape> Clone for ValueView<T> {

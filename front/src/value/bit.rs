@@ -58,11 +58,11 @@ impl<const N: usize> Bits for Bit<N> {
 
 impl<const N: usize> BitCmp for Bit<N> {
     fn eq<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        Value::wrap(elab::compare(air::BinaryOp::Equal, lhs.raw(), rhs.raw()))
+        elab::compare(air::BinaryOp::Equal, lhs, rhs)
     }
 
     fn ne<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        Value::wrap(elab::compare(air::BinaryOp::NotEqual, lhs.raw(), rhs.raw()))
+        elab::compare(air::BinaryOp::NotEqual, lhs, rhs)
     }
 }
 

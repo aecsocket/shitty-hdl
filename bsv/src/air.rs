@@ -1367,7 +1367,11 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                         Statement::Return(value)
                     }
                 }
-                source::Statement::Display { format, arguments } => {
+                source::Statement::Display {
+                    format,
+                    arguments,
+                    newline,
+                } => {
                     let mut values = Vec::new();
                     for argument in arguments {
                         if self.is_unit(argument.ty)? {
@@ -1383,6 +1387,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                         });
                     }
                     Statement::Display {
+                        newline,
                         format: self.text(format),
                         arguments: self.slice(&values),
                     }

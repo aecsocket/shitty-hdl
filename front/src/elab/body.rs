@@ -5,10 +5,10 @@ use std::{
     task::{Context as TaskContext, Poll, Waker},
 };
 
-use crate::{domain::Domain, value::{IntoValues, Shape, Raw, Value}};
+use crate::{domain::Domain, value::{IntoValues, Shape, Value}};
 
 use super::context::Branch;
-use super::{ActionHandle, BranchHandle, Context, DesignId, with_context};
+use super::{ActionHandle, BranchHandle, Context, DesignId, ExprHandle, with_context};
 
 struct BodyScope {
     design_id: DesignId,
@@ -53,7 +53,7 @@ pub fn run_ready<F: Future>(future: F) -> F::Output {
 }
 
 pub fn define_action<D: Domain, In: Shape, Out: Shape>(
-    guard: Option<Raw<bool>>,
+    guard: Option<ExprHandle>,
     f: impl FnOnce(In::Values<D>) -> Out::Values<D>,
 ) -> ActionHandle {
     let definition = with_context(|cx| {
@@ -89,8 +89,8 @@ pub fn define_action<D: Domain, In: Shape, Out: Shape>(
         let input = cx.alloc(air::Expr { ty: input_ty, kind });
         cx.push_expr(input)
     });
-    let result = f(In::make_values(Value::wrap(Raw::from_handle(input))));
-    let result = Out::pack_values(result).raw().handle();
+    let result = f(In::make_values(Value::from_handle(input)));
+    let result = Out::pack_values(result).handle();
     let handle = with_context(|cx| {
         let result = cx.typed_expr::<Out>(result);
         cx.emit(air::Statement::Return(
@@ -102,7 +102,7 @@ pub fn define_action<D: Domain, In: Shape, Out: Shape>(
         ));
         let body = cx.end_body();
         let signature = cx.definitions[definition];
-        let guard = guard.map(|value| cx.typed_expr::<bool>(value.handle()));
+        let guard = guard.map(|handle| cx.typed_expr::<bool>(handle));
         let method = cx.add_method(air::Method {
             signature,
             guard,
@@ -114,7 +114,7 @@ pub fn define_action<D: Domain, In: Shape, Out: Shape>(
     handle
 }
 
-pub fn define_rule(guard: Option<Raw<bool>>, f: impl FnOnce()) {
+pub fn define_rule(guard: Option<ExprHandle>, f: impl FnOnce()) {
     with_context(|cx| {
         assert!(
             cx.frames.is_empty(),
@@ -125,7 +125,7 @@ pub fn define_rule(guard: Option<Raw<bool>>, f: impl FnOnce()) {
     f();
     with_context(|cx| {
         let body = cx.end_body();
-        let guard = guard.map(|value| cx.typed_expr::<bool>(value.handle()));
+        let guard = guard.map(|handle| cx.typed_expr::<bool>(handle));
         let name = cx.alloc_str(&format!("rule_{}", cx.rules.len()));
         cx.add_rule(air::Rule { name, guard, body });
     });
@@ -185,7 +185,7 @@ pub fn call_action<D: Domain, In: Shape, Out: Shape>(
             cx.push_expr(expr)
         }
     });
-    Out::make_values(Value::wrap(Raw::from_handle(result)))
+    Out::make_values(Value::from_handle(result))
 }
 
 pub fn pack_input<In: Shape>(args: &[super::ExprHandle]) -> super::ExprHandle {
@@ -227,7 +227,7 @@ fn split_input<'dsn>(
 
 pub fn capture_branch<D: Domain, R: IntoValues<D>>(f: impl FnOnce() -> R) -> BranchHandle {
     let mut scope = BodyScope::begin();
-    let result = R::Out::pack_values::<D>(f().into_values()).raw().handle();
+    let result = R::Out::pack_values::<D>(f().into_values()).handle();
     let handle = with_context(|cx| {
         let result = cx.typed_expr::<R::Out>(result);
         let block = cx.end_body();
@@ -248,11 +248,11 @@ pub fn capture_branch<D: Domain, R: IntoValues<D>>(f: impl FnOnce() -> R) -> Bra
 }
 
 #[must_use]
-pub fn finish_if<T: Shape>(
+pub fn finish_if<D: Domain, T: Shape>(
     cases: Vec<(BranchHandle, BranchHandle)>,
     fallback: Option<BranchHandle>,
-) -> Raw<T> {
-    Raw::from_handle(with_context(|cx| {
+) -> Value<D, T> {
+    Value::from_handle(with_context(|cx| {
         assert!(!cases.is_empty(), "empty hardware conditional");
         let ty = cx.ty::<T>();
         let is_unit = matches!(ty, air::Type::Unit);

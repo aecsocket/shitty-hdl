@@ -1,18 +1,19 @@
-use crate::{domain::Domain, value::{IntoValue, Shape, Uint, Raw}};
+use crate::{domain::Domain, value::{IntoValue, Uint, Value}};
 use std::ptr;
 
 use super::{ExprHandle, with_context};
+use crate::value::Shape;
 
-pub fn literal<T: Shape>(value: T) -> Raw<T> {
-    Raw::from_handle(with_context(|cx| {
+pub fn literal<D: Domain, T: Shape>(value: T) -> Value<D, T> {
+    Value::from_handle(with_context(|cx| {
         let expr = value.air_value(cx);
         cx.push_expr(expr)
     }))
 }
 
 #[must_use]
-pub fn tuple<T: Shape>(values: &[ExprHandle]) -> Raw<T> {
-    Raw::from_handle(with_context(|cx| {
+pub fn tuple<D: Domain, T: Shape>(values: &[ExprHandle]) -> Value<D, T> {
+    Value::from_handle(with_context(|cx| {
         let values = values.iter().map(|handle| cx.expr(*handle)).collect();
         let expr = cx.tuple_value::<T>(values);
         cx.push_expr(expr)
@@ -20,11 +21,11 @@ pub fn tuple<T: Shape>(values: &[ExprHandle]) -> Raw<T> {
 }
 
 #[must_use]
-pub fn tuple_element<T: Shape, Element: Shape>(
-    value: Raw<T>,
+pub fn tuple_element<D: Domain, T: Shape, Element: Shape>(
+    value: Value<D, T>,
     index: usize,
-) -> Raw<Element> {
-    Raw::from_handle(with_context(|cx| {
+) -> Value<D, Element> {
+    Value::from_handle(with_context(|cx| {
         let value = cx.typed_expr::<T>(value.handle());
         let air::Type::Tuple(elements) = value.ty else {
             panic!("expected tuple value")
@@ -40,8 +41,8 @@ pub fn tuple_element<T: Shape, Element: Shape>(
 }
 
 #[must_use]
-pub fn unary<T: Shape>(op: air::UnaryOp, value: Raw<T>) -> Raw<T> {
-    Raw::from_handle(with_context(|cx| {
+pub fn unary<D: Domain, T: Shape>(op: air::UnaryOp, value: Value<D, T>) -> Value<D, T> {
+    Value::from_handle(with_context(|cx| {
         let operand = cx.typed_expr::<T>(value.handle());
         let expr = cx.alloc(air::Expr {
             ty: operand.ty,
@@ -52,8 +53,8 @@ pub fn unary<T: Shape>(op: air::UnaryOp, value: Raw<T>) -> Raw<T> {
 }
 
 #[must_use]
-pub fn binary<T: Shape>(op: air::BinaryOp, lhs: Raw<T>, rhs: Raw<T>) -> Raw<T> {
-    Raw::from_handle(with_context(|cx| {
+pub fn binary<D: Domain, T: Shape>(op: air::BinaryOp, lhs: Value<D, T>, rhs: Value<D, T>) -> Value<D, T> {
+    Value::from_handle(with_context(|cx| {
         let lhs = cx.typed_expr::<T>(lhs.handle());
         let rhs = cx.typed_expr::<T>(rhs.handle());
         let expr = cx.alloc(air::Expr {
@@ -65,8 +66,8 @@ pub fn binary<T: Shape>(op: air::BinaryOp, lhs: Raw<T>, rhs: Raw<T>) -> Raw<T> {
 }
 
 #[must_use]
-pub fn compare<T: Shape>(op: air::BinaryOp, lhs: Raw<T>, rhs: Raw<T>) -> Raw<bool> {
-    Raw::from_handle(with_context(|cx| {
+pub fn compare<D: Domain, T: Shape>(op: air::BinaryOp, lhs: Value<D, T>, rhs: Value<D, T>) -> Value<D, bool> {
+    Value::from_handle(with_context(|cx| {
         let lhs = cx.typed_expr::<T>(lhs.handle());
         let rhs = cx.typed_expr::<T>(rhs.handle());
         let ty = cx.ty::<bool>();
@@ -79,8 +80,8 @@ pub fn compare<T: Shape>(op: air::BinaryOp, lhs: Raw<T>, rhs: Raw<T>) -> Raw<boo
 }
 
 #[must_use]
-pub fn cast<From: Shape, To: Shape>(kind: air::CastKind, value: Raw<From>) -> Raw<To> {
-    Raw::from_handle(with_context(|cx| {
+pub fn cast<D: Domain, From: Shape, To: Shape>(kind: air::CastKind, value: Value<D, From>) -> Value<D, To> {
+    Value::from_handle(with_context(|cx| {
         let value = cx.typed_expr::<From>(value.handle());
         let ty = cx.ty::<To>();
         match kind {
@@ -105,12 +106,12 @@ pub fn cast<From: Shape, To: Shape>(kind: air::CastKind, value: Raw<From>) -> Ra
 }
 
 #[must_use]
-pub fn uint_from_u128<const N: usize>(value: u128) -> Raw<Uint<N>> {
+pub fn uint_from_u128<D: Domain, const N: usize>(value: u128) -> Value<D, Uint<N>> {
     assert!(
         N >= 128 || value >> N == 0,
         "integer operand does not fit Uint<N>"
     );
-    Raw::from_handle(with_context(|cx| {
+    Value::from_handle(with_context(|cx| {
         let mut words = vec![0; N.div_ceil(64)];
         #[expect(
             clippy::cast_possible_truncation,
@@ -129,9 +130,9 @@ pub fn uint_from_u128<const N: usize>(value: u128) -> Raw<Uint<N>> {
 }
 
 #[must_use]
-pub fn shift<T: Shape>(op: air::BinaryOp, value: Raw<T>, amount: usize) -> Raw<T> {
-    let amount = uint_from_u128::<64>(amount as u128);
-    Raw::from_handle(with_context(|cx| {
+pub fn shift<D: Domain, T: Shape>(op: air::BinaryOp, value: Value<D, T>, amount: usize) -> Value<D, T> {
+    let amount = uint_from_u128::<D, 64>(amount as u128);
+    Value::from_handle(with_context(|cx| {
         let lhs = cx.typed_expr::<T>(value.handle());
         let rhs = cx.typed_expr::<Uint<64>>(amount.handle());
         let expr = cx.alloc(air::Expr {
@@ -143,31 +144,33 @@ pub fn shift<T: Shape>(op: air::BinaryOp, value: Raw<T>, amount: usize) -> Raw<T
 }
 
 #[must_use]
-pub fn shift_resize<const FROM: usize, const TO: usize>(
+pub fn shift_resize<D: Domain, const FROM: usize, const TO: usize>(
     op: air::BinaryOp,
-    value: Raw<Uint<FROM>>,
+    value: Value<D, Uint<FROM>>,
     amount: usize,
-) -> Raw<Uint<TO>> {
+) -> Value<D, Uint<TO>> {
     match op {
         air::BinaryOp::ShiftLeft => shift(
             op,
-            cast::<Uint<FROM>, Uint<TO>>(air::CastKind::ZeroExtend, value),
+            cast::<D, Uint<FROM>, Uint<TO>>(air::CastKind::ZeroExtend, value),
             amount,
         ),
-        air::BinaryOp::ShiftRight => {
-            cast::<Uint<FROM>, Uint<TO>>(air::CastKind::Truncate, shift(op, value, amount))
-        }
+        air::BinaryOp::ShiftRight => cast::<D, Uint<FROM>, Uint<TO>>(
+            air::CastKind::Truncate,
+            shift(op, value, amount),
+        ),
         _ => panic!("expected shift operation"),
     }
 }
 
-pub fn display(format: &str, arguments: &[super::ExprHandle]) {
+pub fn display(format: &str, arguments: &[super::ExprHandle], newline: bool) {
     with_context(|cx| {
         let arguments: Vec<_> = arguments
             .iter()
             .map(|argument| cx.expr(*argument))
             .collect();
         cx.emit(air::Statement::Display {
+            newline,
             format: cx.alloc_str(format),
             arguments: cx.alloc_slice(arguments),
         });

@@ -26,6 +26,7 @@ pub enum Parameter<'dsn> {
 
 #[derive(Debug, Clone)]
 pub struct Module<'dsn> {
+    pub definition_path: Option<&'dsn str>,
     pub clock: &'dsn Domain<'dsn>,
     pub signature: &'dsn ModuleSignature<'dsn>,
     pub primitive: Option<Primitive<'dsn>>,
@@ -324,6 +325,7 @@ pub enum Statement<'dsn> {
     },
     Return(Option<&'dsn Expr<'dsn>>),
     Display {
+        newline: bool,
         format: &'dsn str,
         arguments: &'dsn [&'dsn Expr<'dsn>],
     },

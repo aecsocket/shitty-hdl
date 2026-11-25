@@ -104,10 +104,7 @@ impl<D: Domain, const N: usize> Trunc<D> for Value<D, Uint<N>> {
     type To<const TO: usize> = Uint<TO>;
 
     fn trunc<const TO: usize>(self) -> Value<D, Self::To<TO>> {
-        Value::wrap(elab::cast::<Uint<N>, Uint<TO>>(
-            air::CastKind::Truncate,
-            self.raw(),
-        ))
+        elab::cast(air::CastKind::Truncate, self)
     }
 }
 
@@ -115,10 +112,7 @@ impl<D: Domain, const N: usize> Zext<D> for Value<D, Uint<N>> {
     type To<const TO: usize> = Uint<TO>;
 
     fn zext<const TO: usize>(self) -> Value<D, Self::To<TO>> {
-        Value::wrap(elab::cast::<Uint<N>, Uint<TO>>(
-            air::CastKind::ZeroExtend,
-            self.raw(),
-        ))
+        elab::cast(air::CastKind::ZeroExtend, self)
     }
 }
 
@@ -126,10 +120,7 @@ impl<D: Domain, const N: usize> Trunc<D> for Value<D, Bit<N>> {
     type To<const TO: usize> = Bit<TO>;
 
     fn trunc<const TO: usize>(self) -> Value<D, Self::To<TO>> {
-        Value::wrap(elab::cast::<Bit<N>, Bit<TO>>(
-            air::CastKind::Truncate,
-            self.raw(),
-        ))
+        elab::cast(air::CastKind::Truncate, self)
     }
 }
 
@@ -137,9 +128,6 @@ impl<D: Domain, const N: usize> Zext<D> for Value<D, Bit<N>> {
     type To<const TO: usize> = Bit<TO>;
 
     fn zext<const TO: usize>(self) -> Value<D, Self::To<TO>> {
-        Value::wrap(elab::cast::<Bit<N>, Bit<TO>>(
-            air::CastKind::ZeroExtend,
-            self.raw(),
-        ))
+        elab::cast(air::CastKind::ZeroExtend, self)
     }
 }

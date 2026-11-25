@@ -1,7 +1,7 @@
 use std::ptr;
 
 use crate::{
-    data::Bram,
+    elements::Bram,
     domain::{Clock, Domain},
     module::Interface,
     ops::Bits,
@@ -53,6 +53,7 @@ pub fn bram<D: Domain, Addr: Bits, Data: Bits>(clock: Clock<D>, depth: u64) -> B
             interface: ty,
         });
         let module = cx.alloc(air::Module {
+            definition_path: None,
             clock: domain,
             signature,
             primitive: Some(air::Primitive::Bram {

@@ -6,16 +6,16 @@ use crate::{
     elab,
     ops::Bits,
     reg::Reg,
-    value::{Raw, Shape, Uint, Value},
+    value::{Shape, Uint, Value},
 };
 
 pub trait Shift: Bits {
-    fn shl(value: Raw<Self>, amount: usize) -> Raw<Self>;
+    fn shl<D: Domain>(value: Value<D, Self>, amount: usize) -> Value<D, Self>;
 
-    fn shr(value: Raw<Self>, amount: usize) -> Raw<Self>;
+    fn shr<D: Domain>(value: Value<D, Self>, amount: usize) -> Value<D, Self>;
 }
 
-impl<T: Shift> Shl<usize> for Raw<T> {
+impl<D: Domain, T: Shape + Shift> Shl<usize> for Value<D, T> {
     type Output = Self;
 
     fn shl(self, rhs: usize) -> Self::Output {
@@ -23,27 +23,11 @@ impl<T: Shift> Shl<usize> for Raw<T> {
     }
 }
 
-impl<T: Shift> Shr<usize> for Raw<T> {
-    type Output = Self;
-
-    fn shr(self, rhs: usize) -> Self::Output {
-        T::shr(self, rhs)
-    }
-}
-
-impl<D: Domain, T: Shape + Shift> Shl<usize> for Value<D, T> {
-    type Output = Self;
-
-    fn shl(self, rhs: usize) -> Self::Output {
-        Self::wrap(T::shl(self.raw(), rhs))
-    }
-}
-
 impl<D: Domain, T: Shape + Shift> Shr<usize> for Value<D, T> {
     type Output = Self;
 
     fn shr(self, rhs: usize) -> Self::Output {
-        Self::wrap(T::shr(self.raw(), rhs))
+        T::shr(self, rhs)
     }
 }
 
@@ -64,11 +48,7 @@ impl<D: Domain, const N: usize> ShlZext<N, D> for Value<D, Uint<N>> {
     where
         [(); N + SHIFT]:,
     {
-        Value::wrap(elab::shift_resize::<N, { N + SHIFT }>(
-            air::BinaryOp::ShiftLeft,
-            self.raw(),
-            SHIFT,
-        ))
+        elab::shift_resize(air::BinaryOp::ShiftLeft, self, SHIFT)
     }
 }
 
@@ -77,11 +57,7 @@ impl<D: Domain, const N: usize> ShrTrunc<N, D> for Value<D, Uint<N>> {
     where
         [(); N - SHIFT]:,
     {
-        Value::wrap(elab::shift_resize::<N, { N - SHIFT }>(
-            air::BinaryOp::ShiftRight,
-            self.raw(),
-            SHIFT,
-        ))
+        elab::shift_resize(air::BinaryOp::ShiftRight, self, SHIFT)
     }
 }
 

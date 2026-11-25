@@ -24,7 +24,7 @@ fn derive_(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let name = &function.sig.ident;
     let body = &function.block;
     *function.block = parse_quote! {
-        { #crate_::__::module(stringify!(#name), || #body) }
+        { #crate_::__::module(stringify!(#name), concat!(module_path!(), "::", stringify!(#name)), || #body) }
     };
     function
         .attrs

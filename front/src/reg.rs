@@ -2,10 +2,27 @@ use std::marker::PhantomData;
 use std::ops::{Deref, ShlAssign};
 
 use crate::{
-    domain::{Clock, Domain, IntoClock},
+    domain::{Domain, IntoClock},
     elab,
+    ops::Arith,
     value::{IntoValue, IntoValues, Shape, Value},
 };
+
+pub trait IntoRegValue<D: Domain, T: Shape> {
+    fn into_reg_value(self) -> Value<D, T>;
+}
+
+impl<D: Domain, T: Shape, Rhs: IntoValue<D, Out = T>> IntoRegValue<D, T> for Rhs {
+    fn into_reg_value(self) -> Value<D, T> {
+        self.into_value()
+    }
+}
+
+impl<D: Domain, T: Shape + Arith> IntoRegValue<D, T> for u128 {
+    fn into_reg_value(self) -> Value<D, T> {
+        T::from_u128(self)
+    }
+}
 
 #[derive(Debug)]
 pub struct Reg<D: Domain, T: Shape> {
@@ -28,7 +45,7 @@ impl<D: Domain, T: Shape> Reg<D, T> {
         let (id, value) = elab::register(domain.into_clock(), Some(init));
         Self {
             id,
-            value: Value::wrap(value),
+            value,
             _brand: PhantomData,
         }
     }
@@ -38,7 +55,7 @@ impl<D: Domain, T: Shape> Reg<D, T> {
         let (id, value) = elab::register(domain.into_clock(), None);
         Self {
             id,
-            value: Value::wrap(value),
+            value,
             _brand: PhantomData,
         }
     }
@@ -48,8 +65,8 @@ impl<D: Domain, T: Shape> Reg<D, T> {
         self.value
     }
 
-    pub fn write(&mut self, rhs: impl IntoValue<D, Out = T>) {
-        elab::write_register(self.id, rhs.into_value().raw());
+    pub fn write(&mut self, rhs: impl IntoRegValue<D, T>) {
+        elab::write_register(self.id, rhs.into_reg_value());
     }
 }
 
@@ -78,7 +95,7 @@ impl<D: Domain, T: Shape<Values<D> = Value<D, T>>> IntoValues<D> for Reg<D, T> {
     }
 }
 
-impl<D: Domain, T: Shape, Rhs: IntoValue<D, Out = T>> ShlAssign<Rhs> for Reg<D, T> {
+impl<D: Domain, T: Shape, Rhs: IntoRegValue<D, T>> ShlAssign<Rhs> for Reg<D, T> {
     fn shl_assign(&mut self, rhs: Rhs) {
         self.write(rhs);
     }

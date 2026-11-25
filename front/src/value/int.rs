@@ -1,8 +1,8 @@
 use crate::{
+    domain::Domain,
     elab::{self, Context, ExprHandle},
     ops::{Arith, ArithCmp, BitCmp, Bits, Shift},
-    domain::Domain,
-    value::{Bit, Shape, Raw, Value, ValueView},
+    value::{Bit, Shape, Value, ValueView},
 };
 
 #[derive(Debug, Clone)]
@@ -36,75 +36,67 @@ impl<const N: usize> Shape for Uint<N> {
     }
 }
 
-
-
 impl<const N: usize> Bits for Uint<N> {
     const WIDTH: usize = N;
     type Packed = Bit<N>;
 
     fn pack<D: Domain>(this: Value<D, Self>) -> Value<D, Self::Packed> {
-        Value::wrap(elab::cast::<Self, Self::Packed>(
-            air::CastKind::Pack,
-            this.raw(),
-        ))
+        elab::cast(air::CastKind::Pack, this)
     }
 
     fn unpack<D: Domain>(bits: Value<D, Self::Packed>) -> Value<D, Self> {
-        Value::wrap(elab::cast::<Self::Packed, Self>(
-            air::CastKind::Unpack,
-            bits.raw(),
-        ))
+        elab::cast(air::CastKind::Unpack, bits)
     }
 }
 
 impl<const N: usize> BitCmp for Uint<N> {
     fn eq<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        Value::wrap(elab::compare(air::BinaryOp::Equal, lhs.raw(), rhs.raw()))
+        elab::compare(air::BinaryOp::Equal, lhs, rhs)
     }
 
     fn ne<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        Value::wrap(elab::compare(air::BinaryOp::NotEqual, lhs.raw(), rhs.raw()))
+        elab::compare(air::BinaryOp::NotEqual, lhs, rhs)
     }
 }
 
 impl<const N: usize> ArithCmp for Uint<N> {
     fn gt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        Value::wrap(elab::compare(air::BinaryOp::Greater, lhs.raw(), rhs.raw()))
+        elab::compare(air::BinaryOp::Greater, lhs, rhs)
     }
 
     fn ge<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        Value::wrap(elab::compare(air::BinaryOp::GreaterEqual, lhs.raw(), rhs.raw()))
+        elab::compare(air::BinaryOp::GreaterEqual, lhs, rhs)
     }
 
     fn lt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        Value::wrap(elab::compare(air::BinaryOp::Less, lhs.raw(), rhs.raw()))
+        elab::compare(air::BinaryOp::Less, lhs, rhs)
     }
 
     fn le<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
-        Value::wrap(elab::compare(air::BinaryOp::LessEqual, lhs.raw(), rhs.raw()))
+        elab::compare(air::BinaryOp::LessEqual, lhs, rhs)
     }
 }
 
 impl<const N: usize> Arith for Uint<N> {
     fn add<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, Self> {
-        Value::wrap(elab::binary(air::BinaryOp::Add, lhs.raw(), rhs.raw()))
+        elab::binary(air::BinaryOp::Add, lhs, rhs)
     }
 
     fn sub<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, Self> {
-        Value::wrap(elab::binary(air::BinaryOp::Subtract, lhs.raw(), rhs.raw()))
+        elab::binary(air::BinaryOp::Subtract, lhs, rhs)
     }
 
     fn from_u128<D: Domain>(value: u128) -> Value<D, Self> {
-        Value::wrap(elab::uint_from_u128::<N>(value))
+        elab::uint_from_u128(value)
     }
 }
 
 impl<const N: usize> Shift for Uint<N> {
-    fn shl(value: Raw<Self>, amount: usize) -> Raw<Self> {
+    fn shl<D: Domain>(value: Value<D, Self>, amount: usize) -> Value<D, Self> {
         elab::shift(air::BinaryOp::ShiftLeft, value, amount)
     }
 
-    fn shr(value: Raw<Self>, amount: usize) -> Raw<Self> {
+    fn shr<D: Domain>(value: Value<D, Self>, amount: usize) -> Value<D, Self> {
         elab::shift(air::BinaryOp::ShiftRight, value, amount)
     }
 }
@@ -128,6 +120,7 @@ impl<const N: usize> Uint<N> {
 
 #[macro_export]
 macro_rules! uint {
+    // inferred width
     (0) => {
         $crate::value::Uint::zero()
     };
@@ -142,5 +135,19 @@ macro_rules! uint {
         const VALUE: u128 = $e;
         $crate::value::Uint::constant::<VALUE>()
     }};
+    // explicit width
+    ($width:literal : 0) => {
+        $crate::value::Uint::<$width>::zero()
+    };
+    ($width:literal : 1) => {
+        $crate::value::Uint::<$width>::max()
+    };
+    ($width:literal : $lit:literal) => {{
+        const VALUE: u128 = $lit;
+        $crate::value::Uint::<$width>::constant::<VALUE>()
+    }};
+    ($width:literal : $e:expr) => {{
+        const VALUE: u128 = $e;
+        $crate::value::Uint::<$width>::constant::<VALUE>()
+    }};
 }
-

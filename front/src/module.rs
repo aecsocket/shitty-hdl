@@ -11,7 +11,8 @@ use crate::{
     air,
     domain::Domain,
     elab,
-    value::{IntoValue, IntoValues, Raw, Shape, Value},
+    elab::ExprHandle,
+    value::{IntoValue, IntoValues, Shape, Value},
 };
 
 pub trait Interface: 'static {
@@ -47,9 +48,9 @@ impl Interface for () {
 pub struct Rule(());
 
 impl Rule {
-    pub fn when<D: Domain>(cond: impl IntoValue<D, Out = bool>) -> DefineRule<D> {
+    pub fn when<D: Domain>(cond: impl IntoValue<D, Out = bool>) -> DefineRule {
         DefineRule {
-            cond: cond.into_value(),
+            cond: cond.into_value().handle(),
         }
     }
 
@@ -62,13 +63,13 @@ impl Rule {
     }
 }
 
-pub struct DefineRule<D: Domain> {
-    cond: Value<D, bool>,
+pub struct DefineRule {
+    cond: ExprHandle,
 }
 
-impl<D: Domain> DefineRule<D> {
+impl DefineRule {
     pub fn define_as(self, f: impl FnOnce()) {
-        elab::define_rule(Some(self.cond.raw()), f);
+        elab::define_rule(Some(self.cond), f);
     }
 }
 
@@ -111,7 +112,7 @@ pub struct DefineAction<D: Domain, In: Shape, Out: Shape>(
 
 impl<D: Domain, In: Shape, Out: Shape> DefineAction<D, In, Out> {
     pub fn define_as(self, f: impl FnOnce(In::Values<D>) -> Out::Values<D>) -> Action<D, In, Out> {
-        let guard = self.0.map(|guard| guard.raw());
+        let guard = self.0.map(|guard| guard.handle());
         Action::from_handle(elab::define_action::<D, In, Out>(guard, f))
     }
 }
@@ -153,8 +154,8 @@ impl<D: Domain, R: IntoValues<D>> If<D, R> {
 
     pub fn else_(mut self, then: impl AsyncFnOnce() -> R) -> R::Values {
         let branch = elab::capture_branch(|| elab::run_ready(then()));
-        let value = elab::finish_if::<R::Out>(mem::take(&mut self.cases), Some(branch));
-        R::Out::make_values(Value::<D, _>::wrap(value))
+        let value = elab::finish_if::<D, R::Out>(mem::take(&mut self.cases), Some(branch));
+        R::Out::make_values(value)
     }
 }
 
@@ -175,7 +176,7 @@ impl<D: Domain, R: IntoValues<D>> ElseIf<D, R> {
 impl<D: Domain, R: IntoValues<D>> Drop for If<D, R> {
     fn drop(&mut self) {
         if !thread::panicking() && !self.cases.is_empty() {
-            let _ = elab::finish_if::<R::Out>(mem::take(&mut self.cases), None);
+            let _ = elab::finish_if::<D, R::Out>(mem::take(&mut self.cases), None);
         }
     }
 }
@@ -214,8 +215,8 @@ impl<D: Domain, R: IntoValues<D>> Future for AsyncIf<'_, D, R> {
         let this = self.get_mut();
         if this.lowered {
             return Poll::Ready(match this.result {
-                Some(handle) => R::Out::make_values(Value::<D, _>::wrap(elab::read_register::<R::Out>(handle))),
-                None => R::Out::make_values(Value::<D, _>::wrap(Raw::from_handle(elab::unit_value()))),
+                Some(handle) => R::Out::make_values(elab::read_register::<D, R::Out>(handle)),
+                None => R::Out::make_values(Value::<D, R::Out>::from_handle(elab::unit_value())),
             });
         }
         this.lowered = true;

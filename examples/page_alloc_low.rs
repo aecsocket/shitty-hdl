@@ -2,12 +2,12 @@
 #![allow(incomplete_features)]
 
 use board::arty_a7::A7_100T;
-use front::data::{Bram, bram};
+use front::elements::{Bram, bram};
 use platform::Platform;
 use shitty_hdl::prelude::*;
 
 #[derive(Domain)]
-pub struct SysClk;
+pub struct Sync;
 
 #[derive(Debug, Clone, Shape, Bits, Arith)]
 pub struct Word(pub Uint<64>);
@@ -36,7 +36,7 @@ impl Addr {
     }
 }
 
-pub type Heap = Bram<SysClk, Addr, Word>;
+pub type Heap = Bram<Sync, Addr, Word>;
 
 #[derive(Interface)]
 pub struct PageAlloc<D: Domain> {
@@ -45,7 +45,7 @@ pub struct PageAlloc<D: Domain> {
 }
 
 #[module]
-pub fn page_alloc(clk: Clock<SysClk>, mut heap: Heap) -> PageAlloc<SysClk> {
+pub fn page_alloc(clk: Clock<Sync>, mut heap: Heap) -> PageAlloc<Sync> {
     #[derive(Debug, Shape, BitCmp)]
     enum State {
         Idle,
@@ -63,16 +63,17 @@ pub fn page_alloc(clk: Clock<SysClk>, mut heap: Heap) -> PageAlloc<SysClk> {
     // alloc
 
     let mut alloc_out_r = Reg::uninit(clk);
-    let alloc_out: Action<SysClk, (), PageAddr> = Action::when(state == State::AllocDone).define_as(|()| {
-        state <<= State::Idle;
-        alloc_out_r.read()
-    });
+    let alloc_out: Action<Sync, (), PageAddr> =
+        Action::when(state == State::AllocDone).define_as(|()| {
+            state <<= State::Idle;
+            alloc_out_r.read()
+        });
 
-    let alloc_req: Action<SysClk, (), ()> = Action::when(state == State::Idle).define_as(|()| {
+    let alloc_req: Action<Sync, (), ()> = Action::when(state == State::Idle).define_as(|()| {
         if free_head == PageAddr::invalid() {
             // bump allocate
             sim_assert!(next_clean != PageAddr::invalid(), "OOM");
-            display!("allocating page {next_clean:x}");
+            displayln!("allocating page {next_clean:x}");
 
             alloc_out_r <<= next_clean;
             next_clean <<= next_clean + 1;
@@ -97,22 +98,23 @@ pub fn page_alloc(clk: Clock<SysClk>, mut heap: Heap) -> PageAlloc<SysClk> {
 
     // free
 
-    let free_out: Action<SysClk, (), ()> = Action::when(state == State::FreeDone).define_as(|()| {
+    let free_out: Action<Sync, (), ()> = Action::when(state == State::FreeDone).define_as(|()| {
         state <<= State::Idle;
     });
 
     let mut free_req_captured = Reg::uninit(clk);
-    let free_req: Action<SysClk, PageAddr, ()> = Action::when(state == State::Idle).define_as(|page: Value<SysClk, PageAddr>| {
-        sim_assert!(page != PageAddr::invalid(), "freeing invalid page");
-        display!("freeing page {:x}", page);
-        sim_assert!(free_count < PageAddr::invalid(), "freeing too many pages");
+    let free_req: Action<Sync, PageAddr, ()> =
+        Action::when(state == State::Idle).define_as(|page: Value<Sync, PageAddr>| {
+            sim_assert!(page != PageAddr::invalid(), "freeing invalid page");
+            displayln!("freeing page {:x}", page);
+            sim_assert!(free_count < PageAddr::invalid(), "freeing too many pages");
 
-        heap.write
-            .req
-            .call((Addr::from_page(page), free_head.repack_zext::<Word>()));
-        free_req_captured <<= page;
-        state <<= State::FreeWait;
-    });
+            heap.write
+                .req
+                .call((Addr::from_page(page), free_head.repack_zext::<Word>()));
+            free_req_captured <<= page;
+            state <<= State::FreeWait;
+        });
 
     Rule::when(state == State::FreeWait).define_as(|| {
         heap.write.out.call(());
@@ -146,10 +148,10 @@ fn top(platform: Platform) {
         Free3Done,
     }
 
-    let clk = platform.clock::<SysClk>().clock;
+    let clk = platform.clock::<Sync>().clock;
     let mut led = platform.led.take(0).output(clk);
 
-    let heap = bram::<SysClk, Addr, Word>().clk(clk).depth(32 * 1024).call();
+    let heap = bram::<Sync, Addr, Word>().clk(clk).depth(32 * 1024).call();
     let mut pages = page_alloc(clk, heap);
     let mut state = Reg::new(clk, State::Idle);
     let mut page1 = Reg::uninit(clk);
@@ -157,14 +159,14 @@ fn top(platform: Platform) {
     let mut page3 = Reg::uninit(clk);
 
     Rule::when(state == State::Idle).define_as(|| {
-        display!("idle!");
+        displayln!("idle!");
         pages.alloc.req.call(());
         state <<= State::Alloc1Wait;
     });
 
     Rule::when(state == State::Alloc1Wait).define_as(|| {
         page1 <<= pages.alloc.out.call(());
-        display!("page1 = {page1}");
+        displayln!("page1 = {page1}");
         state <<= State::Alloc1Done;
     });
 
@@ -175,7 +177,7 @@ fn top(platform: Platform) {
 
     Rule::when(state == State::Alloc2Wait).define_as(|| {
         page2 <<= pages.alloc.out.call(());
-        display!("page2 = {page2}");
+        displayln!("page2 = {page2}");
         state <<= State::Alloc2Done;
     });
 
@@ -186,7 +188,7 @@ fn top(platform: Platform) {
 
     Rule::when(state == State::Alloc3Wait).define_as(|| {
         page3 <<= pages.alloc.out.call(());
-        display!("page3 = {page3}");
+        displayln!("page3 = {page3}");
         state <<= State::Alloc3Done;
         led <<= !led;
     });

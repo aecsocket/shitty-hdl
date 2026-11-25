@@ -79,7 +79,7 @@ pub fn interface_action<In: Shape, Out: Shape>(
     })
 }
 
-pub fn module<I: Interface>(name: &str, f: impl FnOnce() -> I) -> I {
+pub fn module<I: Interface>(name: &str, definition_path: &str, f: impl FnOnce() -> I) -> I {
     let nested = with_context(|cx| {
         assert!(
             cx.frames.is_empty(),
@@ -92,6 +92,7 @@ pub fn module<I: Interface>(name: &str, f: impl FnOnce() -> I) -> I {
             assert!(!cx.root_defined, "elaborate one root module at a time");
             cx.root_active = true;
             cx.set_name(&format!("mk_{name}"));
+            cx.definition_path = Some(cx.alloc_str(definition_path));
             false
         }
     });

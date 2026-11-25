@@ -4,7 +4,7 @@ use std::ops::{BitAnd, BitOr, Not, ShlAssign};
 use crate::{
     domain::{Clock, Domain},
     elab::{self, ActionHandle, ExprHandle},
-    value::{IntoValue, IntoValues, Raw, Value},
+    value::{IntoValue, IntoValues, Value},
 };
 
 #[derive(Debug)]
@@ -35,7 +35,7 @@ impl<D: Domain> Output<D> {
 
     #[must_use]
     pub const fn read(self) -> Value<D, bool> {
-        Value::wrap(Raw::from_handle(self.value))
+        Value::from_handle(self.value)
     }
 
     pub fn write(&mut self, value: impl IntoValue<D, Out = bool>) {
@@ -92,5 +92,5 @@ impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitOr<Rhs> for Output<D> {
 
 #[must_use]
 pub fn input<D: Domain>(clock: Clock<D>, name: &str, active_low: bool) -> Value<D, bool> {
-    Value::wrap(Raw::from_handle(elab::io::input(clock, name, active_low)))
+    Value::from_handle(elab::io::input(clock, name, active_low))
 }

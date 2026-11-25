@@ -6,10 +6,10 @@ use std::{
 
 use crate::{
     air,
-    domain::{Clock, Domain, IntoClock},
+    domain::{Domain, IntoClock},
     elab,
     module::{Action, Interface},
-    value::{IntoValues, Raw, Shape, Value},
+    value::{IntoValues, Shape, Value},
 };
 
 pub struct Method<D: Domain, In: Shape, Out: Shape> {
@@ -57,16 +57,16 @@ impl<D: Domain, In: Shape, Out: Shape> Method<D, In, Out> {
     /// brands the method's interface, so calls and results are checked
     /// against it.
     pub fn define_as<'a>(
-        clock: Clock<D>,
+        clock: impl IntoClock<D>,
         f: impl AsyncFnOnce(In::Values<D>) -> Out::Values<D> + 'a,
     ) -> Self {
-        let _ = clock;
+        let _ = clock.into_clock();
         let (req, out) = elab::define_async_method::<D, In, Out, _>(f);
         Self::new(req, out)
     }
 
     pub fn define_async_as<'a>(
-        clock: Clock<D>,
+        clock: impl IntoClock<D>,
         f: impl AsyncFnOnce(In::Values<D>) -> Out::Values<D> + 'a,
     ) -> Self {
         Self::define_as(clock, f)
@@ -117,6 +117,6 @@ pub fn call_async<D: Domain, In: Shape, Out: Shape + IntoValues<D>>(
     let req = req.handle();
     let out = out.handle();
     Call::new(Action::from_handle(out), move || {
-        elab::call_action::<D, In, ()>(req, In::make_values(Value::wrap(Raw::from_handle(input))));
+        elab::call_action::<D, In, ()>(req, In::make_values(Value::from_handle(input)));
     })
 }

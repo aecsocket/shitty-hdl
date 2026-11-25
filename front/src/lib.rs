@@ -2,7 +2,7 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
-pub mod data;
+pub mod elements;
 
 pub mod domain;
 pub mod elab;
@@ -13,8 +13,9 @@ pub mod ops;
 pub mod reg;
 pub mod value;
 pub mod prelude {
-    pub use crate::data::sim_finish;
-    pub use crate::data::{DisplayArgHardware, DisplayArgText, DisplaySpec};
+    pub use crate::elements;
+    pub use crate::elements::sim_finish;
+    pub use crate::elements::{DisplayArgHardware, DisplayArgText, DisplaySpec};
     pub use crate::domain::{Clock, Domain};
     pub use crate::elab::elaborate;
     pub use crate::method::Method;
@@ -25,7 +26,7 @@ pub mod prelude {
     };
     pub use crate::reg::Reg;
     pub use crate::value::{Bit, IntoValue, IntoValues, Shape, Uint, Value};
-    pub use crate::{bit, display, sim_assert, uint};
+    pub use crate::{bit, display, displayln, sim_assert, uint};
     pub use derive::{Arith, ArithCmp, BitCmp, Bits, Domain, Interface, Shape, Shift, hdl, module};
 }
 
@@ -34,11 +35,11 @@ pub use derive::*;
 
 #[doc(hidden)]
 pub mod __ {
-    pub use crate::data::{DisplayArgHardware, DisplayArgText, DisplaySpec};
+    pub use crate::elements::{DisplayArgHardware, DisplayArgText, DisplaySpec};
     pub use crate::elab::context::Context;
     pub use crate::elab::handle::{ActionHandle, ExprHandle, InterfaceHandle};
     pub use bon;
-    pub use derive::display_format;
+    pub use derive::{display_format, displayln_format};
 
     use crate::elab;
     use crate::elab::{
@@ -51,16 +52,16 @@ pub mod __ {
 
     #[must_use]
     pub fn cast<D: Domain, From: Shape, To: Shape>(kind: air::CastKind, value: Value<D, From>) -> Value<D, To> {
-        Value::wrap(elab_cast(kind, value.raw()))
+        elab_cast(kind, value)
     }
 
     #[must_use]
     pub fn compare<D: Domain, T: Shape>(op: air::BinaryOp, lhs: Value<D, T>, rhs: Value<D, T>) -> Value<D, bool> {
-        Value::wrap(elab_compare(op, lhs.raw(), rhs.raw()))
+        elab_compare(op, lhs, rhs)
     }
 
-    pub fn module<I: Interface>(name: &str, f: impl FnOnce() -> I) -> I {
-        elab_module(name, f)
+    pub fn module<I: Interface>(name: &str, definition_path: &str, f: impl FnOnce() -> I) -> I {
+        elab_module(name, definition_path, f)
     }
 
     #[must_use]
@@ -72,8 +73,8 @@ pub mod __ {
         value.into_value().handle()
     }
 
-    pub fn display(format: &str, arguments: &[ExprHandle]) {
-        elab_display(format, arguments);
+    pub fn display(format: &str, arguments: &[ExprHandle], newline: bool) {
+        elab_display(format, arguments, newline);
     }
 
     pub fn assert<D: Domain>(condition: impl IntoValue<D, Out = bool>, message: &str) {

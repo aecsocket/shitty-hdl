@@ -160,13 +160,13 @@ impl VisitMut for Rewriter<'_> {
         let Some(segment) = mac.path.segments.last() else {
             return;
         };
-        let display = segment.ident == "display";
+        let display = segment.ident == "display" || segment.ident == "displayln";
         if !display && segment.ident != "sim_assert" {
             return;
         }
         let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
         match parser.parse2(mac.tokens.clone()) {
-            Ok(mut args) if display && !args.is_empty() => {
+            Ok(mut args) if display && (!args.is_empty() || segment.ident == "displayln") => {
                 for argument in &mut args {
                     self.visit_expr_mut(argument);
                 }
@@ -179,7 +179,7 @@ impl VisitMut for Rewriter<'_> {
             Ok(_) => self.errors.push(syn::Error::new_spanned(
                 mac,
                 if display {
-                    "expected display!(value) or display!(format, arguments...)"
+                    "expected displayln!(), display!/displayln!(value), or display!/displayln!(format, arguments...)"
                 } else {
                     "expected sim_assert!(condition) or sim_assert!(condition, message)"
                 },

@@ -3,11 +3,11 @@ use platform::Platform;
 
 #[derive(Domain)]
 #[domain(crate = front)]
-pub struct Sync;
+pub struct Clk;
 
 #[module(crate = front)]
 pub fn blinky(platform: Platform) {
-    let clk = platform.clock::<Sync>();
+    let clk = platform.clock::<Clk>();
     let half_freq = clk.hz.get() / 2;
 
     let mut led = platform.led.take(0).output(clk.clock);

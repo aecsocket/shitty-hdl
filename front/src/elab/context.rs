@@ -58,6 +58,7 @@ pub struct Context<'dsn> {
     pub(crate) root_defined: bool,
     pub(crate) definitions: Vec<&'dsn air::MethodSignature<'dsn>>,
     name: &'dsn str,
+    pub(crate) definition_path: Option<&'dsn str>,
     pub(crate) types: Vec<&'dsn air::NamedType<'dsn>>,
     pub(crate) type_cache: HashMap<TypeId, &'dsn air::Type<'dsn>>,
     pub(crate) iface_cache: HashMap<TypeId, &'dsn air::Interface<'dsn>>,
@@ -110,6 +111,7 @@ impl<'dsn> Context<'dsn> {
             root_defined: false,
             definitions: Vec::new(),
             name: "mkTop",
+            definition_path: None,
             types: Vec::new(),
             type_cache: HashMap::new(),
             iface_cache: HashMap::new(),
@@ -669,6 +671,11 @@ impl<'dsn> Context<'dsn> {
             }
         }
         air::Module {
+            definition_path: if self.id == 0 {
+                self.definition_path
+            } else {
+                None
+            },
             clock,
             signature,
             primitive: None,

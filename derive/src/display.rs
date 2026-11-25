@@ -105,7 +105,7 @@ enum Piece {
     Arg { index: usize, spec: Spec },
 }
 
-fn expand(input: Input) -> syn::Result<TokenStream> {
+fn expand(input: Input, newline: bool) -> syn::Result<TokenStream> {
     let Input {
         crate_,
         format,
@@ -266,10 +266,14 @@ fn expand(input: Input) -> syn::Result<TokenStream> {
         let mut __display_fmt = ::std::string::String::new();
         let mut __display_args = ::std::vec::Vec::new();
         #(#statements)*
-        #crate_::__::display(&__display_fmt, &__display_args)
+        #crate_::__::display(&__display_fmt, &__display_args, #newline)
     }})
 }
 
 pub fn display_format(input: TokenStream) -> syn::Result<TokenStream> {
-    expand(syn::parse2(input)?)
+    expand(syn::parse2(input)?, false)
+}
+
+pub fn displayln_format(input: TokenStream) -> syn::Result<TokenStream> {
+    expand(syn::parse2(input)?, true)
 }

@@ -9,7 +9,7 @@ use crate::{
     domain::Domain,
     elab,
     module::Action,
-    value::{IntoValues, Shape, Uint, Raw, Value},
+    value::{IntoValues, Shape, Uint, Value},
 };
 
 use super::{with_context, RegisterHandle};
@@ -17,28 +17,38 @@ use super::{with_context, RegisterHandle};
 /// The async FSM's state register; unlike the public [`crate::reg::Reg`],
 /// it is not branded with a domain marker, because it always belongs to
 /// the enclosing module's clock.
+/// Private domain marker for the async FSM's state register. The state
+/// register is internal to the lowering and never escapes to user code;
+/// its clock is the enclosing module's, resolved at elaboration time.
+#[derive(Debug, Clone, Copy)]
+struct Internal;
+
+impl Domain for Internal {}
+
+/// The async FSM's state register. Deliberately branded with the
+/// private [`Internal`] domain: it never escapes to user code, and its
+/// clock is the enclosing module's, resolved at elaboration time.
 #[derive(Debug, Clone, Copy)]
 struct StateReg {
     id: RegisterHandle,
-    value: Raw<Uint<32>>,
 }
 
 impl StateReg {
     fn new() -> Self {
-        let (id, value) = super::register_default(Some(Uint::<32>::zero()));
-        Self { id, value }
+        let (id, _) = super::register_default::<Internal, _>(Some(Uint::<32>::zero()));
+        Self { id }
     }
 
-    fn uninit<T: Shape>() -> (RegisterHandle, Raw<T>) {
-        super::register_default(None)
+    fn uninit<D: Domain, T: Shape>() -> RegisterHandle {
+        super::register_default::<D, T>(None).0
     }
 
-    const fn read(self) -> Raw<Uint<32>> {
-        self.value
+    fn read(&self) -> Value<Internal, Uint<32>> {
+        elab::read_register::<Internal, Uint<32>>(self.id)
     }
 
-    fn write(&self, value: Raw<Uint<32>>) {
-        super::write_register(self.id, value);
+    fn write(&self, value: Value<Internal, Uint<32>>) {
+        elab::write_register::<Internal, Uint<32>>(self.id, value);
     }
 }
 
@@ -50,8 +60,8 @@ pub struct Flow {
     done: Option<usize>,
 }
 
-fn state_value(value: usize) -> Raw<Uint<32>> {
-    super::uint_from_u128::<32>(value as u128)
+fn state_value(value: usize) -> Value<Internal, Uint<32>> {
+    super::uint_from_u128::<Internal, 32>(value as u128)
 }
 
 pub fn unit_value() -> super::ExprHandle {
@@ -60,6 +70,7 @@ pub fn unit_value() -> super::ExprHandle {
         cx.push_expr(unit)
     })
 }
+
 
 fn with_flow<R>(f: impl FnOnce(&mut Flow) -> R) -> R {
     with_context(|cx| {
@@ -168,28 +179,28 @@ where
             matches!(cx.ty::<Out>(), air::Type::Unit),
         )
     });
-    let args = (!in_unit).then(StateReg::uninit::<In>);
-    let result = (!out_unit).then(StateReg::uninit::<Out>);
+    let args = (!in_unit).then(|| StateReg::uninit::<D, In>());
+    let result = (!out_unit).then(|| StateReg::uninit::<D, Out>());
     begin_flow(state);
 
     let mut slot: Option<Pin<Box<dyn Future<Output = Out::Values<D>> + 'a>>> = None;
     let mut body = Some(f);
 
     let req = Action::from_handle(super::define_action::<D, In, ()>(
-        Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0))),
+        Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0)).handle()),
         |args_in| {
-        if let Some((id, _)) = args {
-            super::write_register(id, In::pack_values(args_in).raw());
+        if let Some(id) = args {
+            super::write_register::<D, In>(id, In::pack_values(args_in));
             state.write(state_value(1));
             with_flow(|flow| flow.current = 1);
         } else {
             let f = body.take().expect("async method body was already consumed");
-            let mut future = Box::pin(f(In::make_values(Value::wrap(Raw::from_handle(unit_value())))));
+            let mut future = Box::pin(f(In::make_values(Value::from_handle(unit_value()))));
             match poll_segment(future.as_mut()) {
                 Poll::Pending => {}
                 Poll::Ready(value) => {
-                    if let Some((id, _)) = result {
-                        super::write_register(id, Out::pack_values(value).raw());
+                    if let Some(id) = result {
+                        super::write_register::<D, Out>(id, Out::pack_values(value));
                     }
                     let done = with_flow(|flow| {
                         let done = flow.next;
@@ -207,13 +218,13 @@ where
         Some(future) => future,
         None => Box::pin(
             body.take().expect("async method body was already consumed")(In::make_values(
-                Value::wrap(args.expect("args register missing").1),
+                elab::read_register::<D, In>(args.expect("args register missing")),
             )),
         ),
     };
     drive(&mut future, |value| {
-        if let Some((id, _)) = result {
-            super::write_register(id, Out::pack_values(value).raw());
+        if let Some(id) = result {
+            super::write_register::<D, Out>(id, Out::pack_values(value));
         }
         let done = with_flow(|flow| {
             let done = flow.next;
@@ -225,12 +236,12 @@ where
 
     let done = with_flow(|flow| flow.done.expect("async method body did not complete"));
     let out = Action::from_handle(super::define_action::<D, (), Out>(
-        Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(done))),
+        Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(done)).handle()),
         |()| {
             state.write(state_value(0));
             match result {
-                Some((_, value)) => Out::make_values(Value::wrap(value)),
-                None => Out::make_values(Value::wrap(Raw::from_handle(unit_value()))),
+                Some(id) => Out::make_values(elab::read_register::<D, Out>(id)),
+                None => Out::make_values(Value::from_handle(unit_value())),
             }
         },
     ));
@@ -248,7 +259,7 @@ where
 
     let mut slot: Option<Pin<Box<dyn Future<Output = R> + 'a>>> = None;
 
-    super::define_rule(Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0))), || {
+    super::define_rule(Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0)).handle()), || {
         let mut future = Box::pin(f());
         match poll_segment(future.as_mut()) {
             Poll::Pending => {}
@@ -283,7 +294,7 @@ pub fn lower_async_if<'a, D: Domain, R: IntoValues<D>>(
     else_: Pin<Box<dyn Future<Output = R> + 'a>>,
 ) -> Option<super::RegisterHandle> {
     let out_unit = with_context(|cx| matches!(cx.ty::<R::Out>(), air::Type::Unit));
-    let result = (!out_unit).then(|| super::register_default(None::<R::Out>).0);
+    let result = (!out_unit).then(|| super::register_default::<D, R::Out>(None).0);
 
     let (then_start, else_start, merge) = with_flow(|flow| {
         let then_start = flow.next;
@@ -346,7 +357,7 @@ fn drive_chain<'a, D: Domain, R: IntoValues<D>>(
         };
         if let Some(value) = ready {
             if let Some(handle) = result {
-                super::write_register(handle, R::Out::pack_values::<D>(value.into_values()).raw());
+                super::write_register(handle, R::Out::pack_values::<D>(value.into_values()));
             }
             state.write(state_value(merge));
             with_flow(|flow| flow.current = merge);

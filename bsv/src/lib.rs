@@ -318,6 +318,7 @@ pub enum Statement<'a> {
     },
     Return(Option<Expr<'a>>),
     Display {
+        newline: bool,
         format: &'a str,
         arguments: &'a [Expr<'a>],
     },

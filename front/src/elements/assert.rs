@@ -8,6 +8,16 @@ macro_rules! display {
 }
 
 #[macro_export]
+macro_rules! displayln {
+    () => {
+        $crate::__::displayln_format!($crate; "")
+    };
+    ($($args:tt)*) => {
+        $crate::__::displayln_format!($crate; $($args)*)
+    };
+}
+
+#[macro_export]
 macro_rules! sim_assert {
     ($cond:expr) => {
         $crate::__::assert($cond, stringify!($cond))

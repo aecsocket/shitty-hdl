@@ -38,7 +38,7 @@ pub fn simulate(mut cx: Context, cycles: Option<u64>) -> Result<()> {
     info!("- BSV output to {bsv_path:?}");
     info!("- simulation wrapper output to {sim_wrapper_path:?}");
 
-    let sim_dir = cx.out_dir.join("bluesim");
+    let sim_dir = cx.tool_dir("bluesim");
     fs::create_dir_all(&sim_dir).with_context(|| anyhow!("creating {sim_dir:?}"))?;
 
     info!("compiling simulation");
@@ -48,7 +48,7 @@ pub fn simulate(mut cx: Context, cycles: Option<u64>) -> Result<()> {
             bsv_path: &sim_wrapper_path,
             module: SIM_WRAPPER_MODULE,
             exe_path: &sim_dir.join(&module_name),
-            bluespec_dir: &cx.out_dir.join("bluespec"),
+            bluespec_dir: &cx.tool_dir("bluespec"),
             sim_dir: &sim_dir,
         })
         .context("compiling Bluesim simulation")?;
@@ -83,29 +83,35 @@ pub fn build(mut cx: Context, program: bool) -> Result<()> {
 }
 
 pub fn program(mut cx: Context) -> Result<()> {
-    let GenVerilog { module_name, .. } = gen_verilog(&mut cx)?;
-    let bitstream_path = cx.out_dir.join("vivado").join(format!("{module_name}.bit"));
+    let generated = gen_verilog(&mut cx)?;
+    let module_name = &generated.module_name;
+    let bitstream_path = cx.tool_dir("vivado").join(format!("{module_name}.bit"));
     let bitstream_path = if bitstream_path.exists() {
         info!("using existing bitstream {bitstream_path:?}");
         bitstream_path
     } else {
         info!("no bitstream found; building first");
-        build_bitstream(&mut cx)?
+        build_generated_bitstream(&mut cx, generated)?
     };
     program_bitstream(&cx, &bitstream_path)
 }
 
 fn build_bitstream(cx: &mut Context) -> Result<PathBuf> {
+    let generated = gen_verilog(cx)?;
+    build_generated_bitstream(cx, generated)
+}
+
+fn build_generated_bitstream(cx: &Context, generated: GenVerilog) -> Result<PathBuf> {
     let GenVerilog {
         bindings,
         module_name,
         bsv_path,
         verilog_path,
         verilog_library_dirs,
-    } = gen_verilog(cx)?;
+    } = generated;
     info!("generated Verilog in {:.2?}", START.elapsed());
 
-    let vivado_dir = cx.out_dir.join("vivado");
+    let vivado_dir = cx.tool_dir("vivado");
     fs::create_dir_all(&vivado_dir).with_context(|| anyhow!("creating {vivado_dir:?}"))?;
 
     let input = BitstreamInput {
@@ -156,14 +162,17 @@ struct GenVerilog {
 }
 
 fn gen_bsv(cx: &mut Context) -> Result<GenBsv> {
-    let bluespec_dir = cx.out_dir.join("bluespec");
-    fs::create_dir_all(&bluespec_dir).with_context(|| anyhow!("creating {bluespec_dir:?}"))?;
-
     let platform = platform::from_board(cx.board);
     let storage = elab::Bump::new();
     let make_top = mem::replace(&mut cx.make_top, Box::new(|_| {}));
     let elab_platform = platform.clone();
     let air_module = elab::elaborate(&storage, || make_top(elab_platform));
+    let definition_path = air_module
+        .definition_path
+        .context("top module has no definition path; use #[module] on the top function")?;
+    cx.design_key = Some(definition_path.replace("r#", "").replace("::", "-"));
+    let bluespec_dir = cx.tool_dir("bluespec");
+    fs::create_dir_all(&bluespec_dir).with_context(|| anyhow!("creating {bluespec_dir:?}"))?;
 
     let (package, module) = bsv::from_air(&storage, &air_module).context("lowering AIR to BSV")?;
     let mut bindings = Bindings::default();
@@ -267,7 +276,7 @@ fn gen_verilog(cx: &mut Context) -> Result<GenVerilog> {
         ..
     } = gen_bsv(cx)?;
 
-    let verilog_dir = cx.out_dir.join("verilog");
+    let verilog_dir = cx.tool_dir("verilog");
     fs::create_dir_all(&verilog_dir).with_context(|| anyhow!("creating {verilog_dir:?}"))?;
     let verilog_path = cx
         .bsc
@@ -275,7 +284,7 @@ fn gen_verilog(cx: &mut Context) -> Result<GenVerilog> {
             bsv_path: &bsv_path,
             module: &module_name,
             reset_prefix: RESET_PREFIX,
-            bluespec_dir: &cx.out_dir.join("bluespec"),
+            bluespec_dir: &cx.tool_dir("bluespec"),
             verilog_dir: &verilog_dir,
         })
         .context("lowering BSV to Verilog")?;

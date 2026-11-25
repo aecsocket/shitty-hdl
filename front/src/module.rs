@@ -4,10 +4,47 @@ use crate::value::{IntoValue, Shape, Value};
 
 pub trait Interface {}
 
-pub struct Method<In: Shape, Out: Shape>(PhantomData<(In, Out)>);
+pub struct Rule(());
 
-impl<In: Shape, Out: Shape> Method<In, Out> {
-    pub fn define_as(f: impl AsyncFnOnce(In::Values) -> Out::Values) -> Self {
+impl Rule {
+    pub fn when(cond: impl IntoValue<Out = bool>) -> DefineRule {
+        todo!();
+    }
+
+    pub fn define_as(f: impl FnOnce()) {
+        todo!();
+    }
+}
+
+pub struct DefineRule(());
+
+impl DefineRule {
+    pub fn define_as(f: impl FnOnce()) {
+        todo!();
+    }
+}
+
+pub struct Action<In: Shape, Out: Shape>(PhantomData<(In, Out)>);
+
+impl<In: Shape, Out: Shape> Action<In, Out> {
+    pub fn when(cond: impl IntoValue<Out = bool>) -> DefineAction<In, Out> {
+        todo!();
+    }
+
+    pub fn define_as(f: impl FnOnce(In::Values) -> Out::Values) -> Self {
+        drop(f);
+        todo!();
+    }
+
+    pub fn call(&mut self, args: In::Values) -> Out::Values {
+        todo!();
+    }
+}
+
+pub struct DefineAction<In: Shape, Out: Shape>(PhantomData<(In, Out)>);
+
+impl<In: Shape, Out: Shape> DefineAction<In, Out> {
+    pub fn define_as(self, f: impl FnOnce(In::Values) -> Out::Values) -> Action<In, Out> {
         drop(f);
         todo!();
     }
@@ -29,7 +66,7 @@ impl<T: IntoValue> If<T> {
         todo!();
     }
 
-    pub fn else_(self, then: impl AsyncFnOnce() -> T) -> Value<T::Out> {
+    pub fn else_(self, then: impl AsyncFnOnce() -> T) -> <T as IntoValue>::Out {
         drop(then);
         todo!();
     }

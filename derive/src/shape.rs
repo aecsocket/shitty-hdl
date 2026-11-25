@@ -18,11 +18,32 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
     let input = syn::parse2::<DeriveInput>(input)?;
     let options = Options::from_derive_input(&input)?;
     let crate_ = &options.crate_;
-    let Data::Struct(data) = &input.data else {
-        return Err(syn::Error::new_spanned(
-            &input,
-            "can only be derived for structs",
-        ));
+    let data = match &input.data {
+        Data::Struct(data) => data,
+        Data::Enum(data) => {
+            for variant in &data.variants {
+                if !variant.fields.is_empty() {
+                    return Err(syn::Error::new_spanned(
+                        &variant.fields,
+                        "Shape can only be derived for enum variants without fields",
+                    ));
+                }
+            }
+            let ident = &input.ident;
+            let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+            return Ok(quote! {
+                impl #impl_generics #crate_::value::Shape for #ident #ty_generics #where_clause {
+                    type View = #crate_::value::ValueView<Self>;
+                    type Values = #crate_::value::Value<Self>;
+                }
+            });
+        }
+        Data::Union(_) => {
+            return Err(syn::Error::new_spanned(
+                &input,
+                "Shape can only be derived for structs or enums without fields",
+            ));
+        }
     };
     let ident = &input.ident;
     let view_ident = format_ident!("{}View", ident.unraw());

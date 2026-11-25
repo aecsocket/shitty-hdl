@@ -3,12 +3,14 @@
 #![allow(incomplete_features)]
 
 pub mod data;
+pub mod method;
 pub mod module;
 pub mod ops;
 pub mod reg;
 pub mod value;
 pub mod prelude {
-    pub use crate::module::{Interface, Method};
+    pub use crate::method::Method;
+    pub use crate::module::{Action, Interface, Rule};
     pub use crate::ops::{
         Arith, ArithCmp, ArithCmpExt, BitCmp, BitCmpExt, Bits, Pack, Repack, Shift, ShlZext,
         ShrTrunc, Trunc, Unpack, Zext,

@@ -1,6 +1,6 @@
 use derive::Interface;
 
-use crate::{module::Method, value::Shape};
+use crate::{method::Method, value::Shape};
 
 #[derive(Interface)]
 #[interface(crate = crate)]

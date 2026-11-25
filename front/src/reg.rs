@@ -17,8 +17,14 @@ impl<T: Shape> Clone for Reg<T> {
 impl<T: Shape> Copy for Reg<T> {}
 
 impl<T: Shape> Reg<T> {
+    #[must_use]
     pub fn new(init: T) -> Self {
         drop(init);
+        todo!();
+    }
+
+    #[must_use]
+    pub fn uninit() -> Self {
         todo!();
     }
 

@@ -32,6 +32,42 @@ fn derive(input: TokenStream, arithmetic: bool) -> Result<TokenStream> {
     } else {
         BitOptions::from_derive_input(&input)?.crate_
     };
+    if !arithmetic && let Data::Enum(data) = &input.data {
+        for variant in &data.variants {
+            if !variant.fields.is_empty() {
+                return Err(syn::Error::new_spanned(
+                    &variant.fields,
+                    "BitCmp can only be derived for enum variants without fields",
+                ));
+            }
+        }
+        let ident = &input.ident;
+        let mut generics = input.generics.clone();
+        let (_, ty_generics, _) = input.generics.split_for_impl();
+        generics.make_where_clause().predicates.push(parse_quote! {
+            #ident #ty_generics: #crate_::value::Shape
+        });
+        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+        return Ok(quote! {
+            impl #impl_generics #crate_::ops::BitCmp for #ident #ty_generics #where_clause {
+                fn eq(
+                    lhs: #crate_::value::Value<Self>,
+                    rhs: #crate_::value::Value<Self>,
+                ) -> #crate_::value::Value<bool> {
+                    let _ = (lhs, rhs);
+                    ::core::todo!()
+                }
+
+                fn ne(
+                    lhs: #crate_::value::Value<Self>,
+                    rhs: #crate_::value::Value<Self>,
+                ) -> #crate_::value::Value<bool> {
+                    let _ = (lhs, rhs);
+                    ::core::todo!()
+                }
+            }
+        });
+    }
     let trait_ident = format_ident!("{}", if arithmetic { "ArithCmp" } else { "BitCmp" });
     let Data::Struct(data) = &input.data else {
         return Err(syn::Error::new_spanned(

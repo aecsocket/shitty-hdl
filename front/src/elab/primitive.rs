@@ -4,7 +4,7 @@ use crate::{data::Bram, domain::Clock, module::Interface, ops::Bits};
 
 use super::with_context;
 
-pub(crate) fn bram<Addr: Bits, Data: Bits>(clock: Clock, depth: u64) -> Bram<Addr, Data> {
+pub fn bram<Addr: Bits, Data: Bits>(clock: Clock, depth: u64) -> Bram<Addr, Data> {
     assert!(depth != 0, "BRAM depth must be nonzero");
     let address_width = u32::try_from(Addr::WIDTH).expect("BRAM address width exceeds u32");
     let data_width = u32::try_from(Data::WIDTH).expect("BRAM data width exceeds u32");

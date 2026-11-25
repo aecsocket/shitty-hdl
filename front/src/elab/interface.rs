@@ -1,10 +1,11 @@
 use crate::{module::Interface, value::Shape};
+use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::ptr;
 
 use super::{ActionHandle, InterfaceHandle, with_context};
 
 #[must_use]
-pub(crate) fn input_interface<I: Interface>(name: &str) -> I {
+pub fn input_interface<I: Interface>(name: &str) -> I {
     let handle = with_context(|cx| {
         assert!(
             cx.parameters.iter().all(|parameter| match parameter {
@@ -26,7 +27,7 @@ pub(crate) fn input_interface<I: Interface>(name: &str) -> I {
 }
 
 #[must_use]
-pub(crate) fn subinterface(handle: InterfaceHandle, name: &str) -> InterfaceHandle {
+pub fn subinterface(handle: InterfaceHandle, name: &str) -> InterfaceHandle {
     with_context(|cx| {
         let (parent, ty) = cx.interface_ref(handle);
         let member = ty.members.iter().find(|member| matches!(member, air::InterfaceMember::Interface { name: label, .. } if *label == name)).expect("unknown subinterface");
@@ -39,7 +40,7 @@ pub(crate) fn subinterface(handle: InterfaceHandle, name: &str) -> InterfaceHand
 }
 
 #[must_use]
-pub(crate) fn interface_action<In: Shape, Out: Shape>(
+pub fn interface_action<In: Shape, Out: Shape>(
     handle: InterfaceHandle,
     name: &str,
 ) -> ActionHandle {
@@ -78,7 +79,7 @@ pub(crate) fn interface_action<In: Shape, Out: Shape>(
     })
 }
 
-pub(crate) fn module<I: Interface>(name: &str, f: impl FnOnce() -> I) -> I {
+pub fn module<I: Interface>(name: &str, f: impl FnOnce() -> I) -> I {
     let nested = with_context(|cx| {
         assert!(
             cx.frames.is_empty(),
@@ -94,7 +95,7 @@ pub(crate) fn module<I: Interface>(name: &str, f: impl FnOnce() -> I) -> I {
             false
         }
     });
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = catch_unwind(AssertUnwindSafe(|| {
         let interface = f();
         with_context(|cx| {
             let implementation = interface.air_bind(cx);
@@ -104,6 +105,8 @@ pub(crate) fn module<I: Interface>(name: &str, f: impl FnOnce() -> I) -> I {
     }));
     match result {
         Ok(_interface) if nested => {
+            // Passing `Context::end_module` directly fails to infer here.
+            #[allow(clippy::redundant_closure_for_method_calls)]
             let handle = with_context(|cx| cx.end_module());
             I::from_handle(handle)
         }
@@ -122,7 +125,7 @@ pub(crate) fn module<I: Interface>(name: &str, f: impl FnOnce() -> I) -> I {
                     cx.root_active = false;
                 }
             });
-            std::panic::resume_unwind(error)
+            resume_unwind(error)
         }
     }
 }

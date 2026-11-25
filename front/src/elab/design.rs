@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT_DESIGN_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DesignId(u64);
+pub struct DesignId(u64);
 
 impl DesignId {
     pub(crate) fn new() -> Self {

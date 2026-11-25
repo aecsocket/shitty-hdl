@@ -38,38 +38,42 @@ pub mod __ {
     pub use bon;
     pub use derive::display_format;
 
-    pub fn cast<From: crate::value::Shape, To: crate::value::Shape>(
-        kind: air::CastKind,
-        value: crate::value::Value<From>,
-    ) -> crate::value::Value<To> {
-        crate::elab::cast(kind, value)
+    use crate::elab;
+    use crate::elab::{
+        cast as elab_cast, compare as elab_compare, display as elab_display, module as elab_module,
+        subinterface as elab_subinterface,
+    };
+    use crate::module::Interface;
+    use crate::value::{IntoValue, Shape, Value};
+
+    #[must_use]
+    pub fn cast<From: Shape, To: Shape>(kind: air::CastKind, value: Value<From>) -> Value<To> {
+        elab_cast(kind, value)
     }
 
-    pub fn compare<T: crate::value::Shape>(
-        op: air::BinaryOp,
-        lhs: crate::value::Value<T>,
-        rhs: crate::value::Value<T>,
-    ) -> crate::value::Value<bool> {
-        crate::elab::compare(op, lhs, rhs)
+    #[must_use]
+    pub fn compare<T: Shape>(op: air::BinaryOp, lhs: Value<T>, rhs: Value<T>) -> Value<bool> {
+        elab_compare(op, lhs, rhs)
     }
 
-    pub fn module<I: crate::module::Interface>(name: &str, f: impl FnOnce() -> I) -> I {
-        crate::elab::module(name, f)
+    pub fn module<I: Interface>(name: &str, f: impl FnOnce() -> I) -> I {
+        elab_module(name, f)
     }
 
+    #[must_use]
     pub fn subinterface(handle: InterfaceHandle, name: &str) -> InterfaceHandle {
-        crate::elab::subinterface(handle, name)
+        elab_subinterface(handle, name)
     }
 
-    pub fn display_arg(value: impl crate::value::IntoValue) -> ExprHandle {
+    pub fn display_arg(value: impl IntoValue) -> ExprHandle {
         value.into_value().handle()
     }
 
     pub fn display(format: &str, arguments: &[ExprHandle]) {
-        crate::elab::display(format, arguments);
+        elab_display(format, arguments);
     }
 
-    pub fn assert(condition: impl crate::value::IntoValue<Out = bool>, message: &str) {
-        crate::elab::assert(condition, message);
+    pub fn assert(condition: impl IntoValue<Out = bool>, message: &str) {
+        elab::assert(condition, message);
     }
 }

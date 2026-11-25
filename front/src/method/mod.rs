@@ -7,7 +7,7 @@ use std::{
 use crate::{
     air, elab,
     module::{Action, Interface},
-    value::{IntoValue, IntoValues, Shape, Value},
+    value::{Shape, Value},
 };
 
 pub struct Method<In: Shape, Out: Shape> {
@@ -92,6 +92,7 @@ impl<Out: Shape> Future for Call<Out> {
 
 impl<Out: Shape> Unpin for Call<Out> {}
 
+#[must_use]
 pub fn call_async<In: Shape, Out: Shape>(
     req: &Action<In, ()>,
     out: &Action<(), Out>,

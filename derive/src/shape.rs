@@ -126,10 +126,7 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
         let ty = &field.ty;
         let vis = &field.vis;
         let view_ty = quote! { <#ty as #crate_::value::Shape>::View };
-        match &field.ident {
-            Some(ident) => quote! { #vis #ident: #view_ty },
-            None => quote! { #vis #view_ty },
-        }
+        if let Some(ident) = &field.ident { quote! { #vis #ident: #view_ty } } else { quote! { #vis #view_ty } }
     });
     let view = match &data.fields {
         Fields::Named(_) => quote! {

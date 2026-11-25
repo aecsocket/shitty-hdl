@@ -4,7 +4,7 @@ use crate::{
     Method, MethodBody, Module, Parameter, Register, Statement, Type,
 };
 
-impl<'o, 'm, 's> Lower<'o, 'm, 's> {
+impl<'o, 's> Lower<'o, '_, 's> {
     pub(super) fn primitive(&mut self, primitive: source::Primitive<'s>) -> Result<Module<'o>> {
         match primitive {
             source::Primitive::Bram {
@@ -326,7 +326,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
         }
     }
 
-    fn bram_bool(value: bool) -> Expr<'o> {
+    const fn bram_bool(value: bool) -> Expr<'o> {
         Expr {
             ty: Type::Bool,
             kind: ExprKind::Bool(value),

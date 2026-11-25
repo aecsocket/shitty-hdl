@@ -8,7 +8,7 @@ use std::{any::TypeId, ptr};
 use super::with_context;
 
 #[must_use]
-pub(crate) fn clock_input<D: 'static>(name: &str) -> ClockHandle {
+pub fn clock_input<D: 'static>(name: &str) -> ClockHandle {
     with_context(|cx| {
         let (index, domain) = cx.intern_domain(TypeId::of::<D>(), name);
         if !cx.parameters.iter().any(|parameter| matches!(parameter, air::Parameter::Clock { domain: existing } if ptr::eq(*existing, domain))) {
@@ -29,7 +29,7 @@ pub(crate) fn clock_input<D: 'static>(name: &str) -> ClockHandle {
     })
 }
 
-pub(crate) fn register<T: Shape>(clock: Clock, init: Option<T>) -> (RegisterHandle, Value<T>) {
+pub fn register<T: Shape>(clock: Clock, init: Option<T>) -> (RegisterHandle, Value<T>) {
     let (handle, value) = with_context(|cx| {
         let domain = match clock.handle {
             None => match cx.domain_cache.get(&clock.identity) {
@@ -76,7 +76,7 @@ pub(crate) fn register<T: Shape>(clock: Clock, init: Option<T>) -> (RegisterHand
     (handle, Value::from_handle(value))
 }
 
-pub(crate) fn read_register<T: Shape>(handle: RegisterHandle) -> Value<T> {
+pub fn read_register<T: Shape>(handle: RegisterHandle) -> Value<T> {
     with_context(|cx| {
         cx.check_design(handle.design_id);
         let (register, owner) = cx.register_handles[handle.index];
@@ -91,7 +91,7 @@ pub(crate) fn read_register<T: Shape>(handle: RegisterHandle) -> Value<T> {
     })
 }
 
-pub(crate) fn write_register<T: Shape>(handle: RegisterHandle, value: Value<T>) {
+pub fn write_register<T: Shape>(handle: RegisterHandle, value: Value<T>) {
     with_context(|cx| {
         cx.check_design(handle.design_id);
         let register = cx.register_for_write(handle.index);

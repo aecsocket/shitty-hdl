@@ -1,3 +1,5 @@
+use crate::elab;
+
 #[macro_export]
 macro_rules! display {
     ($($args:tt)*) => {
@@ -15,7 +17,6 @@ macro_rules! sim_assert {
     };
 }
 
-#[must_use]
 pub fn sim_finish() {
-    crate::elab::finish();
+    elab::finish();
 }

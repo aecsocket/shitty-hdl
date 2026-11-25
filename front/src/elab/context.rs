@@ -1,3 +1,5 @@
+use std::mem::{swap, take};
+use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::ptr;
 use std::{any::TypeId, collections::HashMap};
 
@@ -6,19 +8,19 @@ use bumpalo::Bump;
 use super::{ActionHandle, BranchHandle, DesignId, ExprHandle, InterfaceHandle};
 use crate::value::Shape;
 
-pub(crate) struct Frame<'dsn> {
+pub struct Frame<'dsn> {
     pub scope: usize,
     pub statements: Vec<air::Statement<'dsn>>,
 }
 
-pub(crate) struct Branch<'dsn> {
+pub struct Branch<'dsn> {
     pub module: usize,
     pub parent_scope: usize,
     pub block: air::Block<'dsn>,
     pub result: &'dsn air::Expr<'dsn>,
 }
 
-pub(crate) struct ModuleState<'dsn> {
+pub struct ModuleState<'dsn> {
     pub(crate) root_active: bool,
     pub(crate) root_defined: bool,
     pub(crate) definitions: Vec<&'dsn air::MethodSignature<'dsn>>,
@@ -433,7 +435,7 @@ impl<'dsn> Context<'dsn> {
             air::InterfaceRef::Local(implementation) => implementation.ty,
             air::InterfaceRef::Subinterface { member, .. } => match member {
                 air::InterfaceMember::Interface { ty, .. } => ty,
-                _ => panic!("expected subinterface member"),
+                air::InterfaceMember::Method(_) => panic!("expected subinterface member"),
             },
         }
     }
@@ -488,22 +490,22 @@ impl<'dsn> Context<'dsn> {
         }
     }
 
-    fn swap_state(&mut self, state: &mut ModuleState<'dsn>) {
-        std::mem::swap(&mut self.root_active, &mut state.root_active);
-        std::mem::swap(&mut self.root_defined, &mut state.root_defined);
-        std::mem::swap(&mut self.definitions, &mut state.definitions);
-        std::mem::swap(&mut self.name, &mut state.name);
-        std::mem::swap(&mut self.parameters, &mut state.parameters);
-        std::mem::swap(&mut self.instances, &mut state.instances);
-        std::mem::swap(&mut self.registers, &mut state.registers);
-        std::mem::swap(&mut self.methods, &mut state.methods);
-        std::mem::swap(&mut self.rules, &mut state.rules);
-        std::mem::swap(&mut self.interface, &mut state.interface);
-        std::mem::swap(&mut self.scheduling, &mut state.scheduling);
-        std::mem::swap(&mut self.modules, &mut state.modules);
-        std::mem::swap(&mut self.arguments, &mut state.arguments);
-        std::mem::swap(&mut self.imports, &mut state.imports);
-        std::mem::swap(&mut self.id, &mut state.id);
+    const fn swap_state(&mut self, state: &mut ModuleState<'dsn>) {
+        swap(&mut self.root_active, &mut state.root_active);
+        swap(&mut self.root_defined, &mut state.root_defined);
+        swap(&mut self.definitions, &mut state.definitions);
+        swap(&mut self.name, &mut state.name);
+        swap(&mut self.parameters, &mut state.parameters);
+        swap(&mut self.instances, &mut state.instances);
+        swap(&mut self.registers, &mut state.registers);
+        swap(&mut self.methods, &mut state.methods);
+        swap(&mut self.rules, &mut state.rules);
+        swap(&mut self.interface, &mut state.interface);
+        swap(&mut self.scheduling, &mut state.scheduling);
+        swap(&mut self.modules, &mut state.modules);
+        swap(&mut self.arguments, &mut state.arguments);
+        swap(&mut self.imports, &mut state.imports);
+        swap(&mut self.id, &mut state.id);
     }
 
     pub(crate) fn in_root<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
@@ -524,14 +526,14 @@ impl<'dsn> Context<'dsn> {
             .pop()
             .expect("HDL handle escaped its defining module");
         self.swap_state(&mut parent);
-        let frames = std::mem::take(&mut self.frames);
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(self)));
+        let frames = take(&mut self.frames);
+        let result = catch_unwind(AssertUnwindSafe(|| f(self)));
         self.frames = frames;
         self.swap_state(&mut parent);
         self.parents.push(parent);
         match result {
             Ok(value) => value,
-            Err(error) => std::panic::resume_unwind(error),
+            Err(error) => resume_unwind(error),
         }
     }
 

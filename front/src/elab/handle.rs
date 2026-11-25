@@ -14,9 +14,9 @@ macro_rules! handle {
 
 handle!(
     pub ExprHandle,
-    pub(crate) RegisterHandle,
+    pub RegisterHandle,
     pub ActionHandle,
     pub InterfaceHandle,
-    pub(crate) ClockHandle,
-    pub(crate) BranchHandle,
+    pub ClockHandle,
+    pub BranchHandle,
 );

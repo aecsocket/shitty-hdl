@@ -1,7 +1,7 @@
 pub use board;
 
 use board::Board;
-use front::{domain::Clock, io::Output, value::Value};
+use front::{domain::Clock, io, io::Output, value::Value};
 use std::{cell::RefCell, num::NonZero, rc::Rc};
 
 #[derive(Debug, Clone, Default)]
@@ -38,13 +38,13 @@ impl ResourceContext {
                 name: "clk".into(),
             });
         }
-        if let Some(resource) = self.reset {
-            if bindings.reset.is_empty() {
-                bindings.reset.push(Binding {
-                    resource,
-                    name: "reset".into(),
-                });
-            }
+        if let Some(resource) = self.reset
+            && bindings.reset.is_empty()
+        {
+            bindings.reset.push(Binding {
+                resource,
+                name: "reset".into(),
+            });
         }
         Some(clock)
     }
@@ -113,7 +113,7 @@ impl Buttons {
             .context
             .default_clock()
             .expect("buttons require a default clock");
-        let input = front::io::input(clock, &name, resource.active_on == board::ActiveOn::Low);
+        let input = io::input(clock, &name, resource.active_on == board::ActiveOn::Low);
         self.context
             .bindings
             .borrow_mut()

@@ -1,3 +1,4 @@
+use crate::hdl;
 use darling::{FromMeta, util::Flag};
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -19,7 +20,7 @@ fn derive_(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let options = syn::parse2::<Options>(attr)?;
     let crate_ = &options.crate_;
     let mut function = syn::parse2::<ItemFn>(input)?;
-    crate::hdl::rewrite(&mut function.block, crate_)?;
+    hdl::rewrite(&mut function.block, crate_)?;
     let name = &function.sig.ident;
     let body = &function.block;
     *function.block = parse_quote! {

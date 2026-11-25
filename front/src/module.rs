@@ -9,7 +9,6 @@ use std::{
 
 use crate::{
     air, elab,
-    reg::Reg,
     value::{IntoValue, IntoValues, Shape, Value},
 };
 
@@ -201,7 +200,7 @@ impl<'a, R: IntoValues> AsyncIf<'a, R> {
     }
 }
 
-impl<'a, R: IntoValues> Future for AsyncIf<'a, R> {
+impl<R: IntoValues> Future for AsyncIf<'_, R> {
     type Output = R::Values;
 
     fn poll(self: Pin<&mut Self>, _: &mut TaskContext<'_>) -> Poll<Self::Output> {
@@ -226,4 +225,4 @@ impl<'a, R: IntoValues> Future for AsyncIf<'a, R> {
     }
 }
 
-impl<'a, R: IntoValues> Unpin for AsyncIf<'a, R> {}
+impl<R: IntoValues> Unpin for AsyncIf<'_, R> {}

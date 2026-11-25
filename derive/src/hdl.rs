@@ -1,3 +1,5 @@
+use syn::{token::Semi, visit_mut::visit_expr_mut};
+
 use darling::FromMeta;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -27,7 +29,7 @@ fn derive_(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
     Ok(quote! { #function })
 }
 
-pub(crate) fn rewrite(block: &mut Block, crate_: &Path) -> Result<()> {
+pub fn rewrite(block: &mut Block, crate_: &Path) -> Result<()> {
     let mut rewriter = Rewriter {
         crate_,
         errors: Vec::new(),
@@ -197,7 +199,7 @@ impl VisitMut for Rewriter<'_> {
                 && index + 1 < len
                 && let Stmt::Expr(_, semi) = stmt
             {
-                *semi = Some(Default::default());
+                *semi = Some(Semi::default());
             }
         }
     }
@@ -222,7 +224,7 @@ impl VisitMut for Rewriter<'_> {
         }
         if is_async_closure(expr) {
             self.async_depth += 1;
-            syn::visit_mut::visit_expr_mut(self, expr);
+            visit_expr_mut(self, expr);
             self.async_depth -= 1;
             return;
         }
@@ -239,7 +241,7 @@ impl VisitMut for Rewriter<'_> {
             }
             return;
         }
-        syn::visit_mut::visit_expr_mut(self, expr);
+        visit_expr_mut(self, expr);
         let Expr::Binary(binary) = expr else {
             return;
         };
@@ -293,6 +295,6 @@ impl VisitMut for BranchControlFlow<'_> {
                 "unsupported assignment in hardware branch: all branches execute during elaboration, so Rust-side mutation is not conditional; use <<= for register writes",
             ));
         }
-        syn::visit_mut::visit_expr_mut(self, expr);
+        visit_expr_mut(self, expr);
     }
 }

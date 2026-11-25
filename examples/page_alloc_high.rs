@@ -87,7 +87,7 @@ fn top(platform: Platform) {
     let mut led = platform.led.take(0);
 
     let heap = bram::<Addr, Word>().clk(clk).depth(32 * 1024).call();
-    let mut pages = page_alloc(clk, heap);
+    let pages = page_alloc(clk, heap);
 
     Rule::define_as(async || {
         display!("idle!");

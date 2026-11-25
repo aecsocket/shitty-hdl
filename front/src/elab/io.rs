@@ -75,7 +75,7 @@ impl<'dsn> Context<'dsn> {
     }
 }
 
-pub(crate) fn output(clock: Clock, name: &str, active_low: bool) -> (ExprHandle, ActionHandle) {
+pub fn output(clock: Clock, name: &str, active_low: bool) -> (ExprHandle, ActionHandle) {
     with_context(|cx| {
         cx.in_root(|cx| {
             let domain = cx.io_domain(clock);
@@ -110,7 +110,7 @@ pub(crate) fn output(clock: Clock, name: &str, active_low: bool) -> (ExprHandle,
     })
 }
 
-pub(crate) fn input(clock: Clock, name: &str, active_low: bool) -> ExprHandle {
+pub fn input(clock: Clock, name: &str, active_low: bool) -> ExprHandle {
     with_context(|cx| {
         cx.in_root(|cx| {
             let domain = cx.io_domain(clock);

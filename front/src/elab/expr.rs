@@ -3,7 +3,7 @@ use std::ptr;
 
 use super::{ExprHandle, with_context};
 
-pub(crate) fn literal<T: Shape>(value: T) -> Value<T> {
+pub fn literal<T: Shape>(value: T) -> Value<T> {
     Value::from_handle(with_context(|cx| {
         let expr = value.air_value(cx);
         cx.push_expr(expr)
@@ -11,7 +11,7 @@ pub(crate) fn literal<T: Shape>(value: T) -> Value<T> {
 }
 
 #[must_use]
-pub(crate) fn tuple<T: Shape>(values: &[ExprHandle]) -> Value<T> {
+pub fn tuple<T: Shape>(values: &[ExprHandle]) -> Value<T> {
     Value::from_handle(with_context(|cx| {
         let values = values.iter().map(|handle| cx.expr(*handle)).collect();
         let expr = cx.tuple_value::<T>(values);
@@ -20,7 +20,7 @@ pub(crate) fn tuple<T: Shape>(values: &[ExprHandle]) -> Value<T> {
 }
 
 #[must_use]
-pub(crate) fn tuple_element<T: Shape, Element: Shape>(
+pub fn tuple_element<T: Shape, Element: Shape>(
     value: Value<T>,
     index: usize,
 ) -> Value<Element> {
@@ -40,7 +40,7 @@ pub(crate) fn tuple_element<T: Shape, Element: Shape>(
 }
 
 #[must_use]
-pub(crate) fn unary<T: Shape>(op: air::UnaryOp, value: Value<T>) -> Value<T> {
+pub fn unary<T: Shape>(op: air::UnaryOp, value: Value<T>) -> Value<T> {
     Value::from_handle(with_context(|cx| {
         let operand = cx.typed_expr::<T>(value.handle());
         let expr = cx.alloc(air::Expr {
@@ -52,7 +52,7 @@ pub(crate) fn unary<T: Shape>(op: air::UnaryOp, value: Value<T>) -> Value<T> {
 }
 
 #[must_use]
-pub(crate) fn binary<T: Shape>(op: air::BinaryOp, lhs: Value<T>, rhs: Value<T>) -> Value<T> {
+pub fn binary<T: Shape>(op: air::BinaryOp, lhs: Value<T>, rhs: Value<T>) -> Value<T> {
     Value::from_handle(with_context(|cx| {
         let lhs = cx.typed_expr::<T>(lhs.handle());
         let rhs = cx.typed_expr::<T>(rhs.handle());
@@ -65,7 +65,7 @@ pub(crate) fn binary<T: Shape>(op: air::BinaryOp, lhs: Value<T>, rhs: Value<T>) 
 }
 
 #[must_use]
-pub(crate) fn compare<T: Shape>(op: air::BinaryOp, lhs: Value<T>, rhs: Value<T>) -> Value<bool> {
+pub fn compare<T: Shape>(op: air::BinaryOp, lhs: Value<T>, rhs: Value<T>) -> Value<bool> {
     Value::from_handle(with_context(|cx| {
         let lhs = cx.typed_expr::<T>(lhs.handle());
         let rhs = cx.typed_expr::<T>(rhs.handle());
@@ -79,7 +79,7 @@ pub(crate) fn compare<T: Shape>(op: air::BinaryOp, lhs: Value<T>, rhs: Value<T>)
 }
 
 #[must_use]
-pub(crate) fn cast<From: Shape, To: Shape>(kind: air::CastKind, value: Value<From>) -> Value<To> {
+pub fn cast<From: Shape, To: Shape>(kind: air::CastKind, value: Value<From>) -> Value<To> {
     Value::from_handle(with_context(|cx| {
         let value = cx.typed_expr::<From>(value.handle());
         let ty = cx.ty::<To>();
@@ -105,7 +105,7 @@ pub(crate) fn cast<From: Shape, To: Shape>(kind: air::CastKind, value: Value<Fro
 }
 
 #[must_use]
-pub(crate) fn uint_from_u128<const N: usize>(value: u128) -> Value<Uint<N>> {
+pub fn uint_from_u128<const N: usize>(value: u128) -> Value<Uint<N>> {
     assert!(
         N >= 128 || value >> N == 0,
         "integer operand does not fit Uint<N>"
@@ -129,7 +129,7 @@ pub(crate) fn uint_from_u128<const N: usize>(value: u128) -> Value<Uint<N>> {
 }
 
 #[must_use]
-pub(crate) fn shift<T: Shape>(op: air::BinaryOp, value: Value<T>, amount: usize) -> Value<T> {
+pub fn shift<T: Shape>(op: air::BinaryOp, value: Value<T>, amount: usize) -> Value<T> {
     let amount = uint_from_u128::<64>(amount as u128);
     Value::from_handle(with_context(|cx| {
         let lhs = cx.typed_expr::<T>(value.handle());
@@ -143,7 +143,7 @@ pub(crate) fn shift<T: Shape>(op: air::BinaryOp, value: Value<T>, amount: usize)
 }
 
 #[must_use]
-pub(crate) fn shift_resize<const FROM: usize, const TO: usize>(
+pub fn shift_resize<const FROM: usize, const TO: usize>(
     op: air::BinaryOp,
     value: Value<Uint<FROM>>,
     amount: usize,
@@ -161,7 +161,7 @@ pub(crate) fn shift_resize<const FROM: usize, const TO: usize>(
     }
 }
 
-pub(crate) fn display(format: &str, arguments: &[super::ExprHandle]) {
+pub fn display(format: &str, arguments: &[super::ExprHandle]) {
     with_context(|cx| {
         let arguments: Vec<_> = arguments
             .iter()
@@ -174,7 +174,7 @@ pub(crate) fn display(format: &str, arguments: &[super::ExprHandle]) {
     });
 }
 
-pub(crate) fn assert(condition: impl IntoValue<Out = bool>, message: &str) {
+pub fn assert(condition: impl IntoValue<Out = bool>, message: &str) {
     let condition = condition.into_value();
     with_context(|cx| {
         let condition = cx.typed_expr::<bool>(condition.handle());
@@ -185,11 +185,11 @@ pub(crate) fn assert(condition: impl IntoValue<Out = bool>, message: &str) {
     });
 }
 
-pub(crate) fn finish() {
+pub fn finish() {
     with_context(|cx| cx.emit(air::Statement::Finish));
 }
 
-pub(crate) fn width(ty: &air::Type<'_>) -> u64 {
+pub fn width(ty: &air::Type<'_>) -> u64 {
     match ty {
         air::Type::Unit => 0,
         air::Type::Bool => 1,

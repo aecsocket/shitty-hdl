@@ -13,9 +13,9 @@ use crate::{
     value::{IntoValues, Shape, Uint, Value},
 };
 
-use super::{Context, with_context};
+use super::with_context;
 
-pub(crate) struct Flow {
+pub struct Flow {
     pub(crate) state: Reg<Uint<32>>,
     pub(crate) next: usize,
     pub(crate) current: usize,
@@ -27,14 +27,14 @@ fn state_value(value: usize) -> Value<Uint<32>> {
     <Uint<32> as Arith>::from_u128(value as u128)
 }
 
-pub(crate) fn unit_value() -> super::ExprHandle {
+pub fn unit_value() -> super::ExprHandle {
     with_context(|cx| {
         let unit = cx.unit();
         cx.push_expr(unit)
     })
 }
 
-fn with_flow<R>(f: impl for<'dsn> FnOnce(&mut Flow) -> R) -> R {
+fn with_flow<R>(f: impl FnOnce(&mut Flow) -> R) -> R {
     with_context(|cx| {
         f(cx.async_flow
             .as_mut()
@@ -42,7 +42,7 @@ fn with_flow<R>(f: impl for<'dsn> FnOnce(&mut Flow) -> R) -> R {
     })
 }
 
-fn transition(flow: &mut Flow) -> Reg<Uint<32>> {
+const fn transition(flow: &mut Flow) -> Reg<Uint<32>> {
     let next = flow.next;
     flow.current = next;
     flow.next += 1;
@@ -52,7 +52,7 @@ fn transition(flow: &mut Flow) -> Reg<Uint<32>> {
 fn poll_segment<F: Future + ?Sized>(future: Pin<&mut F>) -> Poll<F::Output> {
     let mut task = TaskContext::from_waker(Waker::noop());
     let poll = future.poll(&mut task);
-    if let Poll::Pending = poll {
+    if matches!(poll, Poll::Pending) {
         let (suppress, mut state, next) = with_flow(|flow| {
             let suppress = flow.suppress;
             flow.suppress = false;
@@ -101,6 +101,8 @@ fn close_state(state: Reg<Uint<32>>, index: usize) {
 fn drive<F: Future + ?Sized>(future: &mut Pin<Box<F>>, mut finish: impl FnMut(F::Output)) {
     loop {
         let current = with_flow(|flow| flow.current);
+        // Passing `Context::begin_body` directly fails to infer here.
+        #[allow(clippy::redundant_closure_for_method_calls)]
         with_context(|cx| cx.begin_body());
         let mut suspended = true;
         match poll_segment(future.as_mut()) {
@@ -126,7 +128,7 @@ fn finish_state(value: usize) {
     state.write(state_value(value));
 }
 
-pub(crate) fn define_async_method<'a, In, Out, F>(f: F) -> (Action<In, ()>, Action<(), Out>)
+pub fn define_async_method<'a, In, Out, F>(f: F) -> (Action<In, ()>, Action<(), Out>)
 where
     In: Shape,
     Out: Shape,
@@ -147,35 +149,33 @@ where
     let mut state = state;
     let mut body = Some(f);
 
-    let req =
-        Action::when(BitCmp::eq(state.read(), state_value(0))).define_as(|args_in| match args {
-            Some(reg) => {
-                let mut reg = reg;
-                reg.write(In::pack_values(args_in));
-                state.write(state_value(1));
-                with_flow(|flow| flow.current = 1);
-            }
-            None => {
-                let f = body.take().expect("async method body was already consumed");
-                let mut future = Box::pin(f(In::make_values(Value::from_handle(unit_value()))));
-                match poll_segment(future.as_mut()) {
-                    Poll::Pending => {}
-                    Poll::Ready(value) => {
-                        if let Some(reg) = result {
-                            let mut reg = reg;
-                            reg.write(Out::pack_values(value));
-                        }
-                        let done = with_flow(|flow| {
-                            let done = flow.next;
-                            flow.next += 1;
-                            done
-                        });
-                        finish_state(done);
+    let req = Action::when(BitCmp::eq(state.read(), state_value(0))).define_as(|args_in| {
+        if let Some(reg) = args {
+            let mut reg = reg;
+            reg.write(In::pack_values(args_in));
+            state.write(state_value(1));
+            with_flow(|flow| flow.current = 1);
+        } else {
+            let f = body.take().expect("async method body was already consumed");
+            let mut future = Box::pin(f(In::make_values(Value::from_handle(unit_value()))));
+            match poll_segment(future.as_mut()) {
+                Poll::Pending => {}
+                Poll::Ready(value) => {
+                    if let Some(reg) = result {
+                        let mut reg = reg;
+                        reg.write(Out::pack_values(value));
                     }
+                    let done = with_flow(|flow| {
+                        let done = flow.next;
+                        flow.next += 1;
+                        done
+                    });
+                    finish_state(done);
                 }
-                slot = Some(future);
             }
-        });
+            slot = Some(future);
+        }
+    });
 
     let mut future = match slot.take() {
         Some(future) => future,
@@ -212,7 +212,7 @@ where
     (req, out)
 }
 
-pub(crate) fn define_async_rule<'a, F, R>(f: F)
+pub fn define_async_rule<'a, F, R>(f: F)
 where
     F: AsyncFnOnce() -> R + 'a,
     R: IntoValues,
@@ -222,7 +222,6 @@ where
 
     let mut slot: Option<Pin<Box<dyn Future<Output = R> + 'a>>> = None;
 
-    let mut state = state;
     super::define_rule(Some(BitCmp::eq(state.read(), state_value(0))), || {
         let mut future = Box::pin(f());
         match poll_segment(future.as_mut()) {
@@ -252,7 +251,7 @@ where
     with_context(|cx| cx.async_flow = None);
 }
 
-pub(crate) fn lower_async_if<'a, R: IntoValues>(
+pub fn lower_async_if<'a, R: IntoValues>(
     cond: Value<bool>,
     then: Pin<Box<dyn Future<Output = R> + 'a>>,
     else_: Pin<Box<dyn Future<Output = R> + 'a>>,
@@ -293,8 +292,8 @@ pub(crate) fn lower_async_if<'a, R: IntoValues>(
         });
     });
 
-    drive_chain(then, then_start, merge, &result);
-    drive_chain(else_, else_start, merge, &result);
+    drive_chain(then, then_start, merge, result);
+    drive_chain(else_, else_start, merge, result);
 
     with_flow(|flow| {
         flow.current = merge;
@@ -307,11 +306,13 @@ fn drive_chain<'a, R: IntoValues>(
     mut future: Pin<Box<dyn Future<Output = R> + 'a>>,
     start: usize,
     merge: usize,
-    result: &Option<super::RegisterHandle>,
+    result: Option<super::RegisterHandle>,
 ) {
     let state = with_flow(|flow| flow.state);
     let mut current = start;
     loop {
+        // Passing `Context::begin_body` directly fails to infer here.
+        #[allow(clippy::redundant_closure_for_method_calls)]
         with_context(|cx| cx.begin_body());
         let ready = match poll_segment(future.as_mut()) {
             Poll::Pending => None,
@@ -319,7 +320,7 @@ fn drive_chain<'a, R: IntoValues>(
         };
         if let Some(value) = ready {
             if let Some(handle) = result {
-                super::write_register(*handle, R::Out::pack_values(value.into_values()));
+                super::write_register(handle, R::Out::pack_values(value.into_values()));
             }
             let mut state = state;
             state.write(state_value(merge));

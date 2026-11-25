@@ -41,7 +41,7 @@ impl Drop for BodyScope {
     }
 }
 
-pub(crate) fn run_ready<F: Future>(future: F) -> F::Output {
+pub fn run_ready<F: Future>(future: F) -> F::Output {
     let mut future = pin!(future);
     let mut task = TaskContext::from_waker(Waker::noop());
     match future.as_mut().poll(&mut task) {
@@ -52,7 +52,7 @@ pub(crate) fn run_ready<F: Future>(future: F) -> F::Output {
     }
 }
 
-pub(crate) fn define_action<In: Shape, Out: Shape>(
+pub fn define_action<In: Shape, Out: Shape>(
     guard: Option<Value<bool>>,
     f: impl FnOnce(In::Values) -> Out::Values,
 ) -> ActionHandle {
@@ -114,7 +114,7 @@ pub(crate) fn define_action<In: Shape, Out: Shape>(
     handle
 }
 
-pub(crate) fn define_rule(guard: Option<Value<bool>>, f: impl FnOnce()) {
+pub fn define_rule(guard: Option<Value<bool>>, f: impl FnOnce()) {
     with_context(|cx| {
         assert!(
             cx.frames.is_empty(),
@@ -132,7 +132,7 @@ pub(crate) fn define_rule(guard: Option<Value<bool>>, f: impl FnOnce()) {
     scope.active = false;
 }
 
-pub(crate) fn call_action<In: Shape, Out: Shape>(
+pub fn call_action<In: Shape, Out: Shape>(
     handle: ActionHandle,
     args: In::Values,
 ) -> Out::Values {
@@ -188,7 +188,7 @@ pub(crate) fn call_action<In: Shape, Out: Shape>(
     Out::make_values(Value::from_handle(result))
 }
 
-pub(crate) fn pack_input<In: Shape>(args: &[super::ExprHandle]) -> super::ExprHandle {
+pub fn pack_input<In: Shape>(args: &[super::ExprHandle]) -> super::ExprHandle {
     with_context(|cx| {
         let ty = cx.ty::<In>();
         let exprs: Vec<_> = args.iter().map(|handle| cx.expr(*handle)).collect();
@@ -225,7 +225,7 @@ fn split_input<'dsn>(
     }
 }
 
-pub(crate) fn capture_branch<R: IntoValues>(f: impl FnOnce() -> R) -> BranchHandle {
+pub fn capture_branch<R: IntoValues>(f: impl FnOnce() -> R) -> BranchHandle {
     let mut scope = BodyScope::begin();
     let result = R::Out::pack_values(f().into_values()).handle();
     let handle = with_context(|cx| {
@@ -248,7 +248,7 @@ pub(crate) fn capture_branch<R: IntoValues>(f: impl FnOnce() -> R) -> BranchHand
 }
 
 #[must_use]
-pub(crate) fn finish_if<T: Shape>(
+pub fn finish_if<T: Shape>(
     cases: Vec<(BranchHandle, BranchHandle)>,
     fallback: Option<BranchHandle>,
 ) -> Value<T> {

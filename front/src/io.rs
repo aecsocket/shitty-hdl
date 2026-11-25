@@ -13,12 +13,14 @@ pub struct Output {
 }
 
 impl Output {
+    #[must_use]
     pub fn new(clock: Clock, name: &str, active_low: bool) -> Self {
         let (value, writer) = elab::io::output(clock, name, active_low);
         Self { value, writer }
     }
 
-    pub fn read(self) -> Value<bool> {
+    #[must_use]
+    pub const fn read(self) -> Value<bool> {
         Value::from_handle(self.value)
     }
 
@@ -74,6 +76,7 @@ impl<Rhs: IntoValue<Out = bool>> BitOr<Rhs> for Output {
     }
 }
 
+#[must_use]
 pub fn input(clock: Clock, name: &str, active_low: bool) -> Value<bool> {
     Value::from_handle(elab::io::input(clock, name, active_low))
 }

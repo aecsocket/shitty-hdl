@@ -5,28 +5,28 @@ use shitty_hdl::prelude::*;
 
 #[derive(Debug, Clone, Shape)]
 struct Composite {
-    lo: U<32>,
-    hi: U<32>,
+    lo: Uint<32>,
+    hi: Uint<32>,
 }
 
 #[module]
 pub fn my_counter(
     mut clk: Clock,
     start: In<bool>,
-    mut count_times_3: Out<U<19>>,
+    mut count_times_3: Out<Uint<19>>,
     mut done: Out<bool>,
     mut busy: Out<bool>,
     mut composite: Out<Composite>,
 ) {
     let mut started = Signal::<bool>::new(false);
-    let mut count = Signal::<U<17>>::new(u!(0));
-    let mut count_times_2 = Signal::<U<18>>::without_init();
+    let mut count = Signal::<Uint<17>>::new(u!(0));
+    let mut count_times_2 = Signal::<Uint<18>>::without_init();
 
     clk.on(|| done <<= false);
     clk.on(|| busy <<= false);
 
     comb(|| {
-        composite.lo <<= u!(123);
+        composite.lo <<= u!((1 << 32) - 1);
         composite.hi <<= u!(0x456);
     });
 

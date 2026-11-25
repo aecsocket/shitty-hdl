@@ -10,23 +10,27 @@ use shitty_hdl::{
 
 // These helpers are type-checked, not executed: the HDL's elaboration and
 // expression constructors still contain placeholders.
-fn signal_and_value(condition: Signal<bool>, value: Signal<U<17>>) -> Expr<U<17>> {
+fn signal_and_value(condition: Signal<bool>, value: Signal<Uint<17>>) -> Expr<Uint<17>> {
     if_(condition, || value).else_(|| u!(0))
 }
 
-fn value_and_signal(condition: Signal<bool>, value: Signal<U<17>>) -> Expr<U<17>> {
+fn value_and_signal(condition: Signal<bool>, value: Signal<Uint<17>>) -> Expr<Uint<17>> {
     if_(condition, || u!(0)).else_(|| value)
 }
 
 fn expression_and_view(
     condition: Signal<bool>,
-    value: Expr<U<17>>,
-    view: SignalView<U<17>>,
-) -> Expr<U<17>> {
+    value: Expr<Uint<17>>,
+    view: SignalView<Uint<17>>,
+) -> Expr<Uint<17>> {
     if_(condition, || value).else_(|| view)
 }
 
-fn chain(condition: Signal<bool>, value: Signal<U<17>>, expression: Expr<U<17>>) -> Expr<U<17>> {
+fn chain(
+    condition: Signal<bool>,
+    value: Signal<Uint<17>>,
+    expression: Expr<Uint<17>>,
+) -> Expr<Uint<17>> {
     if_(condition, || value)
         .else_if(condition, || u!(1))
         .else_if(condition, || expression)
@@ -45,13 +49,13 @@ fn unfinished_unit(condition: Signal<bool>) -> If<()> {
 fn expression_module(
     mut clk: Clock,
     condition: In<bool>,
-    value: In<U<17>>,
-    mut output: Out<U<17>>,
+    value: In<Uint<17>>,
+    mut output: Out<Uint<17>>,
 ) {
     let condition = *condition;
     let value = *value;
     let x = if condition { value } else { u!(0) };
-    let _: Expr<U<17>> = x;
+    let _: Expr<Uint<17>> = x;
     output <<= x;
 
     let nested = if condition {
@@ -59,7 +63,7 @@ fn expression_module(
     } else {
         u!(0)
     };
-    let _: Expr<U<17>> = nested;
+    let _: Expr<Uint<17>> = nested;
 
     comb(|| {
         if condition {

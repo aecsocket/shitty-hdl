@@ -4,78 +4,44 @@ use crate::{
     expr::{Expr, IntoExpr},
     module::{In, Out},
     signal::Signal,
-    value::{I, ShapeSize, U, cap_of},
+    value::{Shape, ShapeSize, Sint, Uint, cap_of},
 };
+
+pub trait LowerAdd {}
+impl<const N: ShapeSize> LowerAdd for Uint<N> where [(); cap_of::<N>()]: {}
+impl<const N: ShapeSize> LowerAdd for Sint<N> where [(); cap_of::<N>()]: {}
+
+pub trait LowerSub {}
+impl<const N: ShapeSize> LowerSub for Uint<N> where [(); cap_of::<N>()]: {}
+impl<const N: ShapeSize> LowerSub for Sint<N> where [(); cap_of::<N>()]: {}
+
+pub trait LowerMul {}
+impl<const N: ShapeSize> LowerMul for Uint<N> where [(); cap_of::<N>()]: {}
+impl<const N: ShapeSize> LowerMul for Sint<N> where [(); cap_of::<N>()]: {}
 
 macro_rules! impl_for {
     ($($ty:ident)*) => {
         $(
-        // add
-
-        impl<const N: ShapeSize, Rhs: IntoExpr<Out = U<N>>> Add<Rhs> for $ty<U<N>>
-        where
-            [(); cap_of::<N>()]:,
-        {
-            type Output = Expr<U<N>>;
+        impl<T: Shape + LowerAdd, Rhs: IntoExpr<Out = T>> Add<Rhs> for $ty<T> {
+            type Output = Expr<T>;
 
             fn add(self, rhs: Rhs) -> Self::Output {
                 todo!();
             }
         }
 
-        impl<const N: ShapeSize, Rhs: IntoExpr<Out = I<N>>> Add<Rhs> for $ty<I<N>>
-        where
-            [(); cap_of::<N>()]:,
+        impl<T: Shape + LowerSub, Rhs: IntoExpr<Out = T>> Sub<Rhs> for $ty<T>
         {
-            type Output = Expr<I<N>>;
-
-            fn add(self, rhs: Rhs) -> Self::Output {
-                todo!();
-            }
-        }
-
-        // sub
-
-        impl<const N: ShapeSize, Rhs: IntoExpr<Out = U<N>>> Sub<Rhs> for $ty<U<N>>
-        where
-            [(); cap_of::<N>()]:,
-        {
-            type Output = Expr<U<N>>;
+            type Output = Expr<T>;
 
             fn sub(self, rhs: Rhs) -> Self::Output {
                 todo!();
             }
         }
 
-        impl<const N: ShapeSize, Rhs: IntoExpr<Out = I<N>>> Sub<Rhs> for $ty<I<N>>
-        where
-            [(); cap_of::<N>()]:,
+        impl<T: Shape + LowerMul, Rhs: IntoExpr<Out = T>> Mul<Rhs> for $ty<T>
         {
-            type Output = Expr<I<N>>;
-
-            fn sub(self, rhs: Rhs) -> Self::Output {
-                todo!();
-            }
-        }
-
-        // mul
-
-        impl<const N: ShapeSize, Rhs: IntoExpr<Out = U<N>>> Mul<Rhs> for $ty<U<N>>
-        where
-            [(); cap_of::<N>()]:,
-        {
-            type Output = Expr<U<N>>;
-
-            fn mul(self, rhs: Rhs) -> Self::Output {
-                todo!();
-            }
-        }
-
-        impl<const N: ShapeSize, Rhs: IntoExpr<Out = I<N>>> Mul<Rhs> for $ty<I<N>>
-        where
-            [(); cap_of::<N>()]:,
-        {
-            type Output = Expr<I<N>>;
+            type Output = Expr<T>;
 
             fn mul(self, rhs: Rhs) -> Self::Output {
                 todo!();
@@ -97,7 +63,7 @@ pub trait CmpExt: IntoExpr {
     fn le(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool>;
 }
 
-impl<const N: ShapeSize> CmpExt for U<N>
+impl<const N: ShapeSize> CmpExt for Uint<N>
 where
     [(); cap_of::<N>()]:,
 {
@@ -118,7 +84,7 @@ where
     }
 }
 
-impl<const N: ShapeSize> CmpExt for I<N>
+impl<const N: ShapeSize> CmpExt for Sint<N>
 where
     [(); cap_of::<N>()]:,
 {

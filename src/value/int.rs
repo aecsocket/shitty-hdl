@@ -12,18 +12,18 @@ pub const fn cap_of<const N: ShapeSize>() -> usize {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct U<const N: ShapeSize>([u64; cap_of::<N>()])
+pub struct Uint<const N: ShapeSize>([u64; cap_of::<N>()])
 where
     [(); cap_of::<N>()]:;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct I<const N: ShapeSize>([u64; cap_of::<N>()])
+pub struct Sint<const N: ShapeSize>([u64; cap_of::<N>()])
 where
     [(); cap_of::<N>()]:;
 
 // shape impls
 
-impl<const N: ShapeSize> Shape for U<N>
+impl<const N: ShapeSize> Shape for Uint<N>
 where
     [(); cap_of::<N>()]:,
 {
@@ -31,7 +31,7 @@ where
     type View = SignalView<Self>;
 }
 
-impl<const N: ShapeSize> Shape for I<N>
+impl<const N: ShapeSize> Shape for Sint<N>
 where
     [(); cap_of::<N>()]:,
 {
@@ -42,14 +42,14 @@ where
 // trait impls
 
 pub trait Unsigned: Shape {}
-impl<const N: ShapeSize> Unsigned for U<N> where [(); cap_of::<N>()]: {}
+impl<const N: ShapeSize> Unsigned for Uint<N> where [(); cap_of::<N>()]: {}
 
 pub trait Signed: Shape {}
-impl<const N: ShapeSize> Signed for I<N> where [(); cap_of::<N>()]: {}
+impl<const N: ShapeSize> Signed for Sint<N> where [(); cap_of::<N>()]: {}
 
 // ctors
 
-impl<const N: ShapeSize> U<N>
+impl<const N: ShapeSize> Uint<N>
 where
     [(); cap_of::<N>()]:,
 {
@@ -65,14 +65,15 @@ where
 
 #[macro_export]
 macro_rules! u {
-    ($value:expr $(,)?) => {
-        $crate::value::U::constant::<{ $value }>()
-    };
+    ($value:expr $(,)?) => {{
+        const VALUE: u64 = $value;
+        $crate::value::Uint::constant::<VALUE>()
+    }};
 }
 
 // from primitives
 
-impl<const N: ShapeSize> U<N>
+impl<const N: ShapeSize> Uint<N>
 where
     [(); cap_of::<N>()]:,
 {
@@ -82,7 +83,7 @@ where
     }
 }
 
-impl<const N: ShapeSize> I<N>
+impl<const N: ShapeSize> Sint<N>
 where
     [(); cap_of::<N>()]:,
 {
@@ -115,11 +116,11 @@ macro_rules! from_prim {
     };
 }
 
-from_prim!(impl<N> From< u8> for U where N <= 8  |x| x);
-from_prim!(impl<N> From<u16> for U where N <= 16 |x| x);
-from_prim!(impl<N> From<u32> for U where N <= 32 |x| x);
-from_prim!(impl<N> From<u64> for U where N <= 64 |x| x);
-from_prim!(impl<N> From< i8> for I where N <= 8  |x| x.cast_unsigned());
-from_prim!(impl<N> From<i16> for I where N <= 16 |x| x.cast_unsigned());
-from_prim!(impl<N> From<i32> for I where N <= 32 |x| x.cast_unsigned());
-from_prim!(impl<N> From<i64> for I where N <= 64 |x| x.cast_unsigned());
+from_prim!(impl<N> From< u8> for Uint where N <= 8  |x| x);
+from_prim!(impl<N> From<u16> for Uint where N <= 16 |x| x);
+from_prim!(impl<N> From<u32> for Uint where N <= 32 |x| x);
+from_prim!(impl<N> From<u64> for Uint where N <= 64 |x| x);
+from_prim!(impl<N> From< i8> for Sint where N <= 8  |x| x.cast_unsigned());
+from_prim!(impl<N> From<i16> for Sint where N <= 16 |x| x.cast_unsigned());
+from_prim!(impl<N> From<i32> for Sint where N <= 32 |x| x.cast_unsigned());
+from_prim!(impl<N> From<i64> for Sint where N <= 64 |x| x.cast_unsigned());

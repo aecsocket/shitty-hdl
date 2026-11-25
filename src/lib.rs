@@ -14,7 +14,7 @@ pub mod prelude {
     pub use crate::module::{Clock, Domain, DomainExt, In, Out, comb, if_};
     pub use crate::signal::Signal;
     pub use crate::u;
-    pub use crate::value::{Bits, I, Shape, U};
+    pub use crate::value::{Bits, Shape, Sint, Uint};
     pub use shitty_hdl_derive::{Shape, module};
 }
 

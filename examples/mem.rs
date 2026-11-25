@@ -1,12 +1,15 @@
+#![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
+
 use shitty_hdl::prelude::*;
 
 #[derive(Clone, Shape)]
-#[shape(add, sub, mul, div)]
+// #[shape(add, sub, mul, div)]
 pub struct Word(pub Bits<64>);
 
 #[derive(Clone, Shape)]
-#[shape(add, sub)]
-pub struct Addr(pub Bits<45>);
+// #[shape(add, sub)]
+pub struct Addr(pub Uint<45>);
 
 #[derive(Clone, Copy, Shape)]
 pub enum Tag {

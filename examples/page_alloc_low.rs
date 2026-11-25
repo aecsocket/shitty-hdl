@@ -45,7 +45,7 @@ pub struct PageAlloc<D: Domain> {
 }
 
 #[module]
-pub fn page_alloc(clk: Clock<Sync>, mut heap: Heap) -> PageAlloc<Sync> {
+pub fn page_alloc(clk: Clock<Sync>, heap: Heap) -> PageAlloc<Sync> {
     #[derive(Debug, Shape)]
     enum State {
         Idle,
@@ -152,7 +152,7 @@ fn top(platform: Platform) {
     let mut led = platform.led.take(0).output(clk);
 
     let heap = bram::<Sync, Addr, Word>().clk(clk).depth(32 * 1024).call();
-    let mut pages = page_alloc(clk, heap);
+    let pages = page_alloc(clk, heap);
     let mut state = Reg::new(clk, State::Idle);
     let mut page1 = Reg::uninit(clk);
     let mut page2 = Reg::uninit(clk);

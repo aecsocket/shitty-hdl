@@ -151,12 +151,6 @@ impl<'dsn> Context<'dsn> {
         self.arena.alloc_str(value)
     }
 
-    pub(crate) fn domain<D: 'static>(&mut self, name: &str) -> &'dsn air::Domain<'dsn> {
-        let domain = self.intern_domain(TypeId::of::<D>(), name).1;
-        self.ensure_clock(domain);
-        domain
-    }
-
     pub(crate) fn intern_domain(
         &mut self,
         identity: TypeId,
@@ -195,10 +189,6 @@ impl<'dsn> Context<'dsn> {
             "module interface is already defined; elaborate one root module at a time"
         );
         self.interface = Some(self.alloc(interface));
-    }
-
-    pub(crate) fn add_schedule_constraint(&mut self, constraint: air::ScheduleConstraint<'dsn>) {
-        self.scheduling.push(constraint);
     }
 
     pub(crate) fn check_design(&self, design_id: DesignId) {

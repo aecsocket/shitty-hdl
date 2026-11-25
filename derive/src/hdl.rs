@@ -8,7 +8,7 @@ use syn::{
     parse::Parser,
     parse_quote,
     punctuated::Punctuated,
-    token::{Colon, Else},
+    token::{Async, Colon, Else, Move},
     visit_mut,
     visit_mut::VisitMut,
 };
@@ -81,7 +81,12 @@ impl Rewriter<'_> {
     fn prepend_cx(&self, arg: &mut Expr) {
         if let Expr::Closure(closure) = arg {
             let crate_ = self.crate_;
-            closure.asyncness = Some(Default::default());
+            closure.asyncness = Some(Async::default());
+            // Capture hardware by value: registers, outputs, and views are
+            // `Copy` handles, so each async closure owns its own copy and
+            // writes through it to the same register - two branches may
+            // then write the same register without aliasing `&mut`.
+            closure.capture = Some(Move::default());
             let cx: syn::Type = parse_quote! { #crate_::module::AsyncCx };
             closure.inputs.insert(
                 0,
@@ -133,7 +138,7 @@ impl Rewriter<'_> {
                 Expr::If(else_if) if !has_let(&else_if.cond) => {
                     let mut else_if = else_if;
                     let nested = self.async_if(&mut else_if);
-                    parse_quote! { async || #nested }
+                    parse_quote! { async move || #nested }
                 }
                 mut branch => {
                     BranchControlFlow {
@@ -141,10 +146,10 @@ impl Rewriter<'_> {
                     }
                     .visit_expr_mut(&mut branch);
                     self.visit_expr_mut(&mut branch);
-                    parse_quote! { async || #branch }
+                    parse_quote! { async move || #branch }
                 }
             },
-            None => parse_quote! { async || {} },
+            None => parse_quote! { async move || {} },
         };
         let cond = &if_.cond;
         let then = &if_.then_branch;
@@ -153,7 +158,7 @@ impl Rewriter<'_> {
             #(#attrs)* {
                 __rule_cx.if_(
                     #crate_::value::IntoValue::into_value(#cond),
-                    async || #then,
+                    async move || #then,
                 )
                 .else_(#else_)
                 .await
@@ -267,18 +272,6 @@ impl VisitMut for Rewriter<'_> {
             BinOp::Ge(_) => parse_quote! { #crate_::ops::BitCmpExt::ge },
             BinOp::Lt(_) => parse_quote! { #crate_::ops::BitCmpExt::lt },
             BinOp::Le(_) => parse_quote! { #crate_::ops::BitCmpExt::le },
-            // Register writes go through by-value `write` methods, so
-            // async branch closures capture registers by copy instead of
-            // `&mut` (two branches may write the same register).
-            BinOp::ShlAssign(_) => {
-                let attrs = &binary.attrs;
-                let lhs = &binary.left;
-                let rhs = &binary.right;
-                *expr = parse_quote! {
-                    #(#attrs)* #crate_::ops::WriteExt::write(#lhs, #rhs)
-                };
-                return;
-            }
             _ => return,
         };
         let attrs = &binary.attrs;

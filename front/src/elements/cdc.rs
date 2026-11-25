@@ -22,7 +22,7 @@ pub fn sync_flop<D1: Domain, D2: Domain>(
     input: Value<D1, bool>,
 ) -> Value<D2, bool> {
     let first = Reg::new(clk_d2, false);
-    let mut second = Reg::new(clk_d2, false);
+    let second = Reg::new(clk_d2, false);
 
     Rule::define_as(async |_cx| {
         elab::write_register::<D2, bool>(first.id, Value::from_handle(input.handle()));

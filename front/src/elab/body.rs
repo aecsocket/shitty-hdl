@@ -80,7 +80,7 @@ pub fn define_action<D: Domain, In: Shape, Out: Shape>(
         let input = cx.alloc(air::Expr { ty: input_ty, kind });
         cx.push_expr(input)
     });
-    let mut future = Box::pin(f(AsyncCx::new(), Value::from_handle(input)));
+    let mut future = std::pin::pin!(f(AsyncCx::new(), Value::from_handle(input)));
     let result = {
         let mut task = TaskContext::from_waker(Waker::noop());
         match future.as_mut().poll(&mut task) {

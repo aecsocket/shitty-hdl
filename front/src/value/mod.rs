@@ -77,7 +77,7 @@ impl<D: Domain, T: Shape> Value<D, T> {
     }
 
     #[must_use]
-    pub fn view(self) -> T::View<D> {
+    pub const fn view(self) -> T::View<D> {
         self.view
     }
 }

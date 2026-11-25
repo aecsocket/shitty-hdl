@@ -16,6 +16,27 @@ pub fn derive(input: TokenStream) -> TokenStream {
     derive_(input).unwrap_or_else(|error| error.to_compile_error())
 }
 
+// Only push a predicate the struct's own generics do not already
+// declare inline; duplicates trip `clippy::trait_duplication_in_bounds`.
+fn param_has_bound(generics: &syn::Generics, ty: &Type, trait_last: &str) -> bool {
+    let Type::Path(path) = ty else {
+        return false;
+    };
+    let Some(ident) = path.path.get_ident() else {
+        return false;
+    };
+    generics.params.iter().any(|param| match param {
+        syn::GenericParam::Type(param) => {
+            param.ident == *ident
+                && param.bounds.iter().any(|bound| {
+                    matches!(bound, syn::TypeParamBound::Trait(trait_bound)
+                        if trait_bound.path.segments.last().is_some_and(|segment| segment.ident == trait_last))
+                })
+        }
+        _ => false,
+    })
+}
+
 fn derive_(input: TokenStream) -> Result<TokenStream> {
     let input = syn::parse2::<DeriveInput>(input)?;
     let options = Options::from_derive_input(&input)?;
@@ -62,13 +83,17 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             else {
                 return Err(syn::Error::new_spanned(ty, "expected Action<D, In, Out>"));
             };
-            generics.make_where_clause().predicates.push(parse_quote! {
-                #domain_ty: #crate_::domain::Domain
-            });
-            for ty in [in_ty, out_ty] {
+            if !param_has_bound(&generics, domain_ty, "Domain") {
                 generics.make_where_clause().predicates.push(parse_quote! {
-                    #ty: #crate_::value::Shape
+                    #domain_ty: #crate_::domain::Domain
                 });
+            }
+            for ty in [in_ty, out_ty] {
+                if !param_has_bound(&generics, ty, "Shape") {
+                    generics.make_where_clause().predicates.push(parse_quote! {
+                        #ty: #crate_::value::Shape
+                    });
+                }
             }
             declarations.push(quote! {
                 #crate_::air::InterfaceMember::Method(cx.action_signature::<#in_ty, #out_ty>(#label))
@@ -135,22 +160,28 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
                 "expected Method<D, In, Out>",
             ));
         };
-        generics.make_where_clause().predicates.push(parse_quote! {
-            #domain_ty: #crate_::domain::Domain
-        });
-        for ty in [in_ty, out_ty] {
+        if !param_has_bound(&generics, domain_ty, "Domain") {
             generics.make_where_clause().predicates.push(parse_quote! {
-                #ty: #crate_::value::Shape
+                #domain_ty: #crate_::domain::Domain
             });
+        }
+        for ty in [in_ty, out_ty] {
+            if !param_has_bound(&generics, ty, "Shape") {
+                generics.make_where_clause().predicates.push(parse_quote! {
+                    #ty: #crate_::value::Shape
+                });
+            }
         }
         let inputs: Vec<_> = match in_ty {
             Type::Tuple(tuple) => tuple.elems.iter().collect(),
             ty => vec![ty],
         };
         for ty in &inputs {
-            generics.make_where_clause().predicates.push(parse_quote! {
-                #ty: #crate_::value::Shape
-            });
+            if !param_has_bound(&generics, ty, "Shape") {
+                generics.make_where_clause().predicates.push(parse_quote! {
+                    #ty: #crate_::value::Shape
+                });
+            }
         }
         let names: Vec<_> = (0..inputs.len())
             .map(|i| format_ident!("arg_{i}"))
@@ -212,5 +243,16 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
         impl #impl_generics #ident #ty_generics #where_clause {
             #(#methods)*
         }
+
+        // Interfaces are handle bundles; copies write to the same
+        // hardware, which lets `move` closures capture them freely.
+        #[allow(clippy::expl_impl_clone_on_copy)]
+        impl #impl_generics ::core::clone::Clone for #ident #ty_generics #where_clause {
+            fn clone(&self) -> Self {
+                *self
+            }
+        }
+
+        impl #impl_generics ::core::marker::Copy for #ident #ty_generics #where_clause {}
     })
 }

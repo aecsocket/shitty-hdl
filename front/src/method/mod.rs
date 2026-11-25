@@ -18,6 +18,14 @@ pub struct Method<D: Domain, In: Shape, Out: Shape> {
     pub out: Action<D, (), Out>,
 }
 
+impl<D: Domain, In: Shape, Out: Shape> Clone for Method<D, In, Out> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D: Domain, In: Shape, Out: Shape> Copy for Method<D, In, Out> {}
+
 impl<D: Domain, In: Shape, Out: Shape> Interface for Method<D, In, Out> {
     fn air_interface<'dsn>(cx: &mut elab::Context<'dsn>) -> &'dsn air::Interface<'dsn> {
         cx.method_interface::<D, In, Out>()
@@ -66,7 +74,7 @@ impl<D: Domain, In: Shape, Out: Shape> Method<D, In, Out> {
         let (req, out) = elab::define_async_method::<D, In, Out, _>(async move |cx, packed| {
             f(cx, packed).await.into_values()
         });
-        Method::new(req, out)
+        Self::new(req, out)
     }
 }
 

@@ -1,10 +1,8 @@
 use std::{
     future::Future,
     marker::PhantomData,
-    mem,
     pin::Pin,
     task::{Context as TaskContext, Poll},
-    thread,
 };
 
 use crate::{
@@ -74,6 +72,14 @@ pub struct Action<D: Domain, In: Shape, Out: Shape>(
     PhantomData<(D, (In, Out))>,
 );
 
+impl<D: Domain, In: Shape, Out: Shape> Clone for Action<D, In, Out> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D: Domain, In: Shape, Out: Shape> Copy for Action<D, In, Out> {}
+
 impl<D: Domain, In: Shape, Out: Shape> Action<D, In, Out> {
     #[must_use]
     pub const fn from_handle(handle: elab::ActionHandle) -> Self {
@@ -105,7 +111,7 @@ impl<D: Domain, In: Shape, Out: Shape> Action<D, In, Out> {
     }
 
     pub fn call(
-        &mut self,
+        &self,
         args: impl IntoValues<D, Out = In, Values = In::Values<D>>,
     ) -> Value<D, Out> {
         let output = elab::call_action::<D, In, Out>(self.0, args.into_values());

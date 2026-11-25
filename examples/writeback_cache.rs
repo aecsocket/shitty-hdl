@@ -64,7 +64,7 @@ pub fn writeback<D: Domain, Addr: Bits + BitEq, Data: Bits>(
 pub fn top(platform: Platform) {
     let clk = platform.clock::<Clk>();
     let bram = bram::<Clk, U<4>, U<8>>().clk(clk).depth(16).call();
-    let mut cache = writeback(clk, bram);
+    let cache = writeback(clk, bram);
 
     Rule::define_as(async || {
         displayln!("-- set_addr(0): load line --");

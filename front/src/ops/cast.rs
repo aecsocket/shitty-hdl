@@ -44,34 +44,34 @@ impl<D: Domain, P: Shape> Unpack<D> for Value<D, P> {
     }
 }
 
-pub trait Repack<D: Domain>: IntoValue<D> + Sized
+pub trait Repack<D: Domain, Out>: IntoValue<D, Out> + Sized
 where
-    Self::Out: Bits,
+    Out: Bits,
 {
-    fn repack<To: Bits<Packed = <Self::Out as Bits>::Packed>>(self) -> Value<D, To> {
-        To::unpack(<Self::Out as Bits>::pack(self.into_value()))
+    fn repack<To: Bits<Packed = <Out as Bits>::Packed>>(self) -> Value<D, To> {
+        To::unpack(<Out as Bits>::pack(self.into_value()))
     }
 
     fn repack_trunc<To: Bits>(self) -> Value<D, To>
     where
-        <Self::Out as Bits>::Packed: ResizePacked<To::Packed>,
+        <Out as Bits>::Packed: ResizePacked<To::Packed>,
     {
-        To::unpack(ResizePacked::trunc_packed(<Self::Out as Bits>::pack(
+        To::unpack(ResizePacked::trunc_packed(<Out as Bits>::pack(
             self.into_value(),
         )))
     }
 
     fn repack_zext<To: Bits>(self) -> Value<D, To>
     where
-        <Self::Out as Bits>::Packed: ResizePacked<To::Packed>,
+        <Out as Bits>::Packed: ResizePacked<To::Packed>,
     {
-        To::unpack(ResizePacked::zext_packed(<Self::Out as Bits>::pack(
+        To::unpack(ResizePacked::zext_packed(<Out as Bits>::pack(
             self.into_value(),
         )))
     }
 }
 
-impl<D: Domain, T: IntoValue<D>> Repack<D> for T where T::Out: Bits {}
+impl<D: Domain, T, Out: Bits> Repack<D, Out> for T where T: IntoValue<D, Out> {}
 
 pub trait ResizePacked<To: Shape>: Shape {
     fn trunc_packed<D: Domain>(value: Value<D, Self>) -> Value<D, To>;

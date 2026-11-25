@@ -11,6 +11,7 @@ use std::marker::PhantomData;
 
 use crate::domain::Domain;
 use crate::elab::{self, Context, ExprHandle};
+use crate::ops::Arith;
 
 /// The type of a hardware value: how it is typed, laid out, and packed.
 /// Domain-agnostic; the clock domain lives on [`Value`].
@@ -26,6 +27,32 @@ pub trait Shape: Sized + 'static {
 }
 
 pub type ShapeSize = u32;
+
+/// Packs a shape's unpacked value form into a single domain-branded value.
+#[must_use]
+pub fn pack<D: Domain, T: Shape>(values: <T as Shape>::Values<D>) -> Value<D, T> {
+    T::pack_values(values)
+}
+
+/// Unpacks a domain-branded value into a shape's value form; for tuple
+/// shapes this yields one value per port, ready to destructure.
+#[must_use]
+pub fn unpack<D: Domain, T: Shape>(value: Value<D, T>) -> <T as Shape>::Values<D> {
+    T::make_values(value)
+}
+
+/// A shape whose method-port form is a single branded value:
+/// `Values<D>` is exactly `Value<D, Self>`.
+///
+/// Generic modules bound their port shapes by this trait so closure
+/// inputs, register writes, and interface-call returns normalize to
+/// `Value<D, T>` instead of opaque projections.
+pub trait Flat<D: Domain>: Shape<Values<D> = Value<D, Self>> {}
+
+impl<D: Domain, const N: usize> Flat<D> for U<N> {}
+impl<D: Domain, const N: usize> Flat<D> for Bit<N> {}
+impl<D: Domain> Flat<D> for bool {}
+impl<D: Domain, T: Shape, const N: usize> Flat<D> for Vector<T, N> {}
 
 /// A hardware expression branded with the clock domain `D` it belongs
 /// to. Values of different domains cannot be combined; crossing domains
@@ -59,15 +86,14 @@ impl<D: Domain, T: Shape> Clone for Value<D, T> {
 
 impl<D: Domain, T: Shape> Copy for Value<D, T> {}
 
-/// Coercion into a value of domain `D`. Constants (any `Shape` value)
-/// coerce into any domain; branded values only coerce into their own.
+/// Coercion into a value of domain `D` and shape `Out`. Constants (any
+/// `Shape` value) coerce into any domain; branded values only coerce
+/// into their own; raw integers coerce against the destination shape.
 ///
 /// Sealed: downstream crates cannot implement it (the extension point is
 /// [`Shape`]), which keeps the operator impls coherent.
-pub trait IntoValue<D: Domain>: private::Sealed {
-    type Out: Shape;
-
-    fn into_value(self) -> Value<D, Self::Out>;
+pub trait IntoValue<D: Domain, Out: Shape>: private::Sealed {
+    fn into_value(self) -> Value<D, Out>;
 }
 
 mod private {
@@ -82,23 +108,61 @@ mod private {
     impl<D: Domain, T: Shape> Sealed for super::Value<D, T> {}
     impl<D: Domain> Sealed for Output<D> {}
     impl<D: Domain, T: Shape> Sealed for Reg<D, T> {}
+
+    macro_rules! impl_sealed_int {
+        ($($ty:ty),* $(,)?) => {
+            $(impl Sealed for $ty {})*
+        };
+    }
+
+    impl_sealed_int!(
+        u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize
+    );
 }
 
-impl<D: Domain, T: Shape> IntoValue<D> for T {
-    type Out = T;
-
+impl<D: Domain, T: Shape> IntoValue<D, T> for T {
     fn into_value(self) -> Value<D, T> {
         elab::literal(&self)
     }
 }
 
-impl<D: Domain, T: Shape> IntoValue<D> for Value<D, T> {
-    type Out = T;
-
+impl<D: Domain, T: Shape> IntoValue<D, T> for Value<D, T> {
     fn into_value(self) -> Self {
         self
     }
 }
+
+impl<D: Domain, T: Shape + Arith> IntoValue<D, T> for u128 {
+    fn into_value(self) -> Value<D, T> {
+        T::from_u128(self)
+    }
+}
+
+macro_rules! impl_into_value_int {
+    ($($ty:ty => $to_u128:expr),* $(,)?) => {
+        $(
+            impl<D: Domain, T: Shape + Arith> IntoValue<D, T> for $ty {
+                fn into_value(self) -> Value<D, T> {
+                    T::from_u128($to_u128(self))
+                }
+            }
+        )*
+    };
+}
+
+impl_into_value_int!(
+    u8 => u128::from,
+    u16 => u128::from,
+    u32 => u128::from,
+    u64 => u128::from,
+    usize => |value: usize| value as u128,
+    i8 => |value: i8| u128::from(value.cast_unsigned()),
+    i16 => |value: i16| u128::from(value.cast_unsigned()),
+    i32 => |value: i32| u128::from(value.cast_unsigned()),
+    i64 => |value: i64| u128::from(value.cast_unsigned()),
+    i128 => |value: i128| value.cast_unsigned(),
+    isize => |value: isize| value.cast_unsigned() as u128,
+);
 
 /// Coercion into the argument tuple of a shape, for method calls.
 pub trait IntoValues<D: Domain> {

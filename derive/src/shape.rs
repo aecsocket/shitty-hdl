@@ -77,6 +77,8 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
 
                     fn value_handles<D: #crate_::domain::Domain>(values: Self::Values<D>) -> ::std::vec::Vec<#crate_::__::ExprHandle> { ::std::vec![values.handle()] }
                 }
+
+                impl<D: #crate_::domain::Domain> #crate_::value::Flat<D> for #ident #ty_generics #where_clause {}
             });
         }
         Data::Union(_) => {
@@ -176,6 +178,8 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
 
             fn value_handles<D: #crate_::domain::Domain>(values: Self::Values<D>) -> ::std::vec::Vec<#crate_::__::ExprHandle> { ::std::vec![values.handle()] }
         }
+
+        impl<D: #crate_::domain::Domain> #crate_::value::Flat<D> for #ident #ty_generics #where_clause {}
     })
 }
 

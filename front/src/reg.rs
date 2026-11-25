@@ -4,25 +4,8 @@ use std::ops::{Deref, ShlAssign};
 use crate::{
     domain::{Clock, Domain},
     elab,
-    ops::Arith,
     value::{IntoValue, IntoValues, Shape, Value},
 };
-
-pub trait IntoRegValue<D: Domain, T: Shape> {
-    fn into_reg_value(self) -> Value<D, T>;
-}
-
-impl<D: Domain, T: Shape, Rhs: IntoValue<D, Out = T>> IntoRegValue<D, T> for Rhs {
-    fn into_reg_value(self) -> Value<D, T> {
-        self.into_value()
-    }
-}
-
-impl<D: Domain, T: Shape + Arith> IntoRegValue<D, T> for u128 {
-    fn into_reg_value(self) -> Value<D, T> {
-        T::from_u128(self)
-    }
-}
 
 #[derive(Debug)]
 pub struct Reg<D: Domain, T: Shape> {
@@ -65,8 +48,8 @@ impl<D: Domain, T: Shape> Reg<D, T> {
         self.value
     }
 
-    pub fn write(&mut self, rhs: impl IntoRegValue<D, T>) {
-        elab::write_register(self.id, rhs.into_reg_value());
+    pub fn write(&mut self, rhs: impl IntoValue<D, T>) {
+        elab::write_register(self.id, rhs.into_value());
     }
 }
 
@@ -78,10 +61,8 @@ impl<D: Domain, T: Shape> Deref for Reg<D, T> {
     }
 }
 
-impl<D: Domain, T: Shape> IntoValue<D> for Reg<D, T> {
-    type Out = T;
-
-    fn into_value(self) -> Value<D, Self::Out> {
+impl<D: Domain, T: Shape> IntoValue<D, T> for Reg<D, T> {
+    fn into_value(self) -> Value<D, T> {
         self.read()
     }
 }
@@ -95,7 +76,7 @@ impl<D: Domain, T: Shape<Values<D> = Value<D, T>>> IntoValues<D> for Reg<D, T> {
     }
 }
 
-impl<D: Domain, T: Shape, Rhs: IntoRegValue<D, T>> ShlAssign<Rhs> for Reg<D, T> {
+impl<D: Domain, T: Shape, Rhs: IntoValue<D, T>> ShlAssign<Rhs> for Reg<D, T> {
     fn shl_assign(&mut self, rhs: Rhs) {
         self.write(rhs);
     }

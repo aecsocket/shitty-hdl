@@ -31,7 +31,7 @@ impl PageAddr {
 }
 
 impl Addr {
-    pub fn from_page<D: Domain>(page: impl IntoValue<D, Out = PageAddr>) -> Value<D, Self> {
+    pub fn from_page<D: Domain>(page: impl IntoValue<D, PageAddr>) -> Value<D, Self> {
         page.repack::<U<40>>().shl_zext::<5>().repack::<Self>()
     }
 }

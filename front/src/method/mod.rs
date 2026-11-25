@@ -56,12 +56,17 @@ impl<D: Domain, In: Shape, Out: Shape> Method<D, In, Out> {
     /// Defines an async method in the given clock domain; the domain
     /// brands the method's interface, so calls and results are checked
     /// against it.
-    pub fn define_as<'a>(
+    pub fn define_as<'a, O>(
         clk: Clock<D>,
-        f: impl AsyncFnOnce(AsyncCx, In::Values<D>) -> Out::Values<D> + 'a,
-    ) -> Self {
+        f: impl AsyncFnOnce(AsyncCx, Value<D, In>) -> O + 'a,
+    ) -> Self
+    where
+        O: IntoValues<D, Values = Out::Values<D>>,
+    {
         let _ = clk;
-        let (req, out) = elab::define_async_method::<D, In, Out, _>(f);
+        let (req, out) = elab::define_async_method::<D, In, Out, _>(async move |cx, packed| {
+            f(cx, packed).await.into_values()
+        });
         Self::new(req, out)
     }
 }

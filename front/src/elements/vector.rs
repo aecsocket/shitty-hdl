@@ -6,7 +6,7 @@ use crate::{
 
 /// Two-way combinational choice between hardware values.
 pub fn mux<D: Domain, T: Shape>(
-    condition: impl IntoValue<D, Out = bool>,
+    condition: impl IntoValue<D, bool>,
     then_value: Value<D, T>,
     else_value: Value<D, T>,
 ) -> Value<D, T> {

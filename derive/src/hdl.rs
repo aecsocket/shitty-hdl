@@ -4,7 +4,7 @@ use darling::FromMeta;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
-    BinOp, Block, Expr, ExprIf, Item, ItemFn, Path, Result, Stmt, Token, parse::Parser,
+    BinOp, Block, Expr, ExprIf, Item, ItemFn, Pat, Path, Result, Stmt, Token, parse::Parser,
     parse_quote, punctuated::Punctuated, visit_mut::VisitMut,
 };
 
@@ -76,6 +76,11 @@ impl Rewriter<'_> {
     fn prepend_cx(arg: &mut Expr) {
         if let Expr::Closure(closure) = arg {
             closure.inputs.insert(0, parse_quote! { __rule_cx });
+            if let Some(pat) = closure.inputs.get_mut(1)
+                && matches!(pat, Pat::Tuple(pat) if pat.elems.is_empty())
+            {
+                *pat = parse_quote! { _ };
+            }
         }
     }
 

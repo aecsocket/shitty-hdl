@@ -38,14 +38,12 @@ impl<D: Domain> Output<D> {
         Value::from_handle(self.value)
     }
 
-    pub fn write(&mut self, value: impl IntoValue<D, Out = bool>) {
+    pub fn write(&mut self, value: impl IntoValue<D, bool>) {
         elab::call_action::<D, bool, ()>(self.writer, value.into_value());
     }
 }
 
-impl<D: Domain> IntoValue<D> for Output<D> {
-    type Out = bool;
-
+impl<D: Domain> IntoValue<D, bool> for Output<D> {
     fn into_value(self) -> Value<D, bool> {
         self.read()
     }
@@ -60,7 +58,7 @@ impl<D: Domain> IntoValues<D> for Output<D> {
     }
 }
 
-impl<D: Domain, Rhs: IntoValue<D, Out = bool>> ShlAssign<Rhs> for Output<D> {
+impl<D: Domain, Rhs: IntoValue<D, bool>> ShlAssign<Rhs> for Output<D> {
     fn shl_assign(&mut self, rhs: Rhs) {
         self.write(rhs);
     }
@@ -74,7 +72,7 @@ impl<D: Domain> Not for Output<D> {
     }
 }
 
-impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitAnd<Rhs> for Output<D> {
+impl<D: Domain, Rhs: IntoValue<D, bool>> BitAnd<Rhs> for Output<D> {
     type Output = Value<D, bool>;
 
     fn bitand(self, rhs: Rhs) -> Self::Output {
@@ -82,7 +80,7 @@ impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitAnd<Rhs> for Output<D> {
     }
 }
 
-impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitOr<Rhs> for Output<D> {
+impl<D: Domain, Rhs: IntoValue<D, bool>> BitOr<Rhs> for Output<D> {
     type Output = Value<D, bool>;
 
     fn bitor(self, rhs: Rhs) -> Self::Output {

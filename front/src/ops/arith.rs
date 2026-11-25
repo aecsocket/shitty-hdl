@@ -51,7 +51,7 @@ pub trait Arith: Bits {
     fn from_u128<D: Domain>(value: u128) -> Value<D, Self>;
 }
 
-impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Add<Rhs> for Value<D, T> {
+impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, T>> Add<Rhs> for Value<D, T> {
     type Output = Self;
 
     fn add(self, rhs: Rhs) -> Self::Output {
@@ -59,7 +59,7 @@ impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Add<Rhs> for Value
     }
 }
 
-impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Sub<Rhs> for Value<D, T> {
+impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, T>> Sub<Rhs> for Value<D, T> {
     type Output = Self;
 
     fn sub(self, rhs: Rhs) -> Self::Output {
@@ -67,7 +67,7 @@ impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Sub<Rhs> for Value
     }
 }
 
-impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Mul<Rhs> for Value<D, T> {
+impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, T>> Mul<Rhs> for Value<D, T> {
     type Output = Self;
 
     fn mul(self, rhs: Rhs) -> Self::Output {
@@ -78,30 +78,6 @@ impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Mul<Rhs> for Value
 macro_rules! impl_const_arith {
     ($($ty:ty),* $(,)?) => {
         $(
-            impl<D: Domain, T: Shape + Arith> Add<$ty> for Value<D, T> {
-                type Output = Self;
-
-                fn add(self, rhs: $ty) -> Self::Output {
-                    T::add(self, T::from_u128(rhs.const_to_u128()))
-                }
-            }
-
-            impl<D: Domain, T: Shape + Arith> Sub<$ty> for Value<D, T> {
-                type Output = Self;
-
-                fn sub(self, rhs: $ty) -> Self::Output {
-                    T::sub(self, T::from_u128(rhs.const_to_u128()))
-                }
-            }
-
-            impl<D: Domain, T: Shape + Arith> Mul<$ty> for Value<D, T> {
-                type Output = Self;
-
-                fn mul(self, rhs: $ty) -> Self::Output {
-                    T::mul(self, T::from_u128(rhs.const_to_u128()))
-                }
-            }
-
             impl<D: Domain, T: Shape + Arith> Div<$ty> for Value<D, T> {
                 type Output = Self;
 
@@ -126,30 +102,6 @@ macro_rules! impl_const_arith {
                 }
             }
 
-            impl<D: Domain, T: Shape + Arith> Add<$ty> for Reg<D, T> {
-                type Output = Value<D, T>;
-
-                fn add(self, rhs: $ty) -> Self::Output {
-                    self.read() + rhs
-                }
-            }
-
-            impl<D: Domain, T: Shape + Arith> Sub<$ty> for Reg<D, T> {
-                type Output = Value<D, T>;
-
-                fn sub(self, rhs: $ty) -> Self::Output {
-                    self.read() - rhs
-                }
-            }
-
-            impl<D: Domain, T: Shape + Arith> Mul<$ty> for Reg<D, T> {
-                type Output = Value<D, T>;
-
-                fn mul(self, rhs: $ty) -> Self::Output {
-                    self.read() * rhs
-                }
-            }
-
             impl<D: Domain, T: Shape + Arith> Div<$ty> for Reg<D, T> {
                 type Output = Value<D, T>;
 
@@ -171,7 +123,7 @@ macro_rules! impl_const_arith {
 
 impl_const_arith!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128);
 
-impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Add<Rhs> for Reg<D, T> {
+impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, T>> Add<Rhs> for Reg<D, T> {
     type Output = Value<D, T>;
 
     fn add(self, rhs: Rhs) -> Self::Output {
@@ -179,7 +131,7 @@ impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Add<Rhs> for Reg<D
     }
 }
 
-impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Sub<Rhs> for Reg<D, T> {
+impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, T>> Sub<Rhs> for Reg<D, T> {
     type Output = Value<D, T>;
 
     fn sub(self, rhs: Rhs) -> Self::Output {
@@ -187,7 +139,7 @@ impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Sub<Rhs> for Reg<D
     }
 }
 
-impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Mul<Rhs> for Reg<D, T> {
+impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, T>> Mul<Rhs> for Reg<D, T> {
     type Output = Value<D, T>;
 
     fn mul(self, rhs: Rhs) -> Self::Output {

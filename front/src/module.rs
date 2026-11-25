@@ -48,7 +48,7 @@ impl Interface for () {
 pub struct Rule(());
 
 impl Rule {
-    pub fn when<D: Domain>(cond: impl IntoValue<D, Out = bool>) -> DefineRule {
+    pub fn when<D: Domain>(cond: impl IntoValue<D, bool>) -> DefineRule {
         DefineRule {
             cond: cond.into_value().handle(),
         }
@@ -94,15 +94,15 @@ impl<D: Domain, In: Shape, Out: Shape> Action<D, In, Out> {
         Self::from_handle(elab::interface_action::<In, Out>(handle, name))
     }
 
-    pub fn when(cond: impl IntoValue<D, Out = bool>) -> DefineAction<D, In, Out> {
+    pub fn when(cond: impl IntoValue<D, bool>) -> DefineAction<D, In, Out> {
         DefineAction(Some(cond.into_value()), PhantomData)
     }
 
     pub fn define_as<O: IntoValues<D, Values = Out::Values<D>>>(
-        f: impl FnOnce(SyncCx, In::Values<D>) -> O,
+        f: impl FnOnce(SyncCx, Value<D, In>) -> O,
     ) -> Self {
-        Self::from_handle(elab::define_action::<D, In, Out>(None, |cx, inp| {
-            f(cx, inp).into_values()
+        Self::from_handle(elab::define_action::<D, In, Out>(None, |cx, packed| {
+            f(cx, packed).into_values()
         }))
     }
 
@@ -121,12 +121,15 @@ pub struct DefineAction<D: Domain, In: Shape, Out: Shape>(
 );
 
 impl<D: Domain, In: Shape, Out: Shape> DefineAction<D, In, Out> {
-    pub fn define_as(
+    pub fn define_as<O: IntoValues<D, Values = Out::Values<D>>>(
         self,
-        f: impl FnOnce(SyncCx, In::Values<D>) -> Out::Values<D>,
+        f: impl FnOnce(SyncCx, Value<D, In>) -> O,
     ) -> Action<D, In, Out> {
         let guard = self.0.map(super::value::Value::handle);
-        Action::from_handle(elab::define_action::<D, In, Out>(guard, f))
+        Action::from_handle(elab::define_action::<D, In, Out>(
+            guard,
+            move |cx, packed| f(cx, packed).into_values(),
+        ))
     }
 }
 
@@ -246,7 +249,7 @@ impl SyncCx {
     #[must_use]
     pub fn if_<D: Domain, R: IntoValues<D>>(
         self,
-        cond: impl IntoValue<D, Out = bool>,
+        cond: impl IntoValue<D, bool>,
         then: impl FnOnce() -> R,
     ) -> If<D, R> {
         let cond = elab::capture_branch(|| cond.into_value());
@@ -279,7 +282,7 @@ impl AsyncCx {
     #[must_use]
     pub fn if_<'a, D: Domain, V: IntoValues<D>>(
         self,
-        cond: impl IntoValue<D, Out = bool>,
+        cond: impl IntoValue<D, bool>,
         then: impl AsyncFnOnce() -> V + 'a,
     ) -> AsyncIf<'a, D, V> {
         AsyncIf::new(cond.into_value(), Box::pin(then()))

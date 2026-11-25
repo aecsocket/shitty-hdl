@@ -194,7 +194,7 @@ pub fn display(format: &str, arguments: &[super::ExprHandle], newline: bool) {
     });
 }
 
-pub fn assert<D: Domain>(condition: impl IntoValue<D, Out = bool>, message: &str) {
+pub fn assert<D: Domain>(condition: impl IntoValue<D, bool>, message: &str) {
     let condition = condition.into_value();
     with_context(|cx| {
         let condition = cx.typed_expr::<bool>(condition.handle());

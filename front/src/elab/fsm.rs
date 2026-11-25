@@ -172,7 +172,7 @@ pub fn define_async_method<'a, D: Domain, In, Out, F>(
 where
     In: Shape,
     Out: Shape,
-    F: AsyncFnOnce(AsyncCx, In::Values<D>) -> Out::Values<D> + 'a,
+    F: AsyncFnOnce(AsyncCx, Value<D, In>) -> Out::Values<D> + 'a,
 {
     let state = StateReg::new();
     let (in_unit, out_unit) = with_context(|cx| {
@@ -192,15 +192,12 @@ where
         Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0)).handle()),
         |_cx, args_in| {
             if let Some(id) = args {
-                super::write_register::<D, In>(id, In::pack_values(args_in));
+                super::write_register::<D, In>(id, args_in);
                 state.write(state_value(1));
                 with_flow(|flow| flow.current = 1);
             } else {
                 let f = body.take().expect("async method body was already consumed");
-                let mut future = Box::pin(f(
-                    AsyncCx::new(),
-                    In::make_values(Value::from_handle(unit_value())),
-                ));
+                let mut future = Box::pin(f(AsyncCx::new(), Value::from_handle(unit_value())));
                 match poll_segment(future.as_mut()) {
                     Poll::Pending => {}
                     Poll::Ready(value) => {
@@ -225,9 +222,7 @@ where
         None => Box::pin(
             body.take().expect("async method body was already consumed")(
                 AsyncCx::new(),
-                In::make_values(elab::read_register::<D, In>(
-                    args.expect("args register missing"),
-                )),
+                elab::read_register::<D, In>(args.expect("args register missing")),
             ),
         ),
     };
@@ -246,7 +241,7 @@ where
     let done = with_flow(|flow| flow.done.expect("async method body did not complete"));
     let out = Action::from_handle(super::define_action::<D, (), Out>(
         Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(done)).handle()),
-        |_cx, ()| {
+        |_cx, _packed| {
             state.write(state_value(0));
             match result {
                 Some(id) => Out::make_values(elab::read_register::<D, Out>(id)),

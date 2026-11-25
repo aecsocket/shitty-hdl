@@ -16,7 +16,7 @@ impl<D: Domain> Not for Value<D, bool> {
     }
 }
 
-impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitOr<Rhs> for Value<D, bool> {
+impl<D: Domain, Rhs: IntoValue<D, bool>> BitOr<Rhs> for Value<D, bool> {
     type Output = Self;
 
     fn bitor(self, rhs: Rhs) -> Self::Output {
@@ -24,7 +24,7 @@ impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitOr<Rhs> for Value<D, bool> {
     }
 }
 
-impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitAnd<Rhs> for Value<D, bool> {
+impl<D: Domain, Rhs: IntoValue<D, bool>> BitAnd<Rhs> for Value<D, bool> {
     type Output = Self;
 
     fn bitand(self, rhs: Rhs) -> Self::Output {
@@ -40,7 +40,7 @@ impl<D: Domain> Not for Reg<D, bool> {
     }
 }
 
-impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitOr<Rhs> for Reg<D, bool> {
+impl<D: Domain, Rhs: IntoValue<D, bool>> BitOr<Rhs> for Reg<D, bool> {
     type Output = Value<D, bool>;
 
     fn bitor(self, rhs: Rhs) -> Self::Output {
@@ -48,7 +48,7 @@ impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitOr<Rhs> for Reg<D, bool> {
     }
 }
 
-impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitAnd<Rhs> for Reg<D, bool> {
+impl<D: Domain, Rhs: IntoValue<D, bool>> BitAnd<Rhs> for Reg<D, bool> {
     type Output = Value<D, bool>;
 
     fn bitand(self, rhs: Rhs) -> Self::Output {

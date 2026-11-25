@@ -18,7 +18,7 @@ impl<T: Shape, const N: usize> Vector<T, N> {
     #[must_use]
     pub fn select<D: Domain, const W: usize>(
         &self,
-        index: impl IntoValue<D, Out = U<W>>,
+        index: impl IntoValue<D, U<W>>,
     ) -> Value<D, T> {
         assert!(
             N == 1 || 1_usize << W >= N,

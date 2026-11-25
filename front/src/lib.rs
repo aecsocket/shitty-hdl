@@ -25,7 +25,8 @@ pub mod prelude {
         ShrTrunc, Trunc, Unpack, Zext,
     };
     pub use crate::reg::Reg;
-    pub use crate::value::{Bit, IntoValue, IntoValues, Shape, U, Value, Vector};
+    pub use crate::value::{Bit, Flat, IntoValue, IntoValues, Shape, U, Value, Vector};
+    pub use crate::value::{pack, unpack};
     pub use crate::{bit, display, displayln, sim_assert, u};
     pub use derive::{Arith, ArithCmp, BitCmp, Bits, Domain, Interface, Shape, Shift, hdl, module};
 }
@@ -76,7 +77,7 @@ pub mod __ {
         elab_subinterface(handle, name)
     }
 
-    pub fn display_arg<D: Domain>(value: impl IntoValue<D>) -> ExprHandle {
+    pub fn display_arg<D: Domain, Out: Shape>(value: impl IntoValue<D, Out>) -> ExprHandle {
         value.into_value().handle()
     }
 
@@ -84,7 +85,7 @@ pub mod __ {
         elab_display(format, arguments, newline);
     }
 
-    pub fn assert<D: Domain>(condition: impl IntoValue<D, Out = bool>, message: &str) {
+    pub fn assert<D: Domain>(condition: impl IntoValue<D, bool>, message: &str) {
         elab::assert(condition, message);
     }
 }

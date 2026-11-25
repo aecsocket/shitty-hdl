@@ -157,20 +157,28 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             .collect();
         let output = match out_ty {
             Type::Tuple(tuple) if tuple.elems.is_empty() => quote! {},
-            ty => quote! { -> <#ty as #crate_::value::IntoValues<#domain_ty>>::Values },
+            ty => quote! { -> #crate_::value::Value<#domain_ty, #ty> },
         };
         let name = &field.ident;
         let vis = &field.vis;
+        let call = quote! {
+            #crate_::method::call_async::<#domain_ty, #in_ty, #out_ty>(
+                &method.req,
+                &method.out,
+                &[#(#crate_::value::IntoValue::into_value(#names).handle(),)*],
+            )
+            .await
+        };
+        let body = if matches!(out_ty, Type::Tuple(tuple) if tuple.elems.is_empty()) {
+            quote! { #call; }
+        } else {
+            quote! { <#out_ty as #crate_::value::Shape>::pack_values(#call) }
+        };
         methods.push(quote! {
             #[allow(clippy::future_not_send, clippy::unused_async_trait_impl)]
-            #vis async fn #name(&self, #(#names: impl #crate_::value::IntoValue<#domain_ty, Out = #inputs>),*) #output {
+            #vis async fn #name(&self, #(#names: impl #crate_::value::IntoValue<#domain_ty, #inputs>),*) #output {
                 let method = &self.#name;
-                #crate_::method::call_async::<#domain_ty, #in_ty, #out_ty>(
-                    &method.req,
-                    &method.out,
-                    &[#(#crate_::value::IntoValue::into_value(#names).handle(),)*],
-                )
-                .await
+                #body
             }
         });
     }

@@ -34,7 +34,15 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             return Ok(quote! {
                 impl #impl_generics #crate_::value::Shape for #ident #ty_generics #where_clause {
                     type View = #crate_::value::ValueView<Self>;
+                }
+
+                impl #impl_generics #crate_::value::IntoValues for #ident #ty_generics #where_clause {
+                    type Out = Self;
                     type Values = #crate_::value::Value<Self>;
+
+                    fn into_values(self) -> Self::Values {
+                        #crate_::value::IntoValue::into_value(self)
+                    }
                 }
             });
         }
@@ -93,7 +101,15 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
 
         impl #impl_generics #crate_::value::Shape for #ident #ty_generics #where_clause {
             type View = #view_ident #ty_generics;
+        }
+
+        impl #impl_generics #crate_::value::IntoValues for #ident #ty_generics #where_clause {
+            type Out = Self;
             type Values = #crate_::value::Value<Self>;
+
+            fn into_values(self) -> Self::Values {
+                #crate_::value::IntoValue::into_value(self)
+            }
         }
     })
 }

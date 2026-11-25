@@ -1,6 +1,6 @@
 use crate::{
     ops::{Arith, ArithCmp, BitCmp, Bits, Shift, Trunc, Zext},
-    value::{Bit, Shape, Value, ValueView},
+    value::{Bit, IntoValue, IntoValues, Shape, Value, ValueView},
 };
 
 #[derive(Debug, Clone)]
@@ -8,7 +8,15 @@ pub struct Uint<const N: usize>(pub Bit<N>);
 
 impl<const N: usize> Shape for Uint<N> {
     type View = ValueView<Self>;
+}
+
+impl<const N: usize> IntoValues for Uint<N> {
+    type Out = Self;
     type Values = Value<Self>;
+
+    fn into_values(self) -> Self::Values {
+        self.into_value()
+    }
 }
 
 impl<const N: usize> Bits for Uint<N> {

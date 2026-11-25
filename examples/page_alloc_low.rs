@@ -38,12 +38,14 @@ pub struct PageAlloc {
 }
 
 #[module]
-pub fn page_alloc(heap: Heap) -> PageAlloc {
+pub fn page_alloc(mut heap: Heap) -> PageAlloc {
     #[derive(Debug, Shape, BitCmp)]
     enum State {
         Idle,
         AllocWait,
+        AllocDone,
         FreeWait,
+        FreeDone,
     }
 
     let mut next_clean = Reg::<PageAddr>::new(PageAddr::zero());
@@ -53,10 +55,9 @@ pub fn page_alloc(heap: Heap) -> PageAlloc {
 
     // alloc
 
-    let mut alloc_done = Reg::<bool>::new(false);
     let mut alloc_out_r = Reg::<PageAddr>::uninit();
-    let alloc_out = Action::when(alloc_done).define_as(|()| {
-        alloc_done <<= false;
+    let alloc_out = Action::when(state == State::AllocDone).define_as(|()| {
+        state <<= State::Idle;
         alloc_out_r.read()
     });
 
@@ -65,9 +66,9 @@ pub fn page_alloc(heap: Heap) -> PageAlloc {
             // bump allocate
             sim_assert!(next_clean != PageAddr::invalid(), "OOM");
 
-            alloc_done <<= true;
             alloc_out_r <<= next_clean;
             next_clean <<= next_clean + 1;
+            state <<= State::AllocDone;
         } else {
             // reallocate from free list
             sim_assert!(free_count > 0);
@@ -78,20 +79,18 @@ pub fn page_alloc(heap: Heap) -> PageAlloc {
     });
 
     Rule::when(state == State::AllocWait).define_as(|| {
-        alloc_done <<= true;
         alloc_out_r <<= free_head.read();
+        state <<= State::AllocDone;
 
         let next_free_head = heap.read.out.call(());
         free_head <<= next_free_head.repack_trunc::<PageAddr>();
         free_count <<= free_count - 1;
-        state <<= State::Idle;
     });
 
     // free
 
-    let mut free_done = Reg::<bool>::new(false);
-    let free_out = Action::when(free_done).define_as(|()| {
-        free_done <<= false;
+    let free_out = Action::when(state == State::FreeDone).define_as(|()| {
+        state <<= State::Idle;
     });
 
     let mut free_req_captured = Reg::<PageAddr>::uninit();
@@ -107,10 +106,10 @@ pub fn page_alloc(heap: Heap) -> PageAlloc {
     });
 
     Rule::when(state == State::FreeWait).define_as(|| {
+        heap.write.out.call(());
         free_head <<= free_req_captured;
         free_count <<= free_count + 1;
-        free_done <<= true;
-        state <<= State::Idle;
+        state <<= State::FreeDone;
     });
 
     PageAlloc {

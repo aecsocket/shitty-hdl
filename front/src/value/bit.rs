@@ -2,7 +2,7 @@ use smallvec::SmallVec;
 
 use crate::{
     ops::{BitCmp, Bits, Trunc, Zext},
-    value::{Shape, Value, ValueView},
+    value::{IntoValue, IntoValues, Shape, Value, ValueView},
 };
 
 #[derive(Debug, Clone)]
@@ -15,7 +15,15 @@ pub const fn bit_cap<const N: usize>() -> usize {
 
 impl<const N: usize> Shape for Bit<N> {
     type View = ValueView<Self>;
+}
+
+impl<const N: usize> IntoValues for Bit<N> {
+    type Out = Self;
     type Values = Value<Self>;
+
+    fn into_values(self) -> Self::Values {
+        self.into_value()
+    }
 }
 
 impl<const N: usize> Bits for Bit<N> {

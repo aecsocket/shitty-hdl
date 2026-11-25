@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::value::{IntoValue, Shape, Value};
+use crate::value::{IntoValue, IntoValues, Shape};
 
 pub trait Interface {}
 
@@ -19,7 +19,7 @@ impl Rule {
 pub struct DefineRule(());
 
 impl DefineRule {
-    pub fn define_as(f: impl FnOnce()) {
+    pub fn define_as(self, f: impl FnOnce()) {
         todo!();
     }
 }
@@ -50,7 +50,10 @@ impl<In: Shape, Out: Shape> DefineAction<In, Out> {
     }
 }
 
-pub fn if_<R: IntoValue>(cond: impl IntoValue<Out = bool>, then: impl AsyncFnOnce() -> R) -> If<R> {
+pub fn if_<R: IntoValues>(
+    cond: impl IntoValue<Out = bool>,
+    then: impl AsyncFnOnce() -> R,
+) -> If<R> {
     drop((cond, then));
     todo!();
 }
@@ -59,14 +62,14 @@ pub struct If<T> {
     _phantom: PhantomData<T>,
 }
 
-impl<T: IntoValue> If<T> {
+impl<T: IntoValues> If<T> {
     #[must_use]
     pub fn else_if(self, cond: impl IntoValue<Out = bool>, then: impl AsyncFnOnce() -> T) -> Self {
         drop((cond, then));
         todo!();
     }
 
-    pub fn else_(self, then: impl AsyncFnOnce() -> T) -> <T as IntoValue>::Out {
+    pub fn else_(self, then: impl AsyncFnOnce() -> T) -> T::Values {
         drop(then);
         todo!();
     }

@@ -1,6 +1,6 @@
 use std::ops::{Deref, ShlAssign};
 
-use crate::value::{IntoValue, Shape, Value};
+use crate::value::{IntoValue, IntoValues, Shape, Value};
 
 #[derive(Debug)]
 pub struct Reg<T: Shape> {
@@ -51,6 +51,15 @@ impl<T: Shape> IntoValue for Reg<T> {
     type Out = T;
 
     fn into_value(self) -> Value<Self::Out> {
+        self.read()
+    }
+}
+
+impl<T: Shape<Values = Value<T>>> IntoValues for Reg<T> {
+    type Out = T;
+    type Values = Value<T>;
+
+    fn into_values(self) -> Self::Values {
         self.read()
     }
 }

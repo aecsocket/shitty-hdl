@@ -1,0 +1,10 @@
+[package]
+name = "shitty-hdl-irt"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lasso = { workspace = true }
+
+[lints]
+workspace = true

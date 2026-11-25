@@ -1,0 +1,4 @@
+[package]
+name = "shitty-hdl-piri"
+version.workspace = true
+edition.workspace = true

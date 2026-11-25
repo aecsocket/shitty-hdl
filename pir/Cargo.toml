@@ -1,0 +1,8 @@
+[package]
+name = "shitty-hdl-pir"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+irt = { workspace = true }
+derive_more = { workspace = true, features = ["from"] }

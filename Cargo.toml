@@ -5,7 +5,7 @@ edition.workspace = true
 
 [workspace]
 resolver = "3"
-members = [".", "board/", "cli/", "core/", "derive/", "platform/", "verilog-gen/"]
+members = [".", "board/", "cli/", "core/", "derive/", "irt/", "pir/", "piri/", "platform/", "verilog-gen/"]
 
 [workspace.package]
 version = "0.1.0"
@@ -19,6 +19,7 @@ const-default = "1.0.0"
 darling = { version = "0.24.1" }
 derive_more = { version = "2.1.1" }
 generic-array = { version = "1.4.5" }
+irt = { package = "shitty-hdl-irt", path = "irt/" }
 lasso = { version = "0.7.3" }
 proc-macro2 = { version = "1.0.107" }
 quote = { version = "1.0.47" }
@@ -32,6 +33,12 @@ syn = { version = "3.0.9" }
 tracing = { version = "0.1.44" }
 typenum = "1.20.1"
 verilog-gen = { path = "verilog-gen/" }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+absolute_paths = "warn"
 
 [dependencies]
 shitty-hdl-board = { workspace = true }

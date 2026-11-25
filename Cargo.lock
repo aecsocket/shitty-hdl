@@ -647,6 +647,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "shitty-hdl-irt"
+version = "0.1.0"
+dependencies = [
+ "lasso",
+]
+
+[[package]]
+name = "shitty-hdl-pir"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "shitty-hdl-irt",
+]
+
+[[package]]
+name = "shitty-hdl-piri"
+version = "0.1.0"
+
+[[package]]
 name = "shitty-hdl-platform"
 version = "0.1.0"
 dependencies = [

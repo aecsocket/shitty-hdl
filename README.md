@@ -1,3 +1,16 @@
+# Architecture
+
+- `board` defines constants about different physical FPGA boards, such as which pins to use for LEDs, buttons; what toolchains you can use to program it
+- `cli` lets you easily use the full toolchain from your own crate, by calling into the `cli`
+- `core` provides primitives such as `Signal`, `Module`, integer types, which can be elaborated into program IR (`pir`)
+- `derive` derive macro definitions for `core`
+- `examples` examples on how to use this crate
+- `pir` defines the layout of program IR, elaborated from `core` primitives
+- `piri` lets you interpret and simulate `pir`, like `miri` does for rust `mir`
+- `nir` defines 
+
+# Notes
+
 general ideas:
 - very similar to amaranth in semantics, except there is no inherent `sync` clock domain; you have to pass a `clk: Clock` and `clk.on(..)`
 - lowers to verilog because everything lowers to verilog

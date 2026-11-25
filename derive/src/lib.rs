@@ -1,5 +1,6 @@
 mod arith;
 mod bits;
+mod cmp;
 mod interface;
 mod module;
 mod shape;
@@ -71,6 +72,16 @@ pub fn module(
 #[proc_macro_derive(Interface, attributes(interface))]
 pub fn interface(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     interface::derive(input.into()).into()
+}
+
+#[proc_macro_derive(BitCmp, attributes(bit_cmp))]
+pub fn bit_cmp(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    cmp::bit_cmp(input.into()).into()
+}
+
+#[proc_macro_derive(ArithCmp, attributes(arith_cmp))]
+pub fn arith_cmp(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    cmp::arith_cmp(input.into()).into()
 }
 
 #[proc_macro_derive(Arith, attributes(arith))]

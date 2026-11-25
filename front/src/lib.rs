@@ -10,12 +10,13 @@ pub mod value;
 pub mod prelude {
     pub use crate::module::{Interface, Method};
     pub use crate::ops::{
-        Arith, Bits, Pack, Repack, Shift, ShlZext, ShrTrunc, Trunc, Unpack, Zext,
+        Arith, ArithCmp, ArithCmpExt, BitCmp, BitCmpExt, Bits, Pack, Repack, Shift, ShlZext,
+        ShrTrunc, Trunc, Unpack, Zext,
     };
     pub use crate::reg::Reg;
     pub use crate::value::{Bit, IntoValue, Shape, Uint, Value};
     pub use crate::{bit, sim_assert, uint};
-    pub use derive::{Arith, Bits, Interface, Shape, Shift, module};
+    pub use derive::{Arith, ArithCmp, BitCmp, Bits, Interface, Shape, Shift, module};
 }
 
 pub use derive::*;

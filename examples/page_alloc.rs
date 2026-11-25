@@ -10,7 +10,7 @@ pub struct Word(pub Uint<64>);
 #[derive(Debug, Clone, Shape, Bits, Arith)]
 pub struct Addr(pub Uint<45>);
 
-#[derive(Debug, Clone, Shape, Bits, Arith)]
+#[derive(Debug, Clone, Shape, Bits, Arith, BitCmp, ArithCmp)]
 pub struct PageAddr(pub Uint<40>);
 
 impl PageAddr {

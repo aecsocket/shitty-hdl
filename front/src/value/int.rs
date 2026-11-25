@@ -1,5 +1,5 @@
 use crate::{
-    ops::{Arith, Bits, Shift, Trunc, Zext},
+    ops::{Arith, ArithCmp, BitCmp, Bits, Shift, Trunc, Zext},
     value::{Bit, Shape, Value, ValueView},
 };
 
@@ -20,6 +20,38 @@ impl<const N: usize> Bits for Uint<N> {
     }
 
     fn unpack(bits: Value<Self::Packed>) -> Value<Self> {
+        todo!();
+    }
+}
+
+impl<const N: usize> BitCmp for Uint<N> {
+    fn eq(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
+        <Bit<N> as BitCmp>::eq(Self::pack(lhs), Self::pack(rhs))
+    }
+
+    fn ne(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
+        <Bit<N> as BitCmp>::ne(Self::pack(lhs), Self::pack(rhs))
+    }
+}
+
+impl<const N: usize> ArithCmp for Uint<N> {
+    fn gt(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
+        let _ = (lhs, rhs);
+        todo!();
+    }
+
+    fn ge(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
+        let _ = (lhs, rhs);
+        todo!();
+    }
+
+    fn lt(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
+        let _ = (lhs, rhs);
+        todo!();
+    }
+
+    fn le(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
+        let _ = (lhs, rhs);
         todo!();
     }
 }

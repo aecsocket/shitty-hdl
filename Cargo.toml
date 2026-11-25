@@ -8,6 +8,9 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+typenum = "1.20.1"
+generic-array = { version = "1.4.5", features = ["const-default"] }
+const-default = "1.0.0"
 lasso = { version = "0.7.3" }
 syn = { version = "3.0.9" }
 quote = { version = "1.0.47" }
@@ -26,4 +29,9 @@ edition.workspace = true
 [dependencies]
 shitty-hdl-derive = { workspace = true }
 bon = { workspace = true }
-smallvec = { workspace = true }
+typenum = { workspace = true }
+generic-array = { workspace = true }
+const-default = { workspace = true }
+
+[dev-dependencies]
+static_assertions = "1.1.0"

@@ -4,20 +4,20 @@ use crate::{
     expr::{Expr, IntoExpr},
     module::{In, Out},
     signal::Signal,
-    value::{Shape, ShapeSize, Sint, Uint, cap_of},
+    value::{Shape, Sint, Uint, Width},
 };
 
 pub trait LowerAdd {}
-impl<const N: ShapeSize> LowerAdd for Uint<N> where [(); cap_of::<N>()]: {}
-impl<const N: ShapeSize> LowerAdd for Sint<N> where [(); cap_of::<N>()]: {}
+impl<N: Width> LowerAdd for Uint<N> {}
+impl<N: Width> LowerAdd for Sint<N> {}
 
 pub trait LowerSub {}
-impl<const N: ShapeSize> LowerSub for Uint<N> where [(); cap_of::<N>()]: {}
-impl<const N: ShapeSize> LowerSub for Sint<N> where [(); cap_of::<N>()]: {}
+impl<N: Width> LowerSub for Uint<N> {}
+impl<N: Width> LowerSub for Sint<N> {}
 
 pub trait LowerMul {}
-impl<const N: ShapeSize> LowerMul for Uint<N> where [(); cap_of::<N>()]: {}
-impl<const N: ShapeSize> LowerMul for Sint<N> where [(); cap_of::<N>()]: {}
+impl<N: Width> LowerMul for Uint<N> {}
+impl<N: Width> LowerMul for Sint<N> {}
 
 macro_rules! impl_for {
     ($($ty:ident)*) => {
@@ -63,10 +63,7 @@ pub trait CmpExt: IntoExpr {
     fn le(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool>;
 }
 
-impl<const N: ShapeSize> CmpExt for Uint<N>
-where
-    [(); cap_of::<N>()]:,
-{
+impl<N: Width> CmpExt for Uint<N> {
     fn gt(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool> {
         todo!();
     }
@@ -84,10 +81,7 @@ where
     }
 }
 
-impl<const N: ShapeSize> CmpExt for Sint<N>
-where
-    [(); cap_of::<N>()]:,
-{
+impl<N: Width> CmpExt for Sint<N> {
     fn gt(self, rhs: impl IntoExpr<Out = Self::Out>) -> Expr<bool> {
         todo!();
     }

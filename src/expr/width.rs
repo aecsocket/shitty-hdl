@@ -1,17 +1,15 @@
+use typenum::{B1, IsGreaterOrEqual, IsLessOrEqual};
+
 use crate::{
     expr::{Expr, IntoExpr},
-    util::ty::{Assert, True},
-    value::{Shape, ShapeSize, Signed, Sint, Uint, Unsigned, cap_of},
+    value::{Shape, Signed, Sint, Uint, Unsigned, Width},
 };
 
 // zext
 
 pub trait CanZext<To>: Unsigned {}
-impl<const FROM: ShapeSize, const TO: ShapeSize> CanZext<Uint<TO>> for Uint<FROM>
-where
-    [(); cap_of::<FROM>()]:,
-    [(); cap_of::<TO>()]:,
-    Assert<{ TO >= FROM }>: True,
+impl<From: Width, To: Width> CanZext<Uint<To>> for Uint<From> where
+    To: IsGreaterOrEqual<From, Output = B1>
 {
 }
 
@@ -22,11 +20,8 @@ pub fn zext<To: Shape>(lhs: impl IntoExpr<Out: CanZext<To>>) -> Expr<To> {
 // sext
 
 pub trait CanSext<To>: Signed {}
-impl<const FROM: ShapeSize, const TO: ShapeSize> CanSext<Sint<TO>> for Sint<FROM>
-where
-    [(); cap_of::<FROM>()]:,
-    [(); cap_of::<TO>()]:,
-    Assert<{ TO >= FROM }>: True,
+impl<From: Width, To: Width> CanSext<Sint<To>> for Sint<From> where
+    To: IsGreaterOrEqual<From, Output = B1>
 {
 }
 
@@ -40,22 +35,18 @@ pub trait CanTrunc<To>: Shape {
     type Truncated;
 }
 
-impl<const FROM: ShapeSize, const TO: ShapeSize> CanTrunc<Uint<TO>> for Uint<FROM>
+impl<From: Width, To: Width> CanTrunc<Uint<To>> for Uint<From>
 where
-    [(); cap_of::<FROM>()]:,
-    [(); cap_of::<TO>()]:,
-    Assert<{ TO <= FROM }>: True,
+    To: IsLessOrEqual<From, Output = B1>,
 {
-    type Truncated = Uint<TO>;
+    type Truncated = Uint<To>;
 }
 
-impl<const FROM: ShapeSize, const TO: ShapeSize> CanTrunc<Sint<TO>> for Sint<FROM>
+impl<From: Width, To: Width> CanTrunc<Sint<To>> for Sint<From>
 where
-    [(); cap_of::<FROM>()]:,
-    [(); cap_of::<TO>()]:,
-    Assert<{ TO <= FROM }>: True,
+    To: IsLessOrEqual<From, Output = B1>,
 {
-    type Truncated = Sint<TO>;
+    type Truncated = Sint<To>;
 }
 
 pub fn trunc<To: Shape>(lhs: impl IntoExpr<Out: CanTrunc<To>>) -> Expr<To> {

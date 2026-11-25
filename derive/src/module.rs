@@ -54,14 +54,14 @@ fn derive_(attr: TokenStream, input_: TokenStream) -> Result<TokenStream> {
         #(#errors)*
 
         #builder
-        #vis fn #ident #ty_generics (
+        #vis fn #ident #impl_generics (
             #(#call_params,)*
         ) #where_clause -> #ident #ty_generics {
             todo!();
         }
 
         const _: () = {
-            #asyncness fn elaborate #ty_generics (
+            #asyncness fn elaborate #impl_generics (
                 #(#elaborate_params,)*
             ) #where_clause {
                 #(#elaborate_stmts)*
@@ -69,7 +69,7 @@ fn derive_(attr: TokenStream, input_: TokenStream) -> Result<TokenStream> {
         };
 
         #[allow(non_camel_case_types, reason = "macro-generated")]
-        #vis struct #ident #ty_generics #where_clause {
+        #vis struct #ident #impl_generics #where_clause {
             #(#port_fields,)*
         }
 

@@ -1,15 +1,12 @@
-#![feature(generic_const_exprs)]
-#![allow(incomplete_features)]
-
-use shitty_hdl::prelude::*;
+use shitty_hdl::{data::mem::memory, prelude::*};
 
 #[derive(Clone, Shape)]
 // #[shape(add, sub, mul, div)]
-pub struct Word(pub Bits<64>);
+pub struct Word(pub Bits<U64>);
 
 #[derive(Clone, Shape)]
 // #[shape(add, sub)]
-pub struct Addr(pub Uint<45>);
+pub struct Addr(pub Uint<U45>);
 
 #[derive(Clone, Copy, Shape)]
 pub enum Tag {
@@ -22,12 +19,12 @@ pub enum Tag {
 }
 
 #[derive(Clone, Copy, Shape)]
-pub struct Label(pub Bits<16>);
+pub struct Label(pub Bits<U16>);
 
 #[derive(Clone, Copy, Shape)]
 pub struct Port {
     pub tag: Tag,
-    pub payload: Bits<45>,
+    pub payload: Bits<U45>,
     pub label: Label,
 }
 
@@ -86,7 +83,7 @@ impl heap {
 #[module]
 pub async fn top() {
     let mut heap = heap().capacity(8).call();
-    let mut iters = Signal::<Uint<32>>::new(0);
+    let mut iters = Signal::<Uint<U32>>::new(0);
 
     let x = heap.read(Addr(4)).await;
     let y = heap.read(Addr(5)).await;

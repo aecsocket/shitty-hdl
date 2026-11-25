@@ -1,57 +1,44 @@
-use smallvec::SmallVec;
+use generic_array::GenericArray;
+use typenum::{U8, U16, U32, U64, U128};
 
 use crate::{
     signal::SignalView,
-    value::{Shape, ShapeSize},
+    value::{Shape, ShapeSize, Width},
 };
 
-/// `N` number of bits packed into one [`Shape`].
+/// `N` bits packed into one [`Shape`], with no arithmetic semantics.
 ///
-/// [`Bits`] has no arithmetic semantics, so it can only represent boolean data
-/// such as a set of flags. To perform arithmetic such as addition or
-/// subtraction, use [`Uint`] or [`Sint`].
-pub struct Bits<const N: ShapeSize>(SmallVec<u64, 1>);
+/// To perform arithmetic, use [`super::Uint`] or [`super::Sint`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Bits<N: Width>(GenericArray<u64, N::Words>);
 
-impl<const N: ShapeSize> Shape for Bits<N> {
-    const WIDTH: ShapeSize = N;
+impl<N: Width> Shape for Bits<N> {
+    const WIDTH: ShapeSize = N::U32;
     type View = SignalView<Self>;
 }
 
-impl<const N: ShapeSize> Bits<N> {
-    fn from_word(word: u64) -> Self {
-        Self(SmallVec::from_buf([word]))
-    }
-
-    fn from_words(words: impl IntoIterator<Item = u64>) -> Self {
-        Self(SmallVec::from_iter(words))
+impl<N: Width> Bits<N> {
+    pub const fn words(&self) -> &[u64] {
+        self.0.as_slice()
     }
 }
 
 macro_rules! impl_from {
-    ($($ty:ty : $size:literal),* $(,)?) => {
+    ($($ty:ty : $size:ty),* $(,)?) => {
         $(
         impl From<$ty> for Bits<$size> {
             fn from(value: $ty) -> Self {
-                Self::from_word(u64::from(value))
+                let mut words = GenericArray::<u64, <$size as Width>::Words>::const_default();
+                let value = value as u128;
+                words[0] = value as u64;
+                if words.len() > 1 {
+                    words[1] = (value >> 64) as u64;
+                }
+                Self(words)
             }
         }
         )*
     };
 }
 
-impl_from!(u8: 8, u16: 16, u32: 32, u64: 64);
-
-impl From<u128> for Bits<128> {
-    fn from(value: u128) -> Self {
-        #[rustfmt::skip]
-        let [
-            b1,  b2,  b3,  b4,  b5,  b6,  b7,  b8,
-            b9, b10, b11, b12, b13, b14, b15, b16,
-        ] = value.to_be_bytes();
-        let (lo, hi) = (
-            u64::from_be_bytes([b1, b2, b3, b4, b5, b6, b7, b8]),
-            u64::from_be_bytes([b9, b10, b11, b12, b13, b14, b15, b16]),
-        );
-        Self::from_words([lo, hi])
-    }
-}
+impl_from!(u8: U8, u16: U16, u32: U32, u64: U64, u128: U128);

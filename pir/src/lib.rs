@@ -10,17 +10,12 @@ use std::ptr;
 use derive_more::From;
 
 #[derive(Debug, Clone, Copy)]
-pub struct Design<'d> {
-    pub top: Module<'d>,
-    pub modules: &'d [Module<'d>],
-}
-
-#[derive(Debug, Clone, Copy)]
 pub struct Module<'d> {
     pub name: Ident,
     pub ports: &'d [Port<'d>],
     pub signals: &'d [Signal<'d>],
     pub uses_domains: &'d [UseDomain<'d>],
+    pub children: &'d [Self],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -56,7 +51,22 @@ pub struct Assign<'d> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Switch<'d> {
-    _todo: std::marker::PhantomData<&'d ()>,
+    pub on: Value<'d>,
+    pub arms: &'d [Arm<'d>],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Arm<'d> {
+    pub patterns: &'d [Pattern<'d>],
+    pub guard: Option<Value<'d>>,
+    pub then: &'d [Stmt<'d>],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Pattern<'d> {
+    Any,
+    Exact(&'d Bits),
+    Masked { value: &'d Bits, mask: &'d Bits },
 }
 
 #[derive(Debug, Clone, Copy, From)]
@@ -78,19 +88,18 @@ pub struct Value<'d> {
     pub kind: ValueKind<'d>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, From)]
 pub enum ValueKind<'d> {
     Const(&'d Bits),
     Signal(Signal<'d>),
-    Unary {
-        op: UnaryOp,
-        value: &'d Value<'d>,
-    },
-    Binary {
-        op: BinaryOp,
-        lhs: &'d Value<'d>,
-        rhs: &'d Value<'d>,
-    },
+    Unary(Unary<'d>),
+    Binary(Binary<'d>),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Unary<'d> {
+    pub op: UnaryOp,
+    pub value: &'d Value<'d>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -104,6 +113,13 @@ pub enum UnaryOp {
     ReduceXor,
     AsUnsigned,
     AsSigned,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Binary<'d> {
+    pub op: BinaryOp,
+    pub lhs: &'d Value<'d>,
+    pub rhs: &'d Value<'d>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

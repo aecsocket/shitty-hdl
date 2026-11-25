@@ -41,44 +41,43 @@ fn make_pir() {
         kind: ValueKind::Const(&threshold),
     };
 
-    let _design = Design {
-        top: Module {
-            name: "top".into(),
-            ports: &[
-                Port {
-                    name: "enable".into(),
-                    flow: Flow::In,
-                    signal: Signal(&enable),
-                },
-                Port {
-                    name: "led_on".into(),
-                    flow: Flow::Out,
-                    signal: Signal(&led_on),
-                },
-            ],
-            signals: &[Signal(&count)],
-            uses_domains: &[
-                UseDomain {
-                    domain: Domain::Comb,
-                    stmts: &[Assign {
-                        into: Signal(&led_on).into(),
-                        from: Value {
-                            ty: Type(&bool),
-                            kind: ValueKind::Binary {
-                                op: BinaryOp::Gt,
-                                lhs: &count_value,
-                                rhs: &threshold_value,
-                            },
-                        },
-                    }
-                    .into()],
-                },
-                UseDomain {
-                    domain: ClockedDomain(&sync).into(),
-                    stmts: &[],
-                },
-            ],
-        },
-        modules: &[],
+    let _top = Module {
+        name: "top".into(),
+        ports: &[
+            Port {
+                name: "enable".into(),
+                flow: Flow::In,
+                signal: Signal(&enable),
+            },
+            Port {
+                name: "led_on".into(),
+                flow: Flow::Out,
+                signal: Signal(&led_on),
+            },
+        ],
+        signals: &[Signal(&count)],
+        uses_domains: &[
+            UseDomain {
+                domain: Domain::Comb,
+                stmts: &[Assign {
+                    into: Signal(&led_on).into(),
+                    from: Value {
+                        ty: Type(&bool),
+                        kind: Binary {
+                            op: BinaryOp::Gt,
+                            lhs: &count_value,
+                            rhs: &threshold_value,
+                        }
+                        .into(),
+                    },
+                }
+                .into()],
+            },
+            UseDomain {
+                domain: ClockedDomain(&sync).into(),
+                stmts: &[],
+            },
+        ],
+        children: &[],
     };
 }

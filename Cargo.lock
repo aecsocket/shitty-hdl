@@ -342,6 +342,7 @@ name = "shitty-hdl-front"
 version = "0.1.0"
 dependencies = [
  "shitty-hdl-derive",
+ "smallvec",
  "variadics_please",
 ]
 
@@ -352,6 +353,12 @@ dependencies = [
  "shitty-hdl-board",
  "shitty-hdl-front",
 ]
+
+[[package]]
+name = "smallvec"
+version = "2.0.0-beta.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c352cc0c12c76bb9ef4462dfc91461598eaa5e31f40ac494f50dbfad4f12c106"
 
 [[package]]
 name = "strsim"

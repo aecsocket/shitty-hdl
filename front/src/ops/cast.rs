@@ -1,4 +1,4 @@
-use crate::value::{Bit, IntoValue, Shape, Value, bit_cap};
+use crate::value::{Bit, IntoValue, Shape, Value};
 
 pub trait Bits: Shape {
     const WIDTH: usize;
@@ -20,7 +20,7 @@ pub trait Pack {
 pub trait Unpack {
     type Packed: Shape;
 
-    fn unpack_to<To: Bits<Packed = Self::Packed>>(self) -> Value<To>;
+    fn unpack<To: Bits<Packed = Self::Packed>>(self) -> Value<To>;
 }
 
 impl<T: Bits> Pack for Value<T> {
@@ -34,7 +34,7 @@ impl<T: Bits> Pack for Value<T> {
 impl<P: Shape> Unpack for Value<P> {
     type Packed = P;
 
-    fn unpack_to<To: Bits<Packed = P>>(self) -> Value<To> {
+    fn unpack<To: Bits<Packed = P>>(self) -> Value<To> {
         To::unpack(self)
     }
 }
@@ -73,11 +73,7 @@ pub trait ResizePacked<To: Shape>: Shape {
     fn zext_packed(value: Value<Self>) -> Value<To>;
 }
 
-impl<const FROM: usize, const TO: usize> ResizePacked<Bit<TO>> for Bit<FROM>
-where
-    [(); bit_cap::<FROM>()]:,
-    [(); bit_cap::<TO>()]:,
-{
+impl<const FROM: usize, const TO: usize> ResizePacked<Bit<TO>> for Bit<FROM> {
     fn trunc_packed(value: Value<Self>) -> Value<Bit<TO>> {
         value.trunc::<TO>()
     }
@@ -88,55 +84,13 @@ where
 }
 
 pub trait Trunc {
-    type To<const TO: usize>: Shape
-    where
-        [(); bit_cap::<TO>()]:;
+    type To<const TO: usize>: Shape;
 
-    fn trunc<const TO: usize>(self) -> Value<Self::To<TO>>
-    where
-        [(); bit_cap::<TO>()]:;
+    fn trunc<const TO: usize>(self) -> Value<Self::To<TO>>;
 }
 
 pub trait Zext {
-    type To<const TO: usize>: Shape
-    where
-        [(); bit_cap::<TO>()]:;
+    type To<const TO: usize>: Shape;
 
-    fn zext<const TO: usize>(self) -> Value<Self::To<TO>>
-    where
-        [(); bit_cap::<TO>()]:;
-}
-
-impl<const N: usize> Trunc for Value<Bit<N>>
-where
-    [(); bit_cap::<N>()]:,
-{
-    type To<const TO: usize>
-        = Bit<TO>
-    where
-        [(); bit_cap::<TO>()]:;
-
-    fn trunc<const TO: usize>(self) -> Value<Self::To<TO>>
-    where
-        [(); bit_cap::<TO>()]:,
-    {
-        todo!();
-    }
-}
-
-impl<const N: usize> Zext for Value<Bit<N>>
-where
-    [(); bit_cap::<N>()]:,
-{
-    type To<const TO: usize>
-        = Bit<TO>
-    where
-        [(); bit_cap::<TO>()]:;
-
-    fn zext<const TO: usize>(self) -> Value<Self::To<TO>>
-    where
-        [(); bit_cap::<TO>()]:,
-    {
-        todo!();
-    }
+    fn zext<const TO: usize>(self) -> Value<Self::To<TO>>;
 }

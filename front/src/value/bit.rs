@@ -1,40 +1,50 @@
-use crate::value::{Shape, Value, ValueView};
+use smallvec::SmallVec;
 
-#[derive(Debug, Clone, Copy)]
-pub struct Bit<const N: usize>([u64; bit_cap::<N>()])
-where
-    [(); bit_cap::<N>()]:;
+use crate::{
+    ops::{Trunc, Zext},
+    value::{Shape, Value, ValueView},
+};
+
+#[derive(Debug, Clone)]
+pub struct Bit<const N: usize>(SmallVec<u64, 2>);
 
 #[must_use]
 pub const fn bit_cap<const N: usize>() -> usize {
     N.div_ceil(64)
 }
 
-impl<const N: usize> Shape for Bit<N>
-where
-    [(); bit_cap::<N>()]:,
-{
+impl<const N: usize> Shape for Bit<N> {
     type View = ValueView<Self>;
     type Values = Value<Self>;
 }
 
-impl<const N: usize> Bit<N>
-where
-    [(); bit_cap::<N>()]:,
-{
-    pub const NONE: Self = Self([0; bit_cap::<N>()]);
-    pub const ONES: Self = ones();
+impl<const N: usize> Bit<N> {
+    #[must_use]
+    pub fn none() -> Self {
+        let mut words = SmallVec::new();
+        words.resize(bit_cap::<N>(), 0);
+        Self(words)
+    }
 
     #[must_use]
-    pub const fn constant<const VALUE: u128>() -> Self {
+    pub fn ones() -> Self {
+        let mut words = SmallVec::new();
+        words.resize(bit_cap::<N>(), u64::MAX);
+        if N % 64 != 0 {
+            words[N / 64] = (1_u64 << (N % 64)) - 1;
+        }
+        Self(words)
+    }
+
+    #[must_use]
+    pub fn constant<const VALUE: u128>() -> Self {
         assert!(
             N >= 128 || (VALUE >> N) == 0,
             "`VALUE` cannot fit in `Bit<N>`"
         );
         #[expect(clippy::cast_possible_truncation, reason = "intentional")]
         let (lo, hi) = (VALUE as u64, (VALUE >> 64) as u64);
-
-        let mut words = [0; bit_cap::<N>()];
+        let Self(mut words) = Self::none();
         if !words.is_empty() {
             words[0] = lo;
         }
@@ -45,27 +55,32 @@ where
     }
 }
 
-const fn ones<const N: usize>() -> Bit<N>
-where
-    [(); bit_cap::<N>()]:,
-{
-    let mut words = [u64::MAX; bit_cap::<N>()];
-    if N % 64 != 0 {
-        words[N / 64] = (1_u64 << (N % 64)) - 1;
-    }
-    Bit(words)
-}
-
 #[macro_export]
 macro_rules! bit {
     (0) => {
-        const { $crate::value::Bit::NONE }
+        $crate::value::Bit::none()
     };
     (:1) => {
-        const { $crate::value::Bit::ONES }
+        $crate::value::Bit::ones()
     };
     ($lit:literal) => {{
         const VALUE: u128 = $lit;
-        const { $crate::value::Bit::constant::<VALUE>() }
+        $crate::value::Bit::constant::<VALUE>()
     }};
+}
+
+impl<const N: usize> Trunc for Value<Bit<N>> {
+    type To<const TO: usize> = Bit<TO>;
+
+    fn trunc<const TO: usize>(self) -> Value<Self::To<TO>> {
+        todo!();
+    }
+}
+
+impl<const N: usize> Zext for Value<Bit<N>> {
+    type To<const TO: usize> = Bit<TO>;
+
+    fn zext<const TO: usize>(self) -> Value<Self::To<TO>> {
+        todo!();
+    }
 }

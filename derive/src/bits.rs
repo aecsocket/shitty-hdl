@@ -28,14 +28,14 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
     let mut generics = input.generics.clone();
     let widths = data.fields.iter().map(|field| {
         let ty = &field.ty;
-        quote! { <#ty as #crate_::value::Bits>::WIDTH }
+        quote! { <#ty as #crate_::ops::Bits>::WIDTH }
     });
     let width = quote! { (0usize #(+ #widths)*) };
     if !input.generics.params.is_empty() {
         for field in &data.fields {
             let ty = &field.ty;
             generics.make_where_clause().predicates.push(parse_quote! {
-                #ty: #crate_::value::Bits
+                #ty: #crate_::ops::Bits
             });
         }
         let (_, original_ty_generics, _) = input.generics.split_for_impl();
@@ -43,12 +43,12 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             #ident #original_ty_generics: #crate_::value::Shape
         });
         generics.make_where_clause().predicates.push(parse_quote! {
-            [(); #crate_::value::bit_cap::<{ #width }>()]:
+            [(); #width]:
         });
     }
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     Ok(quote! {
-        impl #impl_generics #crate_::value::Bits for #ident #ty_generics #where_clause {
+        impl #impl_generics #crate_::ops::Bits for #ident #ty_generics #where_clause {
             const WIDTH: usize = #width;
             type Packed = #crate_::value::Bit<{ #width }>;
 

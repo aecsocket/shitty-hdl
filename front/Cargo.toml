@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 derive = { workspace = true }
+smallvec = { workspace = true }
 variadics_please = { workspace = true }
 
 [lints]

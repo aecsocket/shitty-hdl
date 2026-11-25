@@ -17,8 +17,14 @@ impl Ident {
     }
 }
 
-impl<T: AsRef<str>> From<T> for Ident {
-    fn from(s: T) -> Self {
+impl From<&str> for Ident {
+    fn from(s: &str) -> Self {
+        Self::new(s)
+    }
+}
+
+impl From<String> for Ident {
+    fn from(s: String) -> Self {
         Self::new(s)
     }
 }

@@ -651,6 +651,14 @@ name = "shitty-hdl-irt"
 version = "0.1.0"
 dependencies = [
  "lasso",
+ "smallvec",
+]
+
+[[package]]
+name = "shitty-hdl-nir"
+version = "0.1.0"
+dependencies = [
+ "shitty-hdl-irt",
 ]
 
 [[package]]
@@ -659,12 +667,7 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "shitty-hdl-irt",
- "smallvec",
 ]
-
-[[package]]
-name = "shitty-hdl-piri"
-version = "0.1.0"
 
 [[package]]
 name = "shitty-hdl-platform"

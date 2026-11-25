@@ -5,7 +5,7 @@ edition.workspace = true
 
 [workspace]
 resolver = "3"
-members = [".", "board/", "cli/", "core/", "derive/", "irt/", "pir/", "piri/", "platform/", "verilog-gen/"]
+members = [".", "board/", "cli/", "core/", "derive/", "irt/", "nir/", "pir/", "platform/", "verilog-gen/"]
 
 [workspace.package]
 version = "0.1.0"
@@ -21,6 +21,8 @@ derive_more = { version = "2.1.1" }
 generic-array = { version = "1.4.5" }
 irt = { package = "shitty-hdl-irt", path = "irt/" }
 lasso = { version = "0.7.3" }
+nir = { package = "shitty-hdl-nir", path = "nir/" }
+pir = { package = "shitty-hdl-pir", path = "pir/" }
 proc-macro2 = { version = "1.0.107" }
 quote = { version = "1.0.47" }
 shitty-hdl-board = { path = "board/" }

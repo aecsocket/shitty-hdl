@@ -26,7 +26,7 @@ impl From<bool> for Bits {
 
 impl From<u128> for Bits {
     fn from(value: u128) -> Self {
-        #[expect(clippy::cast_possible_truncation, reason = "on purpose")]
+        #[expect(clippy::cast_possible_truncation, reason = "intentional")]
         let lo = value as u64;
         let hi = (value >> 64) as u64;
         Self {
@@ -52,3 +52,10 @@ macro_rules! for_uint {
 }
 
 for_uint!(u64: 64, u32: 32, u16: 16, u8: 8);
+
+#[derive(Debug, Clone, Copy)]
+pub enum Pattern<'b> {
+    Any,
+    Exact(&'b Bits),
+    Masked { value: &'b Bits, mask: &'b Bits },
+}

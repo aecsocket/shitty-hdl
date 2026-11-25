@@ -1,0 +1,10 @@
+[package]
+name = "shitty-hdl-nir"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+irt = { workspace = true }
+
+[lints]
+workspace = true

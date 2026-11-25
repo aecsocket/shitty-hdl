@@ -1,13 +1,9 @@
 #![doc = include_str!("../README.md")]
 
-mod bits;
-
-pub use bits::Bits;
-pub use irt::Ident;
-
-use std::ptr;
+pub use irt::{Bits, Ident, Pattern, Shape, ShapeSize, Signal, SignalDef, Type, TypeDef};
 
 use derive_more::From;
+use irt::ptr_identity;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Module<'d> {
@@ -60,13 +56,6 @@ pub struct Arm<'d> {
     pub patterns: &'d [Pattern<'d>],
     pub guard: Option<Value<'d>>,
     pub then: &'d [Stmt<'d>],
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum Pattern<'d> {
-    Any,
-    Exact(&'d Bits),
-    Masked { value: &'d Bits, mask: &'d Bits },
 }
 
 #[derive(Debug, Clone, Copy, From)]
@@ -144,68 +133,17 @@ pub enum BinaryOp {
 
 // externally defined values
 
-#[derive(Debug, Clone, Copy)]
-pub struct Type<'d>(pub &'d TypeDef);
-
-impl PartialEq for Type<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        ptr::eq(self.0, other.0)
-    }
-}
-
-impl Eq for Type<'_> {}
-
-#[derive(Debug)]
-pub struct TypeDef {
-    pub name: Ident,
-    pub shape: Shape,
-}
-
-pub type ShapeSize = u32;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Shape {
-    Bits(ShapeSize),
-    Unsigned(ShapeSize),
-    Signed(ShapeSize),
-}
-
 #[derive(Debug, Clone, Copy, From)]
 pub enum Domain<'d> {
     Comb,
     Clocked(ClockedDomain<'d>),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct ClockedDomain<'d>(pub &'d DomainDef);
-
-impl PartialEq for ClockedDomain<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        ptr::eq(self.0, other.0)
-    }
+ptr_identity! {
+    pub struct ClockedDomain<'d>(DomainDef);
 }
-
-impl Eq for ClockedDomain<'_> {}
 
 #[derive(Debug)]
 pub struct DomainDef {
     pub name: Ident,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Signal<'d>(pub &'d SignalDef<'d>);
-
-impl PartialEq for Signal<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        ptr::eq(self.0, other.0)
-    }
-}
-
-impl Eq for Signal<'_> {}
-
-#[derive(Debug)]
-pub struct SignalDef<'d> {
-    pub name: Ident,
-    pub ty: Type<'d>,
-    pub init: &'d Bits,
 }

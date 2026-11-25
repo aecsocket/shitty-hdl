@@ -10,12 +10,12 @@ use crate::{
 
 #[derive(Interface)]
 #[interface(crate = crate)]
-pub struct Bram<Addr: Shape, Data: Shape> {
-    pub read: Method<Addr, Data>,
-    pub write: Method<(Addr, Data), ()>,
+pub struct Bram<D: Domain, Addr: Shape, Data: Shape> {
+    pub read: Method<D, Addr, Data>,
+    pub write: Method<D, (Addr, Data), ()>,
 }
 
 #[bon::builder]
-pub fn bram<D: Domain, Addr: Bits, Data: Bits>(clk: Clock<D>, depth: u64) -> Bram<Addr, Data> {
+pub fn bram<D: Domain, Addr: Bits, Data: Bits>(clk: Clock<D>, depth: u64) -> Bram<D, Addr, Data> {
     elab::bram(clk, depth)
 }

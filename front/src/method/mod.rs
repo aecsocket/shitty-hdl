@@ -5,19 +5,21 @@ use std::{
 };
 
 use crate::{
-    air, elab,
+    air,
+    domain::{Clock, Domain, IntoClock},
+    elab,
     module::{Action, Interface},
-    value::{Shape, Value},
+    value::{IntoValues, Raw, Shape, Value},
 };
 
-pub struct Method<In: Shape, Out: Shape> {
-    pub req: Action<In, ()>,
-    pub out: Action<(), Out>,
+pub struct Method<D: Domain, In: Shape, Out: Shape> {
+    pub req: Action<D, In, ()>,
+    pub out: Action<D, (), Out>,
 }
 
-impl<In: Shape, Out: Shape> Interface for Method<In, Out> {
+impl<D: Domain, In: Shape, Out: Shape> Interface for Method<D, In, Out> {
     fn air_interface<'dsn>(cx: &mut elab::Context<'dsn>) -> &'dsn air::Interface<'dsn> {
-        cx.method_interface::<In, Out>()
+        cx.method_interface::<D, In, Out>()
     }
 
     fn from_handle(handle: elab::InterfaceHandle) -> Self {
@@ -45,30 +47,40 @@ impl<In: Shape, Out: Shape> Interface for Method<In, Out> {
     }
 }
 
-impl<In: Shape, Out: Shape> Method<In, Out> {
+impl<D: Domain, In: Shape, Out: Shape> Method<D, In, Out> {
     #[must_use]
-    pub const fn new(req: Action<In, ()>, out: Action<(), Out>) -> Self {
+    pub const fn new(req: Action<D, In, ()>, out: Action<D, (), Out>) -> Self {
         Self { req, out }
     }
 
-    pub fn define_as<'a>(f: impl AsyncFnOnce(In::Values) -> Out::Values + 'a) -> Self {
-        let (req, out) = elab::define_async_method(f);
+    /// Defines an async method in the given clock domain; the domain
+    /// brands the method's interface, so calls and results are checked
+    /// against it.
+    pub fn define_as<'a>(
+        clock: Clock<D>,
+        f: impl AsyncFnOnce(In::Values<D>) -> Out::Values<D> + 'a,
+    ) -> Self {
+        let _ = clock;
+        let (req, out) = elab::define_async_method::<D, In, Out, _>(f);
         Self::new(req, out)
     }
 
-    pub fn define_async_as<'a>(f: impl AsyncFnOnce(In::Values) -> Out::Values + 'a) -> Self {
-        Self::define_as(f)
+    pub fn define_async_as<'a>(
+        clock: Clock<D>,
+        f: impl AsyncFnOnce(In::Values<D>) -> Out::Values<D> + 'a,
+    ) -> Self {
+        Self::define_as(clock, f)
     }
 }
 
-pub struct Call<Out: Shape> {
+pub struct Call<D: Domain, Out: IntoValues<D>> {
     issue: Option<Box<dyn FnOnce()>>,
-    out: Action<(), Out>,
+    out: Action<D, (), Out::Out>,
 }
 
-impl<Out: Shape> Call<Out> {
+impl<D: Domain, Out: IntoValues<D>> Call<D, Out> {
     #[must_use]
-    pub fn new(out: Action<(), Out>, issue: impl FnOnce() + 'static) -> Self {
+    pub fn new(out: Action<D, (), Out::Out>, issue: impl FnOnce() + 'static) -> Self {
         Self {
             issue: Some(Box::new(issue)),
             out,
@@ -76,7 +88,7 @@ impl<Out: Shape> Call<Out> {
     }
 }
 
-impl<Out: Shape> Future for Call<Out> {
+impl<D: Domain, Out: IntoValues<D>> Future for Call<D, Out> {
     type Output = Out::Values;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut TaskContext<'_>) -> Poll<Self::Output> {
@@ -85,23 +97,26 @@ impl<Out: Shape> Future for Call<Out> {
                 issue();
                 Poll::Pending
             }
-            None => Poll::Ready(elab::call_action::<(), Out>(self.out.handle(), ())),
+            None => {
+                let raw = elab::call_action::<D, (), Out::Out>(self.out.handle(), ());
+                Poll::Ready(raw)
+            }
         }
     }
 }
 
-impl<Out: Shape> Unpin for Call<Out> {}
+impl<D: Domain, Out: IntoValues<D>> Unpin for Call<D, Out> {}
 
 #[must_use]
-pub fn call_async<In: Shape, Out: Shape>(
-    req: &Action<In, ()>,
-    out: &Action<(), Out>,
+pub fn call_async<D: Domain, In: Shape, Out: Shape + IntoValues<D>>(
+    req: &Action<D, In, ()>,
+    out: &Action<D, (), Out>,
     args: &[elab::ExprHandle],
-) -> Call<Out> {
+) -> Call<D, Out> {
     let input = elab::pack_input::<In>(args);
     let req = req.handle();
     let out = out.handle();
     Call::new(Action::from_handle(out), move || {
-        elab::call_action::<In, ()>(req, In::make_values(Value::from_handle(input)));
+        elab::call_action::<D, In, ()>(req, In::make_values(Value::wrap(Raw::from_handle(input))));
     })
 }

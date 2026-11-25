@@ -1,21 +1,21 @@
 use std::ops::{Add, Sub};
 
 use crate::{
-    ops::Bits,
     domain::Domain,
+    ops::Bits,
     reg::Reg,
     value::{IntoValue, Shape, Value},
 };
 
 pub trait Arith: Bits {
-    fn add(lhs: Value<Self>, rhs: Value<Self>) -> Value<Self>;
+    fn add<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, Self>;
 
-    fn sub(lhs: Value<Self>, rhs: Value<Self>) -> Value<Self>;
+    fn sub<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, Self>;
 
-    fn from_u128(value: u128) -> Value<Self>;
+    fn from_u128<D: Domain>(value: u128) -> Value<D, Self>;
 }
 
-impl<T: Arith, Rhs: IntoValue<Out = T>> Add<Rhs> for Value<T> {
+impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Add<Rhs> for Value<D, T> {
     type Output = Self;
 
     fn add(self, rhs: Rhs) -> Self::Output {
@@ -23,15 +23,7 @@ impl<T: Arith, Rhs: IntoValue<Out = T>> Add<Rhs> for Value<T> {
     }
 }
 
-impl<T: Arith> Add<u128> for Value<T> {
-    type Output = Self;
-
-    fn add(self, rhs: u128) -> Self::Output {
-        T::add(self, T::from_u128(rhs))
-    }
-}
-
-impl<T: Arith, Rhs: IntoValue<Out = T>> Sub<Rhs> for Value<T> {
+impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Sub<Rhs> for Value<D, T> {
     type Output = Self;
 
     fn sub(self, rhs: Rhs) -> Self::Output {
@@ -39,7 +31,15 @@ impl<T: Arith, Rhs: IntoValue<Out = T>> Sub<Rhs> for Value<T> {
     }
 }
 
-impl<T: Arith> Sub<u128> for Value<T> {
+impl<D: Domain, T: Shape + Arith> Add<u128> for Value<D, T> {
+    type Output = Self;
+
+    fn add(self, rhs: u128) -> Self::Output {
+        T::add(self, T::from_u128(rhs))
+    }
+}
+
+impl<D: Domain, T: Shape + Arith> Sub<u128> for Value<D, T> {
     type Output = Self;
 
     fn sub(self, rhs: u128) -> Self::Output {
@@ -47,24 +47,34 @@ impl<T: Arith> Sub<u128> for Value<T> {
     }
 }
 
-impl<D: Domain, T: Shape, Rhs> Add<Rhs> for Reg<D, T>
-where
-    Value<T>: Add<Rhs>,
-{
-    type Output = <Value<T> as Add<Rhs>>::Output;
+impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Add<Rhs> for Reg<D, T> {
+    type Output = Value<D, T>;
 
     fn add(self, rhs: Rhs) -> Self::Output {
         self.read() + rhs
     }
 }
 
-impl<D: Domain, T: Shape, Rhs> Sub<Rhs> for Reg<D, T>
-where
-    Value<T>: Sub<Rhs>,
-{
-    type Output = <Value<T> as Sub<Rhs>>::Output;
+impl<D: Domain, T: Shape + Arith, Rhs: IntoValue<D, Out = T>> Sub<Rhs> for Reg<D, T> {
+    type Output = Value<D, T>;
 
     fn sub(self, rhs: Rhs) -> Self::Output {
+        self.read() - rhs
+    }
+}
+
+impl<D: Domain, T: Shape + Arith> Add<u128> for Reg<D, T> {
+    type Output = Value<D, T>;
+
+    fn add(self, rhs: u128) -> Self::Output {
+        self.read() + rhs
+    }
+}
+
+impl<D: Domain, T: Shape + Arith> Sub<u128> for Reg<D, T> {
+    type Output = Value<D, T>;
+
+    fn sub(self, rhs: u128) -> Self::Output {
         self.read() - rhs
     }
 }

@@ -26,7 +26,7 @@ pub mod prelude {
     pub use crate::reg::Reg;
     pub use crate::value::{Bit, IntoValue, IntoValues, Shape, Uint, Value};
     pub use crate::{bit, display, sim_assert, uint};
-    pub use derive::{Arith, ArithCmp, BitCmp, Bits, Interface, Shape, Shift, hdl, module};
+    pub use derive::{Arith, ArithCmp, BitCmp, Bits, Domain, Interface, Shape, Shift, hdl, module};
 }
 
 pub use air;
@@ -46,16 +46,17 @@ pub mod __ {
         subinterface as elab_subinterface,
     };
     use crate::module::Interface;
+    use crate::domain::Domain;
     use crate::value::{IntoValue, Shape, Value};
 
     #[must_use]
-    pub fn cast<From: Shape, To: Shape>(kind: air::CastKind, value: Value<From>) -> Value<To> {
-        elab_cast(kind, value)
+    pub fn cast<D: Domain, From: Shape, To: Shape>(kind: air::CastKind, value: Value<D, From>) -> Value<D, To> {
+        Value::wrap(elab_cast(kind, value.raw()))
     }
 
     #[must_use]
-    pub fn compare<T: Shape>(op: air::BinaryOp, lhs: Value<T>, rhs: Value<T>) -> Value<bool> {
-        elab_compare(op, lhs, rhs)
+    pub fn compare<D: Domain, T: Shape>(op: air::BinaryOp, lhs: Value<D, T>, rhs: Value<D, T>) -> Value<D, bool> {
+        Value::wrap(elab_compare(op, lhs.raw(), rhs.raw()))
     }
 
     pub fn module<I: Interface>(name: &str, f: impl FnOnce() -> I) -> I {
@@ -67,7 +68,7 @@ pub mod __ {
         elab_subinterface(handle, name)
     }
 
-    pub fn display_arg(value: impl IntoValue) -> ExprHandle {
+    pub fn display_arg<D: Domain>(value: impl IntoValue<D>) -> ExprHandle {
         value.into_value().handle()
     }
 
@@ -75,7 +76,7 @@ pub mod __ {
         elab_display(format, arguments);
     }
 
-    pub fn assert(condition: impl IntoValue<Out = bool>, message: &str) {
+    pub fn assert<D: Domain>(condition: impl IntoValue<D, Out = bool>, message: &str) {
         elab::assert(condition, message);
     }
 }

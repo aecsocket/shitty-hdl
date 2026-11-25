@@ -1,13 +1,14 @@
 use std::ops::{BitAnd, BitOr, Not};
 
 use crate::{
-    elab,
+    air,
     domain::Domain,
+    elab,
     reg::Reg,
-    value::{IntoValue, Shape, Value},
+    value::{IntoValue, Raw, Value},
 };
 
-impl Not for Value<bool> {
+impl Not for Raw<bool> {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -15,49 +16,64 @@ impl Not for Value<bool> {
     }
 }
 
-impl<Rhs: IntoValue<Out = bool>> BitOr<Rhs> for Value<bool> {
+impl BitOr<Raw<bool>> for Raw<bool> {
+    type Output = Self;
+
+    fn bitor(self, rhs: Raw<bool>) -> Self::Output {
+        elab::binary(air::BinaryOp::Or, self, rhs)
+    }
+}
+
+impl BitAnd<Raw<bool>> for Raw<bool> {
+    type Output = Self;
+
+    fn bitand(self, rhs: Raw<bool>) -> Self::Output {
+        elab::binary(air::BinaryOp::And, self, rhs)
+    }
+}
+
+impl<D: Domain> Not for Value<D, bool> {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Self::wrap(!self.raw())
+    }
+}
+
+impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitOr<Rhs> for Value<D, bool> {
     type Output = Self;
 
     fn bitor(self, rhs: Rhs) -> Self::Output {
-        elab::binary(air::BinaryOp::Or, self, rhs.into_value())
+        Self::wrap(self.raw() | rhs.into_value().raw())
     }
 }
 
-impl<Rhs: IntoValue<Out = bool>> BitAnd<Rhs> for Value<bool> {
+impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitAnd<Rhs> for Value<D, bool> {
     type Output = Self;
 
     fn bitand(self, rhs: Rhs) -> Self::Output {
-        elab::binary(air::BinaryOp::And, self, rhs.into_value())
+        Self::wrap(self.raw() & rhs.into_value().raw())
     }
 }
 
-impl<D: Domain, T: Shape> Not for Reg<D, T>
-where
-    Value<T>: Not,
-{
-    type Output = <Value<T> as Not>::Output;
+impl<D: Domain> Not for Reg<D, bool> {
+    type Output = Value<D, bool>;
 
     fn not(self) -> Self::Output {
         !self.read()
     }
 }
 
-impl<D: Domain, T: Shape, Rhs> BitOr<Rhs> for Reg<D, T>
-where
-    Value<T>: BitOr<Rhs>,
-{
-    type Output = <Value<T> as BitOr<Rhs>>::Output;
+impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitOr<Rhs> for Reg<D, bool> {
+    type Output = Value<D, bool>;
 
     fn bitor(self, rhs: Rhs) -> Self::Output {
         self.read() | rhs
     }
 }
 
-impl<D: Domain, T: Shape, Rhs> BitAnd<Rhs> for Reg<D, T>
-where
-    Value<T>: BitAnd<Rhs>,
-{
-    type Output = <Value<T> as BitAnd<Rhs>>::Output;
+impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitAnd<Rhs> for Reg<D, bool> {
+    type Output = Value<D, bool>;
 
     fn bitand(self, rhs: Rhs) -> Self::Output {
         self.read() & rhs

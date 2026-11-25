@@ -1,7 +1,7 @@
 use crate::{
     domain::{Clock, Domain},
     elab::handle::{ClockHandle, RegisterHandle},
-    value::{Shape, Value},
+    value::{Shape, Raw},
 };
 use std::{any::TypeId, ptr};
 
@@ -38,25 +38,37 @@ pub fn clock_input<D: 'static>(name: &str) -> ClockHandle {
 pub fn register<D: Domain, T: Shape>(
     clock: Clock<D>,
     init: Option<T>,
-) -> (RegisterHandle, Value<T>) {
-    let (handle, value) = with_context(|cx| {
-        let domain = match clock.handle {
-            None => match cx.domain_cache.get(&clock.identity()) {
-                Some(&(_, domain)) => domain,
-                None => cx.default_domain(clock.identity(), "clk"),
-            },
-            Some(handle) => {
-                cx.check_design(handle.design_id);
-                let domain = cx.domains[handle.index];
-                let canonical = cx
-                    .domain_cache
-                    .get(&clock.identity())
-                    .expect("unregistered clock domain")
-                    .1;
-                assert!(ptr::eq(domain, canonical), "clock domain identity mismatch");
-                domain
-            }
-        };
+) -> (RegisterHandle, Raw<T>) {
+    with_context(|cx| {
+        let handle = clock.handle.expect("clock has no handle");
+        cx.check_design(handle.design_id);
+        let domain = cx.domains[handle.index];
+        let canonical = cx
+            .domain_cache
+            .get(&clock.identity())
+            .expect("unregistered clock domain")
+            .1;
+        assert!(ptr::eq(domain, canonical), "clock domain identity mismatch");
+        add_register::<T>(cx, domain, init)
+    })
+}
+
+/// Registers into the enclosing module's clock domain without a branded
+/// [`Clock`] value; used by the async method/rule FSM machinery, whose
+/// state registers belong to the module's clock.
+pub fn register_default<T: Shape>(init: Option<T>) -> (RegisterHandle, Raw<T>) {
+    with_context(|cx| {
+        let domain = cx.module_clock();
+        add_register::<T>(cx, domain, init)
+    })
+}
+
+fn add_register<'dsn, T: Shape>(
+    cx: &mut super::Context<'dsn>,
+    domain: &'dsn air::Domain<'dsn>,
+    init: Option<T>,
+) -> (RegisterHandle, Raw<T>) {
+    let (handle, value) = {
         cx.ensure_clock(domain);
         let ty = cx.ty::<T>();
         let reset = match init {
@@ -81,11 +93,11 @@ pub fn register<D: Domain, T: Shape>(
             kind: air::ExprKind::Register(register),
         });
         (handle, cx.push_expr(expr))
-    });
-    (handle, Value::from_handle(value))
+    };
+    (handle, Raw::from_handle(value))
 }
 
-pub fn read_register<T: Shape>(handle: RegisterHandle) -> Value<T> {
+pub fn read_register<T: Shape>(handle: RegisterHandle) -> Raw<T> {
     with_context(|cx| {
         cx.check_design(handle.design_id);
         let (register, owner) = cx.register_handles[handle.index];
@@ -96,11 +108,11 @@ pub fn read_register<T: Shape>(handle: RegisterHandle) -> Value<T> {
             ty,
             kind: air::ExprKind::Register(register),
         });
-        Value::from_handle(cx.push_expr(expr))
+        Raw::from_handle(cx.push_expr(expr))
     })
 }
 
-pub fn write_register<T: Shape>(handle: RegisterHandle, value: Value<T>) {
+pub fn write_register<T: Shape>(handle: RegisterHandle, value: Raw<T>) {
     with_context(|cx| {
         cx.check_design(handle.design_id);
         let register = cx.register_for_write(handle.index);

@@ -69,18 +69,13 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
                         match self { #(#arms,)* }
                     }
 
-                    fn make_values(value: #crate_::value::Value<Self>) -> Self::Values { value }
+                    type Values<D: #crate_::domain::Domain> = #crate_::value::Value<D, Self>;
 
-                    fn pack_values(values: Self::Values) -> #crate_::value::Value<Self> { values }
-                }
+                    fn make_values<D: #crate_::domain::Domain>(value: #crate_::value::Value<D, Self>) -> Self::Values<D> { value }
 
-                impl #impl_generics #crate_::value::IntoValues for #ident #ty_generics #where_clause {
-                    type Out = Self;
-                    type Values = #crate_::value::Value<Self>;
+                    fn pack_values<D: #crate_::domain::Domain>(values: Self::Values<D>) -> #crate_::value::Value<D, Self> { values }
 
-                    fn into_values(self) -> Self::Values {
-                        #crate_::value::IntoValue::into_value(self)
-                    }
+                    fn value_handles<D: #crate_::domain::Domain>(values: Self::Values<D>) -> ::std::vec::Vec<#crate_::__::ExprHandle> { ::std::vec![values.handle()] }
                 }
             });
         }
@@ -169,18 +164,13 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
                 cx.struct_value::<Self>(fields)
             }
 
-            fn make_values(value: #crate_::value::Value<Self>) -> Self::Values { value }
+            type Values<D: #crate_::domain::Domain> = #crate_::value::Value<D, Self>;
 
-            fn pack_values(values: Self::Values) -> #crate_::value::Value<Self> { values }
-        }
+            fn make_values<D: #crate_::domain::Domain>(value: #crate_::value::Value<D, Self>) -> Self::Values<D> { value }
 
-        impl #impl_generics #crate_::value::IntoValues for #ident #ty_generics #where_clause {
-            type Out = Self;
-            type Values = #crate_::value::Value<Self>;
+            fn pack_values<D: #crate_::domain::Domain>(values: Self::Values<D>) -> #crate_::value::Value<D, Self> { values }
 
-            fn into_values(self) -> Self::Values {
-                #crate_::value::IntoValue::into_value(self)
-            }
+            fn value_handles<D: #crate_::domain::Domain>(values: Self::Values<D>) -> ::std::vec::Vec<#crate_::__::ExprHandle> { ::std::vec![values.handle()] }
         }
     })
 }

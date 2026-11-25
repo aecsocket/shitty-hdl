@@ -1,30 +1,32 @@
 use crate::{
-    ops::Arith,
+    domain::Domain,
     value::{IntoValue, Shape, Value},
 };
 
 pub trait BitCmp: Shape {
-    fn eq(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool>;
+    fn eq<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
 
-    fn ne(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool>;
+    fn ne<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
 }
 
-pub trait ArithCmp: Arith {
-    fn gt(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool>;
+pub trait ArithCmp: BitCmp + crate::ops::Arith {
+    fn gt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
 
-    fn ge(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool>;
+    fn ge<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
 
-    fn lt(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool>;
+    fn lt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
 
-    fn le(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool>;
+    fn le<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
 }
 
-pub trait BitCmpOperand<T: BitCmp> {
-    fn into_operand(self) -> Value<T>;
+/// Comparison operands: same-domain values and plain unsigned integers
+/// (converted to the left-hand side's width).
+pub trait CmpOperand<D: Domain, T: BitCmp> {
+    fn into_operand(self) -> Value<D, T>;
 }
 
-impl<T: BitCmp, R: IntoValue<Out = T>> BitCmpOperand<T> for R {
-    fn into_operand(self) -> Value<T> {
+impl<D: Domain, T: BitCmp, R: IntoValue<D, Out = T>> CmpOperand<D, T> for R {
+    fn into_operand(self) -> Value<D, T> {
         self.into_value()
     }
 }
@@ -32,15 +34,9 @@ impl<T: BitCmp, R: IntoValue<Out = T>> BitCmpOperand<T> for R {
 macro_rules! impl_unsigned_cmp_operand {
     ($($ty:ty),* $(,)?) => {
         $(
-            impl<T: BitCmp + Arith> BitCmpOperand<T> for $ty {
-                fn into_operand(self) -> Value<T> {
-                    T::from_u128(u128::from(self))
-                }
-            }
-
-            impl<T: Arith> ArithCmpOperand<T> for $ty {
-                fn into_operand(self) -> Value<T> {
-                    T::from_u128(u128::from(self))
+            impl<D: Domain, T: BitCmp + crate::ops::Arith> CmpOperand<D, T> for $ty {
+                fn into_operand(self) -> Value<D, T> {
+                    T::from_u128::<D>(u128::from(self))
                 }
             }
         )*
@@ -49,50 +45,58 @@ macro_rules! impl_unsigned_cmp_operand {
 
 impl_unsigned_cmp_operand!(u8, u16, u32, u64, u128);
 
-pub trait BitCmpExt: IntoValue + Sized
+pub trait BitCmpExt<D: Domain>: IntoValue<D> + Sized
 where
     Self::Out: BitCmp,
 {
-    fn eq(self, rhs: impl BitCmpOperand<Self::Out>) -> Value<bool> {
-        <Self::Out as BitCmp>::eq(self.into_value(), rhs.into_operand())
+    fn eq(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
+        <Self::Out as BitCmp>::eq(
+            self.into_value(),
+            rhs.into_operand(),
+        )
     }
 
-    fn ne(self, rhs: impl BitCmpOperand<Self::Out>) -> Value<bool> {
-        <Self::Out as BitCmp>::ne(self.into_value(), rhs.into_operand())
-    }
-}
-
-impl<T: IntoValue> BitCmpExt for T where T::Out: BitCmp {}
-
-pub trait ArithCmpOperand<T: Arith> {
-    fn into_operand(self) -> Value<T>;
-}
-
-impl<T: Arith, R: IntoValue<Out = T>> ArithCmpOperand<T> for R {
-    fn into_operand(self) -> Value<T> {
-        self.into_value()
+    fn ne(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
+        <Self::Out as BitCmp>::ne(
+            self.into_value(),
+            rhs.into_operand(),
+        )
     }
 }
 
-pub trait ArithCmpExt: IntoValue + Sized
+impl<D: Domain, T: IntoValue<D>> BitCmpExt<D> for T where T::Out: BitCmp {}
+
+pub trait ArithCmpExt<D: Domain>: IntoValue<D> + Sized
 where
     Self::Out: ArithCmp,
 {
-    fn gt(self, rhs: impl ArithCmpOperand<Self::Out>) -> Value<bool> {
-        <Self::Out as ArithCmp>::gt(self.into_value(), rhs.into_operand())
+    fn gt(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
+        <Self::Out as ArithCmp>::gt(
+            self.into_value(),
+            rhs.into_operand(),
+        )
     }
 
-    fn ge(self, rhs: impl ArithCmpOperand<Self::Out>) -> Value<bool> {
-        <Self::Out as ArithCmp>::ge(self.into_value(), rhs.into_operand())
+    fn ge(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
+        <Self::Out as ArithCmp>::ge(
+            self.into_value(),
+            rhs.into_operand(),
+        )
     }
 
-    fn lt(self, rhs: impl ArithCmpOperand<Self::Out>) -> Value<bool> {
-        <Self::Out as ArithCmp>::lt(self.into_value(), rhs.into_operand())
+    fn lt(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
+        <Self::Out as ArithCmp>::lt(
+            self.into_value(),
+            rhs.into_operand(),
+        )
     }
 
-    fn le(self, rhs: impl ArithCmpOperand<Self::Out>) -> Value<bool> {
-        <Self::Out as ArithCmp>::le(self.into_value(), rhs.into_operand())
+    fn le(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
+        <Self::Out as ArithCmp>::le(
+            self.into_value(),
+            rhs.into_operand(),
+        )
     }
 }
 
-impl<T: IntoValue> ArithCmpExt for T where T::Out: ArithCmp {}
+impl<D: Domain, T: IntoValue<D>> ArithCmpExt<D> for T where T::Out: ArithCmp {}

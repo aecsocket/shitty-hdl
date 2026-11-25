@@ -1,7 +1,8 @@
 use crate::{
-    elab::{self, Context},
-    ops::{Arith, ArithCmp, BitCmp, Bits, Shift, Trunc, Zext},
-    value::{Bit, IntoValue, IntoValues, Shape, Value, ValueView},
+    elab::{self, Context, ExprHandle},
+    ops::{Arith, ArithCmp, BitCmp, Bits, Shift},
+    domain::Domain,
+    value::{Bit, Shape, Raw, Value, ValueView},
 };
 
 #[derive(Debug, Clone)]
@@ -20,85 +21,90 @@ impl<const N: usize> Shape for Uint<N> {
         cx.bits::<Self>(self.0.words())
     }
 
-    fn make_values(value: Value<Self>) -> Self::Values {
+    type Values<D: Domain> = Value<D, Self>;
+
+    fn make_values<D: Domain>(value: Value<D, Self>) -> Self::Values<D> {
         value
     }
 
-    fn pack_values(values: Self::Values) -> Value<Self> {
+    fn pack_values<D: Domain>(values: Self::Values<D>) -> Value<D, Self> {
         values
     }
-}
 
-impl<const N: usize> IntoValues for Uint<N> {
-    type Out = Self;
-    type Values = Value<Self>;
-
-    fn into_values(self) -> Self::Values {
-        self.into_value()
+    fn value_handles<D: Domain>(values: Self::Values<D>) -> Vec<ExprHandle> {
+        vec![values.handle()]
     }
 }
+
+
 
 impl<const N: usize> Bits for Uint<N> {
     const WIDTH: usize = N;
     type Packed = Bit<N>;
 
-    fn pack(this: Value<Self>) -> Value<Self::Packed> {
-        elab::cast::<Self, Self::Packed>(air::CastKind::Pack, this)
+    fn pack<D: Domain>(this: Value<D, Self>) -> Value<D, Self::Packed> {
+        Value::wrap(elab::cast::<Self, Self::Packed>(
+            air::CastKind::Pack,
+            this.raw(),
+        ))
     }
 
-    fn unpack(bits: Value<Self::Packed>) -> Value<Self> {
-        elab::cast::<Self::Packed, Self>(air::CastKind::Unpack, bits)
+    fn unpack<D: Domain>(bits: Value<D, Self::Packed>) -> Value<D, Self> {
+        Value::wrap(elab::cast::<Self::Packed, Self>(
+            air::CastKind::Unpack,
+            bits.raw(),
+        ))
     }
 }
 
 impl<const N: usize> BitCmp for Uint<N> {
-    fn eq(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
-        elab::compare(air::BinaryOp::Equal, lhs, rhs)
+    fn eq<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
+        Value::wrap(elab::compare(air::BinaryOp::Equal, lhs.raw(), rhs.raw()))
     }
 
-    fn ne(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
-        elab::compare(air::BinaryOp::NotEqual, lhs, rhs)
+    fn ne<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
+        Value::wrap(elab::compare(air::BinaryOp::NotEqual, lhs.raw(), rhs.raw()))
     }
 }
 
 impl<const N: usize> ArithCmp for Uint<N> {
-    fn gt(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
-        elab::compare(air::BinaryOp::Greater, lhs, rhs)
+    fn gt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
+        Value::wrap(elab::compare(air::BinaryOp::Greater, lhs.raw(), rhs.raw()))
     }
 
-    fn ge(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
-        elab::compare(air::BinaryOp::GreaterEqual, lhs, rhs)
+    fn ge<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
+        Value::wrap(elab::compare(air::BinaryOp::GreaterEqual, lhs.raw(), rhs.raw()))
     }
 
-    fn lt(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
-        elab::compare(air::BinaryOp::Less, lhs, rhs)
+    fn lt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
+        Value::wrap(elab::compare(air::BinaryOp::Less, lhs.raw(), rhs.raw()))
     }
 
-    fn le(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
-        elab::compare(air::BinaryOp::LessEqual, lhs, rhs)
+    fn le<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
+        Value::wrap(elab::compare(air::BinaryOp::LessEqual, lhs.raw(), rhs.raw()))
     }
 }
 
 impl<const N: usize> Arith for Uint<N> {
-    fn add(lhs: Value<Self>, rhs: Value<Self>) -> Value<Self> {
-        elab::binary(air::BinaryOp::Add, lhs, rhs)
+    fn add<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, Self> {
+        Value::wrap(elab::binary(air::BinaryOp::Add, lhs.raw(), rhs.raw()))
     }
 
-    fn sub(lhs: Value<Self>, rhs: Value<Self>) -> Value<Self> {
-        elab::binary(air::BinaryOp::Subtract, lhs, rhs)
+    fn sub<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, Self> {
+        Value::wrap(elab::binary(air::BinaryOp::Subtract, lhs.raw(), rhs.raw()))
     }
 
-    fn from_u128(value: u128) -> Value<Self> {
-        elab::uint_from_u128::<N>(value)
+    fn from_u128<D: Domain>(value: u128) -> Value<D, Self> {
+        Value::wrap(elab::uint_from_u128::<N>(value))
     }
 }
 
 impl<const N: usize> Shift for Uint<N> {
-    fn shl(value: Value<Self>, amount: usize) -> Value<Self> {
+    fn shl(value: Raw<Self>, amount: usize) -> Raw<Self> {
         elab::shift(air::BinaryOp::ShiftLeft, value, amount)
     }
 
-    fn shr(value: Value<Self>, amount: usize) -> Value<Self> {
+    fn shr(value: Raw<Self>, amount: usize) -> Raw<Self> {
         elab::shift(air::BinaryOp::ShiftRight, value, amount)
     }
 }
@@ -138,18 +144,3 @@ macro_rules! uint {
     }};
 }
 
-impl<const N: usize> Trunc for Value<Uint<N>> {
-    type To<const TO: usize> = Uint<TO>;
-
-    fn trunc<const TO: usize>(self) -> Value<Self::To<TO>> {
-        elab::cast::<Uint<N>, Uint<TO>>(air::CastKind::Truncate, self)
-    }
-}
-
-impl<const N: usize> Zext for Value<Uint<N>> {
-    type To<const TO: usize> = Uint<TO>;
-
-    fn zext<const TO: usize>(self) -> Value<Self::To<TO>> {
-        elab::cast::<Uint<N>, Uint<TO>>(air::CastKind::ZeroExtend, self)
-    }
-}

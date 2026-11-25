@@ -1,7 +1,10 @@
+#![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
+
 mod demo;
 mod task;
 
-pub use demo::{SysClk, blinky};
+pub use demo::{Sync, blinky};
 
 use anyhow::{Context as _, Result};
 use board::Board;

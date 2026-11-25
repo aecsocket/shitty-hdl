@@ -50,18 +50,26 @@ fn derive(input: TokenStream, arithmetic: bool) -> Result<TokenStream> {
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
         return Ok(quote! {
             impl #impl_generics #crate_::ops::BitCmp for #ident #ty_generics #where_clause {
-                fn eq(
-                    lhs: #crate_::value::Value<Self>,
-                    rhs: #crate_::value::Value<Self>,
-                ) -> #crate_::value::Value<bool> {
-                    #crate_::__::compare(#crate_::air::BinaryOp::Equal, lhs, rhs)
+                fn eq<D: #crate_::domain::Domain>(
+                    lhs: #crate_::value::Value<D, Self>,
+                    rhs: #crate_::value::Value<D, Self>,
+                ) -> #crate_::value::Value<D, bool> {
+                    #crate_::value::Value::wrap(#crate_::elab::compare(
+                        #crate_::air::BinaryOp::Equal,
+                        #crate_::value::Value::raw(lhs),
+                        #crate_::value::Value::raw(rhs),
+                    ))
                 }
 
-                fn ne(
-                    lhs: #crate_::value::Value<Self>,
-                    rhs: #crate_::value::Value<Self>,
-                ) -> #crate_::value::Value<bool> {
-                    #crate_::__::compare(#crate_::air::BinaryOp::NotEqual, lhs, rhs)
+                fn ne<D: #crate_::domain::Domain>(
+                    lhs: #crate_::value::Value<D, Self>,
+                    rhs: #crate_::value::Value<D, Self>,
+                ) -> #crate_::value::Value<D, bool> {
+                    #crate_::value::Value::wrap(#crate_::elab::compare(
+                        #crate_::air::BinaryOp::NotEqual,
+                        #crate_::value::Value::raw(lhs),
+                        #crate_::value::Value::raw(rhs),
+                    ))
                 }
             }
         });
@@ -104,10 +112,10 @@ fn derive(input: TokenStream, arithmetic: bool) -> Result<TokenStream> {
     let methods = names.iter().map(|name| {
         let name = format_ident!("{name}");
         quote! {
-            fn #name(
-                lhs: #crate_::value::Value<Self>,
-                rhs: #crate_::value::Value<Self>,
-            ) -> #crate_::value::Value<bool> {
+            fn #name<D: #crate_::domain::Domain>(
+                lhs: #crate_::value::Value<D, Self>,
+                rhs: #crate_::value::Value<D, Self>,
+            ) -> #crate_::value::Value<D, bool> {
                 let lhs = <#ty as #crate_::ops::Bits>::unpack(
                     <Self as #crate_::ops::Bits>::pack(lhs));
                 let rhs = <#ty as #crate_::ops::Bits>::unpack(

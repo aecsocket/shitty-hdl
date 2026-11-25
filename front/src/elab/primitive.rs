@@ -9,7 +9,7 @@ use crate::{
 
 use super::with_context;
 
-pub fn bram<D: Domain, Addr: Bits, Data: Bits>(clock: Clock<D>, depth: u64) -> Bram<Addr, Data> {
+pub fn bram<D: Domain, Addr: Bits, Data: Bits>(clock: Clock<D>, depth: u64) -> Bram<D, Addr, Data> {
     assert!(depth != 0, "BRAM depth must be nonzero");
     let address_width = u32::try_from(Addr::WIDTH).expect("BRAM address width exceeds u32");
     let data_width = u32::try_from(Data::WIDTH).expect("BRAM data width exceeds u32");
@@ -44,7 +44,7 @@ pub fn bram<D: Domain, Addr: Bits, Data: Bits>(clock: Clock<D>, depth: u64) -> B
         cx.ensure_clock(domain);
         let address = cx.ty::<Addr>();
         let data = cx.ty::<Data>();
-        let ty = cx.iface::<Bram<Addr, Data>>();
+        let ty = cx.iface::<Bram<D, Addr, Data>>();
         let parameter = cx.alloc(air::Parameter::Clock { domain });
         let name = cx.primitive_name();
         let signature = cx.alloc(air::ModuleSignature {
@@ -53,6 +53,7 @@ pub fn bram<D: Domain, Addr: Bits, Data: Bits>(clock: Clock<D>, depth: u64) -> B
             interface: ty,
         });
         let module = cx.alloc(air::Module {
+            clock: domain,
             signature,
             primitive: Some(air::Primitive::Bram {
                 address,

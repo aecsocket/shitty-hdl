@@ -5,9 +5,8 @@ use board::arty_a7::A7_100T;
 use platform::Platform;
 use shitty_hdl::prelude::*;
 
-#[derive(Debug, Clone, Copy)]
-pub struct SysClk;
-impl Domain for SysClk {}
+#[derive(Domain)]
+pub struct Sync;
 
 fn main() {
     shitty_hdl::cli!(A7_100T, gcd);
@@ -24,7 +23,7 @@ const B: u128 = 462;
 /// three bits of the result (0b101 = 5).
 #[module]
 pub fn gcd(platform: Platform) {
-    let clk = platform.clock::<SysClk>().clock;
+    let clk = platform.clock::<Sync>();
 
     let start = platform.button.take(0).input(clk);
     let mut busy_led = platform.led.take(0).output(clk);

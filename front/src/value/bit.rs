@@ -1,9 +1,10 @@
 use smallvec::SmallVec;
 
 use crate::{
-    elab::{self, Context},
-    ops::{BitCmp, Bits, Trunc, Zext},
-    value::{IntoValue, IntoValues, Shape, Value, ValueView},
+    elab::{self, Context, ExprHandle},
+    ops::{BitCmp, Bits},
+    domain::Domain,
+    value::{Shape, Value, ValueView},
 };
 
 #[derive(Debug, Clone)]
@@ -27,21 +28,18 @@ impl<const N: usize> Shape for Bit<N> {
         cx.bits::<Self>(&self.0)
     }
 
-    fn make_values(value: Value<Self>) -> Self::Values {
+    type Values<D: Domain> = Value<D, Self>;
+
+    fn make_values<D: Domain>(value: Value<D, Self>) -> Self::Values<D> {
         value
     }
 
-    fn pack_values(values: Self::Values) -> Value<Self> {
+    fn pack_values<D: Domain>(values: Self::Values<D>) -> Value<D, Self> {
         values
     }
-}
 
-impl<const N: usize> IntoValues for Bit<N> {
-    type Out = Self;
-    type Values = Value<Self>;
-
-    fn into_values(self) -> Self::Values {
-        self.into_value()
+    fn value_handles<D: Domain>(values: Self::Values<D>) -> Vec<ExprHandle> {
+        vec![values.handle()]
     }
 }
 
@@ -49,22 +47,22 @@ impl<const N: usize> Bits for Bit<N> {
     const WIDTH: usize = N;
     type Packed = Self;
 
-    fn pack(this: Value<Self>) -> Value<Self> {
+    fn pack<D: Domain>(this: Value<D, Self>) -> Value<D, Self::Packed> {
         this
     }
 
-    fn unpack(bits: Value<Self>) -> Value<Self> {
+    fn unpack<D: Domain>(bits: Value<D, Self::Packed>) -> Value<D, Self> {
         bits
     }
 }
 
 impl<const N: usize> BitCmp for Bit<N> {
-    fn eq(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
-        elab::compare(air::BinaryOp::Equal, lhs, rhs)
+    fn eq<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
+        Value::wrap(elab::compare(air::BinaryOp::Equal, lhs.raw(), rhs.raw()))
     }
 
-    fn ne(lhs: Value<Self>, rhs: Value<Self>) -> Value<bool> {
-        elab::compare(air::BinaryOp::NotEqual, lhs, rhs)
+    fn ne<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool> {
+        Value::wrap(elab::compare(air::BinaryOp::NotEqual, lhs.raw(), rhs.raw()))
     }
 }
 
@@ -123,18 +121,4 @@ macro_rules! bit {
     }};
 }
 
-impl<const N: usize> Trunc for Value<Bit<N>> {
-    type To<const TO: usize> = Bit<TO>;
 
-    fn trunc<const TO: usize>(self) -> Value<Self::To<TO>> {
-        elab::cast::<Bit<N>, Bit<TO>>(air::CastKind::Truncate, self)
-    }
-}
-
-impl<const N: usize> Zext for Value<Bit<N>> {
-    type To<const TO: usize> = Bit<TO>;
-
-    fn zext<const TO: usize>(self) -> Value<Self::To<TO>> {
-        elab::cast::<Bit<N>, Bit<TO>>(air::CastKind::ZeroExtend, self)
-    }
-}

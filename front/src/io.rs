@@ -4,15 +4,23 @@ use std::ops::{BitAnd, BitOr, Not, ShlAssign};
 use crate::{
     domain::{Clock, Domain},
     elab::{self, ActionHandle, ExprHandle},
-    value::{IntoValue, IntoValues, Value},
+    value::{IntoValue, IntoValues, Raw, Value},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Output<D: Domain> {
     value: ExprHandle,
     writer: ActionHandle,
     _brand: PhantomData<D>,
 }
+
+impl<D: Domain> Clone for Output<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D: Domain> Copy for Output<D> {}
 
 impl<D: Domain> Output<D> {
     #[must_use]
@@ -26,56 +34,56 @@ impl<D: Domain> Output<D> {
     }
 
     #[must_use]
-    pub const fn read(self) -> Value<bool> {
-        Value::from_handle(self.value)
+    pub const fn read(self) -> Value<D, bool> {
+        Value::wrap(Raw::from_handle(self.value))
     }
 
-    pub fn write(&mut self, value: impl IntoValue<Out = bool>) {
-        elab::call_action::<bool, ()>(self.writer, value.into_value());
+    pub fn write(&mut self, value: impl IntoValue<D, Out = bool>) {
+        elab::call_action::<D, bool, ()>(self.writer, value.into_value());
     }
 }
 
-impl<D: Domain> IntoValue for Output<D> {
+impl<D: Domain> IntoValue<D> for Output<D> {
     type Out = bool;
 
-    fn into_value(self) -> Value<bool> {
+    fn into_value(self) -> Value<D, bool> {
         self.read()
     }
 }
 
-impl<D: Domain> IntoValues for Output<D> {
+impl<D: Domain> IntoValues<D> for Output<D> {
     type Out = bool;
-    type Values = Value<bool>;
+    type Values = Value<D, bool>;
 
     fn into_values(self) -> Self::Values {
         self.read()
     }
 }
 
-impl<D: Domain, Rhs: IntoValue<Out = bool>> ShlAssign<Rhs> for Output<D> {
+impl<D: Domain, Rhs: IntoValue<D, Out = bool>> ShlAssign<Rhs> for Output<D> {
     fn shl_assign(&mut self, rhs: Rhs) {
         self.write(rhs);
     }
 }
 
 impl<D: Domain> Not for Output<D> {
-    type Output = Value<bool>;
+    type Output = Value<D, bool>;
 
     fn not(self) -> Self::Output {
         !self.read()
     }
 }
 
-impl<D: Domain, Rhs: IntoValue<Out = bool>> BitAnd<Rhs> for Output<D> {
-    type Output = Value<bool>;
+impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitAnd<Rhs> for Output<D> {
+    type Output = Value<D, bool>;
 
     fn bitand(self, rhs: Rhs) -> Self::Output {
         self.read() & rhs
     }
 }
 
-impl<D: Domain, Rhs: IntoValue<Out = bool>> BitOr<Rhs> for Output<D> {
-    type Output = Value<bool>;
+impl<D: Domain, Rhs: IntoValue<D, Out = bool>> BitOr<Rhs> for Output<D> {
+    type Output = Value<D, bool>;
 
     fn bitor(self, rhs: Rhs) -> Self::Output {
         self.read() | rhs
@@ -83,6 +91,6 @@ impl<D: Domain, Rhs: IntoValue<Out = bool>> BitOr<Rhs> for Output<D> {
 }
 
 #[must_use]
-pub fn input<D: Domain>(clock: Clock<D>, name: &str, active_low: bool) -> Value<bool> {
-    Value::from_handle(elab::io::input(clock, name, active_low))
+pub fn input<D: Domain>(clock: Clock<D>, name: &str, active_low: bool) -> Value<D, bool> {
+    Value::wrap(Raw::from_handle(elab::io::input(clock, name, active_low)))
 }

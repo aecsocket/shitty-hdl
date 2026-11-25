@@ -51,14 +51,17 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
         };
         if let Some(segment) = action {
             let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
-                return Err(syn::Error::new_spanned(ty, "expected Action<In, Out>"));
+                return Err(syn::Error::new_spanned(ty, "expected Action<D, In, Out>"));
             };
             let arguments: Vec<_> = arguments.args.iter().collect();
-            let [GenericArgument::Type(in_ty), GenericArgument::Type(out_ty)] =
+            let [GenericArgument::Type(domain_ty), GenericArgument::Type(in_ty), GenericArgument::Type(out_ty)] =
                 arguments.as_slice()
             else {
-                return Err(syn::Error::new_spanned(ty, "expected Action<In, Out>"));
+                return Err(syn::Error::new_spanned(ty, "expected Action<D, In, Out>"));
             };
+            generics.make_where_clause().predicates.push(parse_quote! {
+                #domain_ty: #crate_::domain::Domain
+            });
             for ty in [in_ty, out_ty] {
                 generics.make_where_clause().predicates.push(parse_quote! {
                     #ty: #crate_::value::Shape
@@ -114,17 +117,21 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
         let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
             return Err(syn::Error::new_spanned(
                 &field.ty,
-                "expected Method<In, Out>",
+                "expected Method<D, In, Out>",
             ));
         };
         let arguments: Vec<_> = arguments.args.iter().collect();
-        let [GenericArgument::Type(in_ty), GenericArgument::Type(out_ty)] = arguments.as_slice()
+        let [GenericArgument::Type(domain_ty), GenericArgument::Type(in_ty), GenericArgument::Type(out_ty)] =
+            arguments.as_slice()
         else {
             return Err(syn::Error::new_spanned(
                 &field.ty,
-                "expected Method<In, Out>",
+                "expected Method<D, In, Out>",
             ));
         };
+        generics.make_where_clause().predicates.push(parse_quote! {
+            #domain_ty: #crate_::domain::Domain
+        });
         for ty in [in_ty, out_ty] {
             generics.make_where_clause().predicates.push(parse_quote! {
                 #ty: #crate_::value::Shape
@@ -144,15 +151,15 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             .collect();
         let output = match out_ty {
             Type::Tuple(tuple) if tuple.elems.is_empty() => quote! {},
-            ty => quote! { -> <#ty as #crate_::value::IntoValues>::Values },
+            ty => quote! { -> <#ty as #crate_::value::IntoValues<#domain_ty>>::Values },
         };
         let name = &field.ident;
         let vis = &field.vis;
         methods.push(quote! {
             #[allow(clippy::future_not_send, clippy::unused_async_trait_impl)]
-            #vis async fn #name(&self, #(#names: impl #crate_::value::IntoValue<Out = #inputs>),*) #output {
+            #vis async fn #name(&self, #(#names: impl #crate_::value::IntoValue<#domain_ty, Out = #inputs>),*) #output {
                 let method = &self.#name;
-                #crate_::method::call_async(
+                #crate_::method::call_async::<#domain_ty, #in_ty, #out_ty>(
                     &method.req,
                     &method.out,
                     &[#(#crate_::value::IntoValue::into_value(#names).handle(),)*],

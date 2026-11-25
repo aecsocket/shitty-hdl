@@ -19,17 +19,17 @@ pub(crate) use body::{
 };
 pub(crate) use context::Context;
 pub(crate) use design::DesignId;
-pub(crate) use expr::{
+pub use expr::{
     assert, binary, cast, compare, display, finish, literal, shift, shift_resize, tuple,
     tuple_element, uint_from_u128, unary,
 };
-pub(crate) use fsm::{define_async_method, define_async_rule, lower_async_if, unit_value};
+pub use fsm::{define_async_method, define_async_rule, lower_async_if, unit_value};
 pub(crate) use handle::{
     ActionHandle, BranchHandle, ClockHandle, ExprHandle, InterfaceHandle, RegisterHandle,
 };
-pub(crate) use interface::{input_interface, interface_action, module, subinterface};
+pub use interface::{input_interface, interface_action, module, subinterface};
 pub(crate) use primitive::bram;
-pub(crate) use state::{clock_input, read_register, register, write_register};
+pub(crate) use state::{clock_input, read_register, register, register_default, write_register};
 
 scoped_thread_local!(static CURRENT: for<'scope> &'scope (dyn ActiveContext + 'scope));
 
@@ -38,7 +38,8 @@ pub fn elaborate(storage: &Bump, f: impl FnOnce()) -> air::Module<'_> {
     let design_id = DesignId::new();
     let context = RefCell::new(Context::new(storage, design_id));
     CURRENT.set(&context as &dyn ActiveContext, f);
-    context.into_inner().finish()
+    let module = context.into_inner().finish();
+    module
 }
 
 pub(crate) fn with_context<R>(f: impl for<'dsn> FnOnce(&mut Context<'dsn>) -> R) -> R {

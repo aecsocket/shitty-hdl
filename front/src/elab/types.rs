@@ -7,7 +7,7 @@ use air::{
 };
 
 use super::Context;
-use crate::{method::Method, module::Interface as InterfaceShape, value::Shape};
+use crate::{domain::Domain, method::Method, module::Interface as InterfaceShape, value::Shape};
 
 impl<'dsn> Context<'dsn> {
     pub fn ty<T: Shape>(&mut self) -> &'dsn Type<'dsn> {
@@ -171,12 +171,12 @@ impl<'dsn> Context<'dsn> {
         })
     }
 
-    pub(crate) fn method_interface<In: Shape, Out: Shape>(&mut self) -> &'dsn Interface<'dsn> {
+    pub(crate) fn method_interface<D: Domain, In: Shape, Out: Shape>(&mut self) -> &'dsn Interface<'dsn> {
         let req = self.action_signature::<In, ()>("req");
         let out = self.action_signature::<(), Out>("out");
         let members =
             self.alloc_slice([InterfaceMember::Method(req), InterfaceMember::Method(out)]);
-        let name = self.type_name::<Method<In, Out>>();
+        let name = self.type_name::<Method<D, In, Out>>();
         self.alloc(Interface { name, members })
     }
 

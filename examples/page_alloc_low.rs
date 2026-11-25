@@ -6,9 +6,8 @@ use front::data::{Bram, bram};
 use platform::Platform;
 use shitty_hdl::prelude::*;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Domain)]
 pub struct SysClk;
-impl Domain for SysClk {}
 
 #[derive(Debug, Clone, Shape, Bits, Arith)]
 pub struct Word(pub Uint<64>);
@@ -32,21 +31,21 @@ impl PageAddr {
 }
 
 impl Addr {
-    pub fn from_page(page: impl IntoValue<Out = PageAddr>) -> Value<Self> {
+    pub fn from_page<D: Domain>(page: impl IntoValue<D, Out = PageAddr>) -> Value<D, Self> {
         page.repack::<Uint<40>>().shl_zext::<5>().repack::<Self>()
     }
 }
 
-pub type Heap = Bram<Addr, Word>;
+pub type Heap = Bram<SysClk, Addr, Word>;
 
 #[derive(Interface)]
-pub struct PageAlloc {
-    pub alloc: Method<(), PageAddr>,
-    pub free: Method<PageAddr, ()>,
+pub struct PageAlloc<D: Domain> {
+    pub alloc: Method<D, (), PageAddr>,
+    pub free: Method<D, PageAddr, ()>,
 }
 
 #[module]
-pub fn page_alloc(clk: Clock<SysClk>, mut heap: Heap) -> PageAlloc {
+pub fn page_alloc(clk: Clock<SysClk>, mut heap: Heap) -> PageAlloc<SysClk> {
     #[derive(Debug, Shape, BitCmp)]
     enum State {
         Idle,
@@ -64,12 +63,12 @@ pub fn page_alloc(clk: Clock<SysClk>, mut heap: Heap) -> PageAlloc {
     // alloc
 
     let mut alloc_out_r = Reg::uninit(clk);
-    let alloc_out = Action::when(state == State::AllocDone).define_as(|()| {
+    let alloc_out: Action<SysClk, (), PageAddr> = Action::when(state == State::AllocDone).define_as(|()| {
         state <<= State::Idle;
         alloc_out_r.read()
     });
 
-    let alloc_req = Action::when(state == State::Idle).define_as(|()| {
+    let alloc_req: Action<SysClk, (), ()> = Action::when(state == State::Idle).define_as(|()| {
         if free_head == PageAddr::invalid() {
             // bump allocate
             sim_assert!(next_clean != PageAddr::invalid(), "OOM");
@@ -98,12 +97,12 @@ pub fn page_alloc(clk: Clock<SysClk>, mut heap: Heap) -> PageAlloc {
 
     // free
 
-    let free_out = Action::when(state == State::FreeDone).define_as(|()| {
+    let free_out: Action<SysClk, (), ()> = Action::when(state == State::FreeDone).define_as(|()| {
         state <<= State::Idle;
     });
 
     let mut free_req_captured = Reg::uninit(clk);
-    let free_req = Action::when(state == State::Idle).define_as(|page: Value<PageAddr>| {
+    let free_req: Action<SysClk, PageAddr, ()> = Action::when(state == State::Idle).define_as(|page: Value<SysClk, PageAddr>| {
         sim_assert!(page != PageAddr::invalid(), "freeing invalid page");
         display!("freeing page {:x}", page);
         sim_assert!(free_count < PageAddr::invalid(), "freeing too many pages");

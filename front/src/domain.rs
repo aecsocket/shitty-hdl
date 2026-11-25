@@ -7,19 +7,35 @@ use crate::elab;
 /// Each marker type names one clock domain; mixing values of different
 /// brands is rejected by the type system, and each brand must map to
 /// exactly one clock (enforced during elaboration).
-pub trait Domain: Copy + 'static {}
+pub trait Domain: 'static {}
 
-#[derive(Debug, Clone, Copy)]
-pub struct DefaultDomain;
+/// Conversion into a [`Clock`] of domain `D`. Implemented for `Clock<D>`
+/// itself and for clock wrappers such as the platform's `BoardClock<D>`,
+/// so APIs can accept either form.
+pub trait IntoClock<D: Domain> {
+    fn into_clock(self) -> Clock<D>;
+}
 
-impl Domain for DefaultDomain {}
+impl<D: Domain> IntoClock<D> for Clock<D> {
+    fn into_clock(self) -> Clock<D> {
+        self
+    }
+}
 
 /// A clock in the domain `D`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Clock<D: Domain> {
     pub(crate) handle: Option<elab::ClockHandle>,
     _brand: PhantomData<D>,
 }
+
+impl<D: Domain> Clone for Clock<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D: Domain> Copy for Clock<D> {}
 
 impl<D: Domain> Clock<D> {
     /// Declares the clock input of domain `D`. Elaboration asserts that
@@ -35,14 +51,5 @@ impl<D: Domain> Clock<D> {
     #[allow(clippy::unused_self)]
     pub(crate) const fn identity(&self) -> TypeId {
         TypeId::of::<D>()
-    }
-}
-
-impl Default for Clock<DefaultDomain> {
-    fn default() -> Self {
-        Self {
-            handle: None,
-            _brand: PhantomData,
-        }
     }
 }

@@ -1,12 +1,14 @@
 use crate::{
-    elab::{self, Context},
-    value::{IntoValue, IntoValues, Shape, Value, ValueView},
+    elab::{self, Context, ExprHandle},
+    domain::Domain,
+    value::{IntoValues, Shape, Value, ValueView},
 };
 
 macro_rules! impl_shape {
     ($($T:ident),*) => {
         impl<$($T: Shape),*> Shape for ($($T,)*) {
             type View = ($(<$T as Shape>::View,)*);
+            type Values<D: Domain> = ($(<$T as Shape>::Values<D>,)*);
 
             fn air_type<'dsn>(cx: &mut Context<'dsn>) -> &'dsn air::Type<'dsn> {
                 let elements = vec![$(cx.ty::<$T>(),)*];
@@ -26,39 +28,56 @@ macro_rules! impl_shape {
             }
 
             #[allow(unused_assignments, unused_mut, unused_variables, clippy::unused_unit)]
-            fn make_values(value: Value<Self>) -> Self::Values {
+            fn make_values<D: Domain>(value: Value<D, Self>) -> Self::Values<D> {
                 let mut index = 0;
                 ($({
-                    let element = elab::tuple_element::<Self, $T>(value, index);
+                    let element = elab::tuple_element::<Self, $T>(value.raw(), index);
                     index += 1;
-                    $T::make_values(element)
+                    $T::make_values(Value::wrap(element))
                 },)*)
             }
 
             #[allow(non_snake_case)]
-            fn pack_values(values: Self::Values) -> Value<Self> {
+            fn pack_values<D: Domain>(values: Self::Values<D>) -> Value<D, Self> {
+                Value::wrap(elab::tuple::<Self>(&Self::value_handles::<D>(values)))
+            }
+
+            fn value_handles<D: Domain>(values: Self::Values<D>) -> Vec<ExprHandle> {
                 let ($($T,)*) = values;
-                elab::tuple::<Self>(&[$($T::pack_values($T).handle(),)*])
+                let mut handles = Vec::new();
+                $(
+                    handles.extend(<$T as Shape>::value_handles($T));
+                )*
+                handles
             }
         }
 
-        impl<$($T: IntoValues),*> IntoValues for ($($T,)*) {
-            type Out = ($($T::Out,)*);
-            type Values = ($($T::Values,)*);
 
-            #[allow(non_snake_case, clippy::unused_unit)]
-            fn into_values(self) -> Self::Values {
-                let ($($T,)*) = self;
-                ($($T.into_values(),)*)
-            }
-        }
     };
 }
 
 variadics_please::all_tuples!(impl_shape, 0, 15, T);
 
+macro_rules! impl_into_values_tuple {
+    ($($T:ident),*) => {
+        impl<D: Domain, $($T: Shape),*> IntoValues<D> for ($(Value<D, $T>,)*) {
+            type Out = ($($T,)*);
+            type Values = ($(<$T as Shape>::Values<D>,)*);
+
+            #[allow(non_snake_case, clippy::unused_unit)]
+            fn into_values(self) -> Self::Values {
+                let ($($T,)*) = self;
+                ($($T::make_values($T),)*)
+            }
+        }
+    };
+}
+
+variadics_please::all_tuples!(impl_into_values_tuple, 1, 15, T);
+
 impl Shape for bool {
     type View = ValueView<Self>;
+    type Values<D: Domain> = Value<D, Self>;
 
     fn air_type<'dsn>(cx: &mut Context<'dsn>) -> &'dsn air::Type<'dsn> {
         cx.alloc(air::Type::Bool)
@@ -68,20 +87,17 @@ impl Shape for bool {
         cx.boolean(self)
     }
 
-    fn make_values(value: Value<Self>) -> Self::Values {
+    fn make_values<D: Domain>(value: Value<D, Self>) -> Self::Values<D> {
         value
     }
 
-    fn pack_values(values: Self::Values) -> Value<Self> {
+    fn pack_values<D: Domain>(values: Self::Values<D>) -> Value<D, Self> {
         values
     }
-}
 
-impl IntoValues for bool {
-    type Out = Self;
-    type Values = Value<Self>;
-
-    fn into_values(self) -> Self::Values {
-        self.into_value()
+    fn value_handles<D: Domain>(values: Self::Values<D>) -> Vec<ExprHandle> {
+        vec![values.handle()]
     }
 }
+
+

@@ -45,10 +45,10 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     Ok(quote! {
         impl #impl_generics #crate_::ops::Arith for #ident #ty_generics #where_clause {
-            fn add(
-                lhs: #crate_::value::Value<Self>,
-                rhs: #crate_::value::Value<Self>,
-            ) -> #crate_::value::Value<Self> {
+            fn add<D: #crate_::domain::Domain>(
+                lhs: #crate_::value::Value<D, Self>,
+                rhs: #crate_::value::Value<D, Self>,
+            ) -> #crate_::value::Value<D, Self> {
                 let lhs = <#ty as #crate_::ops::Bits>::unpack(
                     <Self as #crate_::ops::Bits>::pack(lhs));
                 let rhs = <#ty as #crate_::ops::Bits>::unpack(
@@ -58,10 +58,10 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
                     <#ty as #crate_::ops::Bits>::pack(result))
             }
 
-            fn sub(
-                lhs: #crate_::value::Value<Self>,
-                rhs: #crate_::value::Value<Self>,
-            ) -> #crate_::value::Value<Self> {
+            fn sub<D: #crate_::domain::Domain>(
+                lhs: #crate_::value::Value<D, Self>,
+                rhs: #crate_::value::Value<D, Self>,
+            ) -> #crate_::value::Value<D, Self> {
                 let lhs = <#ty as #crate_::ops::Bits>::unpack(
                     <Self as #crate_::ops::Bits>::pack(lhs));
                 let rhs = <#ty as #crate_::ops::Bits>::unpack(
@@ -71,7 +71,7 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
                     <#ty as #crate_::ops::Bits>::pack(result))
             }
 
-            fn from_u128(value: u128) -> #crate_::value::Value<Self> {
+            fn from_u128<D: #crate_::domain::Domain>(value: u128) -> #crate_::value::Value<D, Self> {
                 let result = <#ty as #crate_::ops::Arith>::from_u128(value);
                 <Self as #crate_::ops::Bits>::unpack(
                     <#ty as #crate_::ops::Bits>::pack(result))

@@ -2,7 +2,7 @@ pub use board;
 
 use board::Board;
 use front::{
-    domain::{Clock, Domain},
+    domain::{Clock, Domain, IntoClock},
     io,
     io::Output,
     value::Value,
@@ -96,9 +96,9 @@ impl Led {
     /// Creates the output register driving this pin in the given clock
     /// domain.
     #[must_use]
-    pub fn output<D: Domain>(&self, clock: Clock<D>) -> Output<D> {
+    pub fn output<D: Domain>(&self, clock: impl IntoClock<D>) -> Output<D> {
         Output::new(
-            clock,
+            clock.into_clock(),
             &self.name,
             self.resource.active_on == board::ActiveOn::Low,
         )
@@ -149,20 +149,34 @@ impl Button {
     /// Creates the two-register synchronizer for this pin in the given
     /// clock domain.
     #[must_use]
-    pub fn input<D: Domain>(&self, clock: Clock<D>) -> Value<bool> {
+    pub fn input<D: Domain>(&self, clock: impl IntoClock<D>) -> Value<D, bool> {
         io::input(
-            clock,
+            clock.into_clock(),
             &self.name,
             self.resource.active_on == board::ActiveOn::Low,
         )
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct BoardClock<D: Domain> {
     pub clock: Clock<D>,
     pub hz: NonZero<u64>,
 }
+
+impl<D: Domain> Clone for BoardClock<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D: Domain> IntoClock<D> for BoardClock<D> {
+    fn into_clock(self) -> Clock<D> {
+        self.clock
+    }
+}
+
+impl<D: Domain> Copy for BoardClock<D> {}
 
 #[derive(Debug, Clone)]
 pub struct Platform {
@@ -173,9 +187,6 @@ pub struct Platform {
 }
 
 impl Platform {
-    /// The board's default clock, branded with the caller's domain
-    /// marker. A board either has a default clock with its frequency or
-    /// neither, so they are a single value.
     #[must_use]
     pub fn clock<D: Domain>(&self) -> BoardClock<D> {
         self.try_clock().expect("board has no default clock")

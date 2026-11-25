@@ -2,6 +2,7 @@ mod arith;
 mod bits;
 mod cmp;
 mod display;
+mod domain;
 mod hdl;
 mod interface;
 mod module;
@@ -33,6 +34,11 @@ pub fn hdl(
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     hdl::derive(attr.into(), input.into()).into()
+}
+
+#[proc_macro_derive(Domain, attributes(domain))]
+pub fn domain(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    domain::derive(input.into()).into()
 }
 
 #[proc_macro_derive(Interface, attributes(interface))]

@@ -1,6 +1,6 @@
 use std::fmt::{Binary, Display, LowerHex, Octal};
 
-use crate::{elab::handle::ExprHandle, value::IntoValue};
+use crate::{domain::Domain, elab::handle::ExprHandle, value::IntoValue};
 
 pub struct DisplaySpec {
     pub hardware: String,
@@ -14,11 +14,11 @@ pub struct DisplaySpec {
 /// receivers by value before `&x`, so a capture that is `IntoValue` hits
 /// `DisplayArgHardware` first, while plain Rust values fall through to
 /// `DisplayArgText` on `&T` and are formatted at elaboration time.
-pub trait DisplayArgHardware {
+pub trait DisplayArgHardware<D: Domain> {
     fn push_display_arg(self, fmt: &mut String, args: &mut Vec<ExprHandle>, spec: &DisplaySpec);
 }
 
-impl<T: IntoValue> DisplayArgHardware for T {
+impl<D: Domain, T: IntoValue<D>> DisplayArgHardware<D> for T {
     fn push_display_arg(self, fmt: &mut String, args: &mut Vec<ExprHandle>, spec: &DisplaySpec) {
         fmt.push_str(&spec.hardware);
         args.push(self.into_value().handle());

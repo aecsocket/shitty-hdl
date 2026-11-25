@@ -26,6 +26,7 @@ pub enum Parameter<'dsn> {
 
 #[derive(Debug, Clone)]
 pub struct Module<'dsn> {
+    pub clock: &'dsn Domain<'dsn>,
     pub signature: &'dsn ModuleSignature<'dsn>,
     pub primitive: Option<Primitive<'dsn>>,
     pub modules: &'dsn [&'dsn Self],

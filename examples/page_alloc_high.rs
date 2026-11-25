@@ -6,9 +6,8 @@ use front::data::{Bram, bram};
 use platform::Platform;
 use shitty_hdl::prelude::*;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Domain)]
 pub struct SysClk;
-impl Domain for SysClk {}
 
 #[derive(Debug, Clone, Shape, Bits, Arith)]
 pub struct Word(pub Uint<64>);
@@ -32,26 +31,26 @@ impl PageAddr {
 }
 
 impl Addr {
-    pub fn from_page(page: impl IntoValue<Out = PageAddr>) -> Value<Self> {
+    pub fn from_page<D: Domain>(page: impl IntoValue<D, Out = PageAddr>) -> Value<D, Self> {
         page.repack::<Uint<40>>().shl_zext::<5>().repack::<Self>()
     }
 }
 
-pub type Heap = Bram<Addr, Word>;
+pub type Heap = Bram<SysClk, Addr, Word>;
 
 #[derive(Interface)]
-pub struct PageAlloc {
-    pub alloc: Method<(), PageAddr>,
-    pub free: Method<PageAddr, ()>,
+pub struct PageAlloc<D: Domain> {
+    pub alloc: Method<D, (), PageAddr>,
+    pub free: Method<D, PageAddr, ()>,
 }
 
 #[module]
-pub fn page_alloc(clk: Clock<SysClk>, heap: Heap) -> PageAlloc {
+pub fn page_alloc(clk: Clock<SysClk>, heap: Heap) -> PageAlloc<SysClk> {
     let mut next_clean = Reg::new(clk, PageAddr::zero());
     let mut free_head = Reg::new(clk, PageAddr::invalid());
     let mut free_count = Reg::new(clk, PageAddr::zero());
 
-    let alloc = Method::define_as(async |()| {
+    let alloc = Method::define_as(clk, async |()| {
         if free_head == PageAddr::invalid() {
             // bump allocate
             sim_assert!(next_clean != PageAddr::invalid(), "OOM");
@@ -71,7 +70,7 @@ pub fn page_alloc(clk: Clock<SysClk>, heap: Heap) -> PageAlloc {
         }
     });
 
-    let free = Method::define_as(async |page: Value<PageAddr>| {
+    let free = Method::define_as(clk, async |page: Value<SysClk, PageAddr>| {
         sim_assert!(page != PageAddr::invalid(), "freeing invalid page");
         sim_assert!(free_count < PageAddr::invalid(), "freeing too many pages");
         display!("freeing page {page:x}");

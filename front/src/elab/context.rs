@@ -176,34 +176,6 @@ impl<'dsn> Context<'dsn> {
         (index, domain)
     }
 
-    /// Resolves the default domain: adopts the enclosing module's clock
-    /// domain if it already has one, so that registers created with
-    /// `Clock::default()` land in the module's clock instead of a
-    /// separate unconnected domain.
-    pub(crate) fn default_domain(
-        &mut self,
-        identity: TypeId,
-        name: &str,
-    ) -> &'dsn air::Domain<'dsn> {
-        if let Some(domain) = self
-            .parameters
-            .iter()
-            .find_map(|parameter| match parameter {
-                air::Parameter::Clock { domain } => Some(*domain),
-                _ => None,
-            })
-        {
-            let index = self
-                .domains
-                .iter()
-                .position(|existing| ptr::eq(*existing, domain))
-                .expect("module clock domain is not interned");
-            self.domain_cache.insert(identity, (index, domain));
-            return domain;
-        }
-        self.intern_domain(identity, name).1
-    }
-
     pub(crate) fn set_name(&mut self, name: &str) {
         self.name = self.alloc_str(name);
     }
@@ -602,15 +574,7 @@ impl<'dsn> Context<'dsn> {
     }
 
     pub(crate) fn end_module(&mut self) -> InterfaceHandle {
-        let domain = self
-            .parameters
-            .iter()
-            .find_map(|p| match p {
-                air::Parameter::Clock { domain } => Some(*domain),
-                _ => None,
-            })
-            .or_else(|| self.domains.first().copied())
-            .unwrap_or_else(|| self.intern_domain(TypeId::of::<()>(), "clk").1);
+        let domain = self.module_clock();
         self.ensure_clock(domain);
         let module = self.alloc(self.finish());
         let arguments = self.alloc_slice(self.arguments.iter().copied());
@@ -649,8 +613,25 @@ impl<'dsn> Context<'dsn> {
         self.push_interface(interface, module.signature.interface)
     }
 
+    pub(crate) fn module_clock(&self) -> &'dsn air::Domain<'dsn> {
+        self.parameters
+            .iter()
+            .find_map(|parameter| match parameter {
+                air::Parameter::Clock { domain } => Some(*domain),
+                _ => None,
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "module {:?} has no clock: create one before finishing the module, e.g. with \
+                     `platform.clock::<D>()`, a register, or physical IO",
+                    self.name
+                )
+            })
+    }
+
     pub(crate) fn finish(&self) -> air::Module<'dsn> {
         assert!(self.frames.is_empty(), "unfinished action body");
+        let clock = self.module_clock();
         let interface = self.interface.unwrap_or_else(|| {
             let ty = self.alloc(air::Interface {
                 name: "Empty",
@@ -688,6 +669,7 @@ impl<'dsn> Context<'dsn> {
             }
         }
         air::Module {
+            clock,
             signature,
             primitive: None,
             modules: self.arena.alloc_slice_copy(&self.modules),

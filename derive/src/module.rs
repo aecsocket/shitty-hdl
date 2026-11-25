@@ -1,34 +1,51 @@
 use proc_macro2::TokenStream;
-use quote::quote;
-use syn::{
-    BinOp, Error, Expr, FnArg, ItemFn, Pat, Result, Stmt, parse_quote, punctuated::Punctuated,
-    token::Comma,
-};
+use quote::{format_ident, quote};
+use syn::{BinOp, Error, Expr, FnArg, ItemFn, Pat, Result, Stmt, Type, parse_quote};
 
 pub fn derive(_attr: TokenStream, input_: TokenStream) -> TokenStream {
     let mut errors = Vec::new();
     let crate_ = quote! { shitty_hdl };
-    let mut function = match syn::parse2::<ItemFn>(input_) {
+    let function = match syn::parse2::<ItemFn>(input_) {
         Ok(function) => function,
         Err(error) => return error.to_compile_error(),
     };
 
     let (impl_generics, ty_generics, where_clause) = function.sig.generics.split_for_impl();
+    let asyncness = function.sig.asyncness;
 
-    // make field definitions for the resulting port `struct`
-    let port_fields = make_port_fields(function.sig.inputs.clone(), &mut errors);
+    // make:
+    // - function params for instantiating the module
+    // - field definitions for the resulting port `struct`
+    let InOuts {
+        call_params,
+        elaborate_params,
+        port_fields,
+    } = make_in_outs(function.sig.inputs.iter(), &mut errors);
 
-    // rewrite control flow (`if`, `else`, `while` etc.) in the body
-    let stmts = make_fn_stmts(function.block.stmts, &mut errors);
-    function.block.stmts = stmts;
+    // rewrite control flow (`if`, `else`, `while` etc.) in the body,
+    // and save that as the statements for the elaborate fn;
+    // the real fn with name `ident` will just make the port.
+    let elaborate_stmts = make_elaborate_stmts(function.block.stmts, &mut errors);
 
-    let input_ = quote! { #function };
     let errors = errors.iter().map(syn::Error::to_compile_error);
     let vis = function.vis;
     let ident = function.sig.ident;
     quote! {
-        #input_
         #(#errors)*
+
+        #vis fn #ident #ty_generics (
+            #(#call_params,)*
+        ) #where_clause -> #ident #ty_generics {
+            todo!();
+        }
+
+        const _: () = {
+            #asyncness fn elaborate #ty_generics (
+                #(#elaborate_params,)*
+            ) #where_clause {
+                #(#elaborate_stmts)*
+            }
+        };
 
         #[allow(non_camel_case_types, reason = "macro-generated")]
         #vis struct #ident #ty_generics #where_clause {
@@ -39,14 +56,33 @@ pub fn derive(_attr: TokenStream, input_: TokenStream) -> TokenStream {
     }
 }
 
-fn make_port_fields(
-    inputs: Punctuated<FnArg, Comma>,
+struct InOuts {
+    call_params: Vec<TokenStream>,
+    elaborate_params: Vec<TokenStream>,
+    port_fields: Vec<TokenStream>,
+}
+
+fn make_in_outs<'a>(
+    inputs: impl Iterator<Item = &'a FnArg>,
     errors: &mut Vec<syn::Error>,
-) -> Vec<TokenStream> {
+) -> InOuts {
+    enum InputKind {
+        // e.g. `fn x(capacity: u32)`
+        Arg,
+        // e.g. `fn x(start: In<bool>)`
+        Signal,
+        // e.g. `fn x<T>(_phantom: PhantomData<T>)`
+        Phantom,
+    }
+
     let crate_ = quote! { shitty_hdl };
 
+    let mut call_params = Vec::new();
+    let mut elaborate_params = Vec::new();
     let mut port_fields = Vec::new();
-    for input in inputs {
+    for (idx, input) in inputs.enumerate() {
+        elaborate_params.push(quote! { #input });
+
         let input = match input {
             FnArg::Receiver(_) => {
                 errors.push(syn::Error::new_spanned(
@@ -58,43 +94,69 @@ fn make_port_fields(
             FnArg::Typed(ty) => ty,
         };
 
-        let ident = match input.pat.as_ref() {
-            Pat::Ident(pat) if pat.subpat.is_none() => &pat.ident,
-            _ => {
-                errors.push(syn::Error::new_spanned(
-                    &input.pat,
-                    "module inputs must have a simple name",
-                ));
-                continue;
-            }
-        };
-
-        let is_phantom_data = matches!(
-            input.ty.as_ref(),
-            syn::Type::Path(path)
-                if path.qself.is_none()
-                && path.path.segments.last()
-                    .is_some_and(|seg| seg.ident == "PhantomData")
-        );
-
-        let field = if is_phantom_data {
-            // `PhantomData` gets used in a struct directly
-            let ty = &input.ty;
-            quote! { pub #ident: #ty }
+        let last_path_ident = if let Type::Path(path) = input.ty.as_ref()
+            && path.qself.is_none()
+        {
+            path.path.segments.last().map(|seg| &seg.ident)
         } else {
-            // this should be an `In` or `Out`,
-            // so the struct should take the inverse flow
-            let ty = &input.ty;
-            let ty = quote! { <#ty as #crate_::__::SignalFlow>::Inverse };
-            quote! { pub #ident: #ty }
+            None
         };
 
-        port_fields.push(field);
+        let is_phantom_data = last_path_ident.is_some_and(|id| id == "PhantomData");
+        let is_in = last_path_ident.is_some_and(|id| id == "In");
+        let is_out = last_path_ident.is_some_and(|id| id == "Out");
+        let is_signal = is_in || is_out;
+        let kind = match (is_phantom_data, is_signal) {
+            (true, _) => InputKind::Phantom,
+            (false, true) => InputKind::Signal,
+            (false, false) => InputKind::Arg,
+        };
+
+        let ty = &input.ty;
+        match kind {
+            InputKind::Arg => {
+                // args like `capacity: u32` are passed directly
+                let pat = &input.pat;
+                call_params.push(quote! { #pat: #ty });
+            }
+            InputKind::Signal => {
+                // for signals like `start: In<bool>`:
+                // - not needed to instantiate the module
+                // - the *inverse flow* is included in the port struct
+                let ident = match input.pat.as_ref() {
+                    Pat::Ident(pat) if pat.subpat.is_none() => &pat.ident,
+                    _ => {
+                        errors.push(syn::Error::new_spanned(
+                            &input.pat,
+                            "module inputs must have a simple name",
+                        ));
+                        continue;
+                    }
+                };
+                let ty = quote! { <#ty as #crate_::__::SignalFlow>::Inverse };
+                port_fields.push(quote! { pub #ident: #ty })
+            }
+            InputKind::Phantom => {
+                // `PhantomData` is only in the port struct
+                //
+                // construct a synthetic ident for this,
+                // since users might do like `_: PhantomData<T>`;
+                // that has no real ident, and it would be pointless
+                // to require callers to specify a real ident.
+                let ident = format_ident!("_phantom_{idx}");
+                port_fields.push(quote! { #ident: #ty });
+            }
+        }
     }
-    port_fields
+
+    InOuts {
+        call_params,
+        elaborate_params,
+        port_fields,
+    }
 }
 
-fn make_fn_stmts(original: Vec<Stmt>, errors: &mut Vec<syn::Error>) -> Vec<Stmt> {
+fn make_elaborate_stmts(original: Vec<Stmt>, errors: &mut Vec<syn::Error>) -> Vec<Stmt> {
     let crate_ = quote! { shitty_hdl };
 
     let mut stmts = Vec::new();

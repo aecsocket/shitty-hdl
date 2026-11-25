@@ -1,41 +1,32 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops};
 
 use crate::{Cond, Shape, Stmt, Val};
 
 #[derive(Clone, Copy)]
 pub struct Signal<T: Shape> {
+    init: Option<T>,
     _phantom: PhantomData<T>,
-    do_reset: bool,
 }
 
 impl<T: Shape> Signal<T> {
     #[must_use]
-    pub const fn new() -> Self {
+    pub fn new(init: T) -> Self {
         Self {
+            init: Some(init),
             _phantom: PhantomData,
-            do_reset: true,
         }
     }
 
-    #[must_use]
-    pub fn without_reset(self) -> Self {
+    pub fn without_reset() -> Self {
         Self {
-            do_reset: false,
-            ..self
+            init: None,
+            _phantom: PhantomData,
         }
     }
+}
 
-    pub fn set(self, rhs: impl Val<T>) -> Stmt {
+impl<T: Shape, Rhs: Val<T>> ops::ShlAssign<Rhs> for Signal<T> {
+    fn shl_assign(&mut self, rhs: Rhs) {
         todo!();
-    }
-
-    pub fn eq(self, rhs: impl Val<T>) -> impl Cond {
-        todo!();
-        false
-    }
-
-    pub fn ne(self, rhs: impl Val<T>) -> impl Cond {
-        todo!();
-        false
     }
 }

@@ -7,7 +7,7 @@ use crate::{In, Out, Shape, Val};
 use crate as shitty_hdl;
 
 #[module]
-pub fn memory<Data: Shape, Addr: Shape>(_phantom: PhantomData<(Data, Addr)>) {}
+pub fn memory<Data: Shape, Addr: Shape>(_: PhantomData<(Data, Addr)>) {}
 
 impl<Data: Shape, Addr: Shape> memory<Data, Addr> {
     pub fn read_port(&mut self) -> ReadPort<Data, Addr> {

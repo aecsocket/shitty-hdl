@@ -1,25 +1,32 @@
-use shitty_hdl::{In, Module, Out, Signal};
+use shitty_hdl::{In, Out, Signal, comb, module, sync};
 
-pub fn my_counter(mut m: Module, start: In<bool>, count_times_2: Out<u32>, done: Out<bool>) {
-    let started = Signal::<bool>::new();
-    let count = Signal::<u32>::new();
-    let side_count = Signal::<u32>::new().without_reset();
+#[module]
+pub fn my_counter(start: In<bool>, count_times_4: Out<u32>, done: Out<bool>) {
+    let started = Signal::<bool>::new(false);
+    let count = Signal::<u32>::new(0);
+    let count_times_2 = Signal::<u32>::without_reset();
 
-    m.sync += done.set(false);
+    sync(|| done <<= false);
 
-    m.if_(start, |m| {
-        m.sync += started.set(true);
-    });
+    if start {
+        sync(|| started <<= true);
+    }
 
-    m.if_(started, |m| {
-        m.sync += count.set(count + 1);
-        m.sync += side_count.set(count + 1);
-        m.comb += count_times_2.set(count * 2);
-
-        m.if_(count.eq(100_000), |m| {
-            m.sync += [done.set(true), count.set(0), started.set(false)];
+    if started {
+        sync(|| count <<= count + 1);
+        comb(|| {
+            count_times_2 <<= count * 2;
+            count_times_4 <<= count * 4;
         });
-    });
+
+        if count == 100_000 {
+            sync(|| {
+                done <<= true;
+                count <<= 0;
+                started <<= false;
+            });
+        }
+    }
 }
 
 fn main() {}

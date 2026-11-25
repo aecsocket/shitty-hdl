@@ -1,12 +1,10 @@
-use shitty_hdl::{In, Out, Shape, Val, capture, memory, module, submodule};
+use shitty_hdl::{In, Out, Shape, Signal, Val, capture, comb, memory, module, sync};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Shape)]
 pub struct Word(pub u64);
-impl Shape for Word {}
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Shape)]
 pub struct Addr(pub u32);
-impl Shape for Addr {}
 
 #[module]
 pub fn heap(
@@ -18,16 +16,18 @@ pub fn heap(
     write_data: In<Word>,
     mut peak_addr: Out<Addr>,
 ) {
-    let mut mem = submodule::<memory<Word, Addr>>();
+    let mut mem = memory::<Word, Addr>();
     let mut read = mem.read_port();
     let mut write = mem.write_port();
 
-    read.enable <<= do_read;
-    read.addr <<= read_addr;
-    read_data <<= read.data;
-    write.enable <<= do_write;
-    write.addr <<= write_addr;
-    write.data <<= write_data;
+    comb(|| {
+        read.enable <<= do_read;
+        read.addr <<= read_addr;
+        read_data <<= read.data;
+        write.enable <<= do_write;
+        write.addr <<= write_addr;
+        write.data <<= write_data;
+    });
 
     if read_addr > peak_addr {
         peak_addr <<= read_addr;
@@ -50,13 +50,16 @@ impl heap {
 }
 
 #[module]
-pub async fn foo() {
-    let heap = submodule::<heap>();
+pub async fn top() {
+    let heap = heap();
+    let iters = Signal::<u32>::new(0);
 
     let x = heap.read(Addr(4)).await;
     let y = heap.read(Addr(5)).await;
     let z = x + y;
     heap.write(Addr(6), z).await;
+
+    sync(|| iters <<= iters + 1);
 }
 
 fn main() {}

@@ -4,20 +4,19 @@ use crate::{Cond, IntoStmts, Shape, Signal, Stmt, Val};
 
 pub trait Module {}
 
-pub fn submodule<M: Module>() -> M {
-    todo!();
-}
-
 pub fn capture<T: Shape>(value: impl Val<T>) -> Capture<T> {
     todo!();
 }
-impl<T: Shape> Val<T> for Capture<T> {}
+
+pub fn sync(f: impl FnOnce()) {}
+pub fn comb(f: impl FnOnce()) {}
 
 pub struct Capture<T: Shape> {
     _phantom: PhantomData<T>,
 }
+impl<T: Shape> Val<T> for Capture<T> {}
 
-pub fn if_(cond: impl Cond, then: impl FnMut()) {}
+pub fn if_(cond: impl Cond, then: impl FnOnce()) {}
 
 pub fn eq<T: Shape>(a: impl Val<T>, b: impl Val<T>) -> impl Cond {
     todo!();
@@ -68,24 +67,8 @@ impl<T: Shape> SignalFlow for Out<T> {
 impl<T: Shape> Val<T> for In<T> {}
 impl<T: Shape> Val<T> for Out<T> {}
 
-impl<T: Shape> Out<T> {
-    pub fn eq(&self, rhs: impl Val<T>) -> impl Cond {
-        self.0.eq(rhs)
-    }
-
-    pub fn set(&self, rhs: impl Val<T>) -> Stmt {
-        self.0.set(rhs)
-    }
-}
-
 impl<T: Shape, Rhs: Val<T>> ops::ShlAssign<Rhs> for Out<T> {
     fn shl_assign(&mut self, rhs: Rhs) {
         todo!();
-    }
-}
-
-impl<T: Shape> In<T> {
-    pub fn eq(&self, rhs: impl Val<T>) -> impl Cond {
-        self.0.eq(rhs)
     }
 }

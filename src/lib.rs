@@ -7,12 +7,12 @@ mod stmt;
 
 pub use {mem::*, module::*, signal::*, stmt::*, val::*};
 
-pub use shitty_hdl_derive::module;
+pub use shitty_hdl_derive::{Shape, module};
 
 // re-exports for macros
 #[doc(hidden)]
 pub mod __ {
-    pub use crate::{Module, SignalFlow, eq, ge, gt, if_, le, lt, ne};
+    pub use crate::{Module, Shape, SignalFlow, eq, ge, gt, if_, le, lt, ne};
 }
 
 //

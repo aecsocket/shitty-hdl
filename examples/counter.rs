@@ -3,7 +3,7 @@
 
 use shitty_hdl::prelude::*;
 
-#[derive(Debug, Shape)]
+#[derive(Debug, Clone, Shape)]
 struct Foo {
     lo: U<32>,
     hi: U<32>,

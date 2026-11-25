@@ -5,7 +5,7 @@ pub struct Assert<const CONDITION: bool>;
 pub trait True {}
 impl True for Assert<true> {}
 
-pub const fn fits(width: ShapeSize, value: u64) -> bool {
+pub const fn fits_unsigned(width: ShapeSize, value: u64) -> bool {
     if width >= 64 {
         true
     } else {

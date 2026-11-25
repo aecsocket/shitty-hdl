@@ -1,10 +1,10 @@
-use shitty_hdl::{Bits, data::mem::memory, prelude::*, sim::Simulator};
+use shitty_hdl::prelude::*;
 
-#[derive(Clone, Copy, Shape)]
+#[derive(Clone, Shape)]
 #[shape(add, sub, mul, div)]
 pub struct Word(pub Bits<64>);
 
-#[derive(Clone, Copy, Shape)]
+#[derive(Clone, Shape)]
 #[shape(add, sub)]
 pub struct Addr(pub Bits<45>);
 

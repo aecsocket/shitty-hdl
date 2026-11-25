@@ -5,7 +5,6 @@ use std::{
 
 use crate::{
     expr::IntoExpr,
-    util::ty,
     value::{Shape, ShapeSize},
 };
 

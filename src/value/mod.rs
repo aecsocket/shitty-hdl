@@ -1,6 +1,5 @@
 mod bits;
 mod int;
-pub mod n;
 
 use crate::signal::SignalView;
 pub use {bits::*, int::*};

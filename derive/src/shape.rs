@@ -1,15 +1,11 @@
-use darling::{FromDeriveInput, util::Flag};
+use darling::FromDeriveInput;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Data, DeriveInput, Fields, Result, parse_quote};
+use syn::{Data, DeriveInput, Fields, Result, ext::IdentExt, parse_quote};
 
 #[derive(Default, FromDeriveInput)]
 #[darling(attributes(shape))]
 struct Options {
-    add: Flag,
-    sub: Flag,
-    mul: Flag,
-    div: Flag,
     #[darling(rename = "crate")]
     crate_: Option<syn::Path>,
 }
@@ -24,55 +20,108 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
     let crate_ = options
         .crate_
         .unwrap_or_else(|| parse_quote! { shitty_hdl });
-    let ident = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let mut impls = quote! {
-        impl #impl_generics #crate_::__::Shape for #ident #ty_generics #where_clause {}
+    let Data::Struct(data) = &input.data else {
+        return Err(syn::Error::new_spanned(
+            &input,
+            "Shape can only be derived for structs",
+        ));
     };
-
-    let operations = [
-        (options.add, "ValAdd"),
-        (options.sub, "ValSub"),
-        (options.mul, "ValMul"),
-        (options.div, "ValDiv"),
-    ];
-    if !operations.iter().any(|(flag, _)| flag.is_present()) {
-        return Ok(impls);
+    let ident = &input.ident;
+    let view_ident = format_ident!("{}View", ident.unraw());
+    let vis = &input.vis;
+    let mut generics = input.generics.clone();
+    for field in &data.fields {
+        let ty = &field.ty;
+        generics.make_where_clause().predicates.push(parse_quote! {
+            #ty: #crate_::value::Shape
+        });
     }
-
-    let field = match &input.data {
-        Data::Struct(data) => match &data.fields {
-            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => &fields.unnamed[0],
-            _ => {
-                return Err(syn::Error::new_spanned(
-                    &input,
-                    "shape arithmetic options require a tuple struct with exactly one field",
-                ));
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let fields = data.fields.iter().map(|field| {
+        let ty = &field.ty;
+        let vis = &field.vis;
+        let view_ty = quote! { <#ty as #crate_::value::Shape>::View };
+        match &field.ident {
+            Some(ident) => quote! { #vis #ident: #view_ty },
+            None => quote! { #vis #view_ty },
+        }
+    });
+    // Generic defaults belong on the view declaration, but not on impls.
+    let view = match &data.fields {
+        Fields::Named(_) => quote! {
+            #vis struct #view_ident #generics #where_clause {
+                #(#fields,)*
             }
         },
-        _ => {
-            return Err(syn::Error::new_spanned(
-                &input,
-                "shape arithmetic options require a tuple struct with exactly one field",
-            ));
-        }
+        Fields::Unnamed(_) => quote! {
+            #vis struct #view_ident #generics (
+                #(#fields,)*
+            ) #where_clause;
+        },
+        Fields::Unit => quote! {
+            #vis struct #view_ident #generics #where_clause;
+        },
     };
-    let inner = &field.ty;
+    let widths = data.fields.iter().map(|field| {
+        let ty = &field.ty;
+        quote! { <#ty as #crate_::value::Shape>::WIDTH }
+    });
+    Ok(quote! {
+        #view
 
-    for (flag, name) in operations {
-        if !flag.is_present() {
-            continue;
+        impl #impl_generics ::core::marker::Copy for #view_ident #ty_generics #where_clause {}
+
+        impl #impl_generics ::core::clone::Clone for #view_ident #ty_generics #where_clause {
+            fn clone(&self) -> Self {
+                *self
+            }
         }
-        let trait_ = format_ident!("{name}");
-        let mut generics = input.generics.clone();
-        generics.make_where_clause().predicates.push(parse_quote! {
-            #inner: #crate_::__::#trait_<#inner>
-        });
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-        impls.extend(quote! {
-            impl #impl_generics #crate_::__::#trait_<Self> for #ident #ty_generics #where_clause {}
-        });
+
+        impl #impl_generics #crate_::value::Shape for #ident #ty_generics #where_clause {
+            const WIDTH: #crate_::value::ShapeSize = 0 #(+ #widths)*;
+            type View = #view_ident #ty_generics;
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_non_structs() {
+        for input in [
+            quote! { enum Choice { A, B } },
+            quote! { union Either { a: u8, b: u16 } },
+        ] {
+            let error = derive_(input).unwrap_err();
+            assert!(error.to_string().contains("only be derived for structs"));
+        }
     }
 
-    Ok(impls)
+    #[test]
+    fn rejects_removed_arithmetic_options() {
+        for option in ["add", "sub", "mul", "div"] {
+            let option = format_ident!("{option}");
+            let error = derive_(quote! {
+                #[shape(#option)]
+                struct Wrapper(u8);
+            })
+            .unwrap_err();
+            assert!(error.to_string().contains("Unknown field"), "{error}");
+        }
+    }
+
+    #[test]
+    fn expansion_is_valid_rust() {
+        for input in [
+            quote! { pub struct Named<T = bool> where T: Clone { pub field: T } },
+            quote! { pub struct Tuple<T = bool>(pub T) where T: Clone; },
+            quote! { pub struct Unit; },
+            quote! { struct r#type { flag: bool } },
+        ] {
+            let output = derive_(input).unwrap();
+            syn::parse2::<syn::File>(output).unwrap();
+        }
+    }
 }

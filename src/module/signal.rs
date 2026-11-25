@@ -34,9 +34,18 @@ impl<T: Shape> Deref for Out<T> {
 
 impl<T: Shape> IntoExpr for In<T> {
     type Out = T;
+
+    fn into_expr(self) -> crate::expr::Expr<Self::Out> {
+        todo!();
+    }
 }
+
 impl<T: Shape> IntoExpr for Out<T> {
     type Out = T;
+
+    fn into_expr(self) -> crate::expr::Expr<Self::Out> {
+        todo!();
+    }
 }
 
 // write
@@ -46,6 +55,7 @@ impl<T: Shape> DerefMut for Out<T> {
         &mut self.0
     }
 }
+
 impl<T: Shape, Rhs: IntoExpr<Out = T>> ShlAssign<Rhs> for Out<T> {
     fn shl_assign(&mut self, rhs: Rhs) {
         self.0 <<= rhs;

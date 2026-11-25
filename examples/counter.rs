@@ -1,33 +1,34 @@
-use shitty_hdl::{prelude::*, u17, u18, u19};
+#![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
 
-// struct Foo {
-//     lo: u32,
-//     hi: u32,
-// }
-//
-// struct FooSignals {
-//     lo: Signal<u32>,
-//     hi: Signal<u32>,
-// }
-//
-// impl Shape for Foo {
-//     type Signals = FooSignals;
-// }
-//
+use shitty_hdl::prelude::*;
+
+#[derive(Debug, Shape)]
+struct Foo {
+    lo: U<32>,
+    hi: U<32>,
+}
+
 #[module]
 pub fn my_counter(
-    clk: Clock,
+    mut clk: Clock,
     start: In<bool>,
-    mut count_times_4: Out<u19>,
+    mut count_times_3: Out<U<19>>,
     mut done: Out<bool>,
     mut busy: Out<bool>,
+    mut foo: Out<Foo>,
 ) {
     let mut started = Signal::<bool>::new(false);
-    let mut count = Signal::<u17>::new(u17!(0));
-    let mut count_times_2 = Signal::<u18>::without_init();
+    let mut count = Signal::<U<17>>::new(u!(0));
+    let mut count_times_2 = Signal::<U<18>>::without_init();
 
     clk.on(|| done <<= false);
     clk.on(|| busy <<= false);
+
+    comb(|| {
+        foo.lo <<= u!(123);
+        foo.hi <<= u!(0x456);
+    });
 
     if start {
         clk.on(|| started <<= true);
@@ -35,16 +36,17 @@ pub fn my_counter(
 
     if started {
         comb(|| {
-            count_times_2 <<= zext::<_, _, 19>(count) * u19!(2);
-            count_times_4 <<= zext(count) * u19!(4);
+            count_times_2 <<= zext(count) * u!(2);
+            count_times_3 <<= zext(count) * u!(3);
         });
 
-        let new_count = count + 1;
+        let new_count = count + u!(1);
         clk.on(|| count <<= new_count);
-        if new_count.eq(100_000) {
+
+        if new_count.eq(u!(100_000)) {
             clk.on(|| {
                 done <<= true;
-                count <<= u17!(0);
+                count <<= u!(0);
                 started <<= false;
             });
         } else {

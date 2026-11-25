@@ -1,7 +1,11 @@
-use std::{marker::PhantomData, ops::ShlAssign};
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut, ShlAssign},
+};
 
 use crate::{
     expr::IntoExpr,
+    util::ty,
     value::{Shape, ShapeSize},
 };
 
@@ -24,7 +28,7 @@ impl<T: Shape> Copy for Signal<T> {}
 
 impl<T: Shape> Signal<T> {
     #[must_use]
-    pub fn new(init: impl IntoExpr<Out = T>) -> Self {
+    pub fn new(init: impl Into<T>) -> Self {
         todo!();
     }
 
@@ -56,10 +60,26 @@ impl<T: Shape> Copy for SignalView<T> {}
 
 impl<T: Shape> IntoExpr for Signal<T> {
     type Out = T;
+
+    fn into_expr(self) -> crate::expr::Expr<Self::Out> {
+        todo!();
+    }
 }
 
 impl<T: Shape> IntoExpr for SignalView<T> {
     type Out = T;
+
+    fn into_expr(self) -> crate::expr::Expr<Self::Out> {
+        todo!();
+    }
+}
+
+impl<T: Shape> Deref for Signal<T> {
+    type Target = T::View;
+
+    fn deref(&self) -> &Self::Target {
+        &self.view
+    }
 }
 
 // write
@@ -70,4 +90,10 @@ impl<T: Shape, Rhs: IntoExpr<Out = T>> ShlAssign<Rhs> for Signal<T> {
 
 impl<T: Shape, Rhs: IntoExpr<Out = T>> ShlAssign<Rhs> for SignalView<T> {
     fn shl_assign(&mut self, rhs: Rhs) {}
+}
+
+impl<T: Shape> DerefMut for Signal<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.view
+    }
 }

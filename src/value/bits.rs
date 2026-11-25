@@ -10,10 +10,6 @@ use crate::{
 /// [`Bits`] has no arithmetic semantics, so it can only represent boolean data
 /// such as a set of flags. To perform arithmetic such as addition or
 /// subtraction, use [`Uint`] or [`Sint`].
-// store a `SmallVec` internally since a `Bits` will probably not have more than
-// 64 individual wires;
-// as opposed to `Uint`/`Sint`, where if a user wants 128 or less bits,
-// they should use the dedicated type for it.
 pub struct Bits<const N: ShapeSize>(SmallVec<u64, 1>);
 
 impl<const N: ShapeSize> Shape for Bits<N> {

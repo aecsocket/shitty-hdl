@@ -1,63 +1,53 @@
-use std::marker::PhantomData;
-
 use crate::{
-    expr::IntoExpr,
-    value::{Shape, ShapeSize, Uint},
+    expr::{Expr, IntoExpr},
+    util::ty::{Assert, True},
+    value::{I, Shape, ShapeSize, Signed, U, Unsigned},
 };
 
-pub struct Assert<const CONDITION: bool>;
+// zext
 
-pub trait True {}
-impl True for Assert<true> {}
-
-// ops
-
-pub trait CanZext<To: Shape>: Shape {}
-
-impl<const FROM: ShapeSize, const TO: ShapeSize> CanZext<Uint<TO>> for Uint<FROM> where
+pub trait CanZext<To>: Unsigned {}
+impl<const FROM: ShapeSize, const TO: ShapeSize> CanZext<U<TO>> for U<FROM> where
     Assert<{ TO >= FROM }>: True
 {
 }
 
-pub fn zext<T, Lhs, To>(lhs: Lhs) -> Zext<Lhs, To>
-where
-    T: Shape + CanZext<To>,
-    Lhs: IntoExpr<Out = Lhs>,
-    To: Shape,
-{
+pub fn zext<To: Shape>(lhs: impl IntoExpr<Out: CanZext<To>>) -> Expr<To> {
     todo!();
 }
 
-pub struct Zext<Lhs, To> {
-    operand: Lhs,
-    _to: PhantomData<To>,
-}
+// sext
 
-impl<Lhs, To: Shape> IntoExpr for Zext<Lhs, To> {
-    type Out = To;
-}
-
-pub trait CanTrunc<To: Shape>: Shape {}
-
-impl<const FROM: ShapeSize, const TO: ShapeSize> CanTrunc<Uint<TO>> for Uint<FROM> where
-    Assert<{ TO <= FROM }>: True
+pub trait CanSext<To>: Signed {}
+impl<const FROM: ShapeSize, const TO: ShapeSize> CanSext<I<TO>> for I<FROM> where
+    Assert<{ TO >= FROM }>: True
 {
 }
 
-pub fn trunc<T, Lhs, To>(lhs: Lhs) -> Trunc<Lhs, To>
-where
-    T: Shape + CanTrunc<To>,
-    Lhs: IntoExpr<Out = Lhs>,
-    To: Shape,
-{
+pub fn sext<To: Shape>(lhs: impl IntoExpr<Out: CanSext<To>>) -> Expr<To> {
     todo!();
 }
 
-pub struct Trunc<Lhs, To> {
-    operand: Lhs,
-    _to: PhantomData<To>,
+// trunc
+
+pub trait CanTrunc<To>: Shape {
+    type Truncated;
 }
 
-impl<Lhs, To: Shape> IntoExpr for Trunc<Lhs, To> {
-    type Out = To;
+impl<const FROM: ShapeSize, const TO: ShapeSize> CanTrunc<U<TO>> for U<FROM>
+where
+    Assert<{ TO <= FROM }>: True,
+{
+    type Truncated = U<TO>;
+}
+
+impl<const FROM: ShapeSize, const TO: ShapeSize> CanTrunc<I<TO>> for I<FROM>
+where
+    Assert<{ TO <= FROM }>: True,
+{
+    type Truncated = I<TO>;
+}
+
+pub fn trunc<To: Shape>(lhs: impl IntoExpr<Out: CanTrunc<To>>) -> Expr<To> {
+    todo!();
 }

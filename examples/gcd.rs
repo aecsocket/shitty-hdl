@@ -20,7 +20,7 @@ const B: u128 = 462;
 /// three bits of the result (0b101 = 5).
 #[module(crate = shitty_hdl)]
 pub fn gcd(platform: Platform) {
-    let clk = platform.default_clock().expect("requires default clock");
+    let clk = platform.default_clock();
 
     let start = platform.button.take(0);
     let mut busy_led = platform.led.take(0);

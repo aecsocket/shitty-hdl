@@ -1,7 +1,12 @@
 pub use board;
 
 use board::Board;
-use front::{domain::Clock, io, io::Output, value::Value};
+use front::{
+    domain::{Clock, Domain},
+    io,
+    io::Output,
+    value::Value,
+};
 use std::{cell::RefCell, num::NonZero, rc::Rc};
 
 #[derive(Debug, Clone, Default)]
@@ -28,7 +33,7 @@ struct ResourceContext {
 }
 
 impl ResourceContext {
-    fn default_clock(&self) -> Option<Clock> {
+    fn default_clock(&self) -> Option<(Clock, NonZero<u64>)> {
         let resource = self.clock?;
         let clock = Clock::input("clk");
         let mut bindings = self.bindings.borrow_mut();
@@ -46,7 +51,7 @@ impl ResourceContext {
                 name: "reset".into(),
             });
         }
-        Some(clock)
+        Some((clock, resource.hz))
     }
 }
 
@@ -74,7 +79,8 @@ impl Leds {
         let clock = self
             .context
             .default_clock()
-            .expect("LEDs require a default clock");
+            .expect("LEDs require a default clock")
+            .0;
         let output = Output::new(clock, &name, resource.active_on == board::ActiveOn::Low);
         self.context
             .bindings
@@ -112,7 +118,8 @@ impl Buttons {
         let clock = self
             .context
             .default_clock()
-            .expect("buttons require a default clock");
+            .expect("buttons require a default clock")
+            .0;
         let input = io::input(clock, &name, resource.active_on == board::ActiveOn::Low);
         self.context
             .bindings
@@ -123,19 +130,39 @@ impl Buttons {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct BoardClock {
+    pub clock: Clock,
+    pub hz: NonZero<u64>,
+}
+
+impl Domain for BoardClock {
+    fn clock(self) -> Clock {
+        self.clock
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Platform {
     pub board: Board,
-    pub default_clock_hz: Option<NonZero<u64>>,
     pub led: Leds,
     pub button: Buttons,
     context: Rc<ResourceContext>,
 }
 
 impl Platform {
+    /// The default clock together with its frequency; a board either has
+    /// both or neither, so they are a single value.
     #[must_use]
-    pub fn default_clock(&self) -> Option<Clock> {
-        self.context.default_clock()
+    pub fn default_clock(&self) -> BoardClock {
+        self.try_default_clock()
+            .expect("design requires a default clock")
+    }
+
+    #[must_use]
+    pub fn try_default_clock(&self) -> Option<BoardClock> {
+        let (clock, hz) = self.context.default_clock()?;
+        Some(BoardClock { clock, hz })
     }
 
     #[must_use]
@@ -162,7 +189,6 @@ pub fn from_board(board: Board) -> Platform {
     });
     Platform {
         board,
-        default_clock_hz: default_clock.map(|clock| clock.hz),
         led: Leds {
             resources: board.resources.led,
             context: Rc::clone(&context),

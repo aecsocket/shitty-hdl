@@ -143,7 +143,7 @@ fn top(platform: Platform) {
         Free3Done,
     }
 
-    let clk = platform.default_clock().expect("requires default clock");
+    let clk = platform.default_clock().clock();
     let mut led = platform.led.take(0);
 
     let heap = bram::<Addr, Word>().clk(clk).depth(32 * 1024).call();

@@ -1,6 +1,46 @@
 use std::fmt;
 
 use crate::ast::*;
+use crate::{Origin, OriginMap};
+
+pub(crate) struct WithOrigins<'a> {
+    pub ast: &'a Ast,
+    pub origins: &'a OriginMap,
+}
+
+impl fmt::Display for WithOrigins<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.ast {
+            Ast::Module(module) => format_module(module, Some(self.origins), f),
+        }
+    }
+}
+
+fn source_attribute(
+    origin: Origin,
+    origins: &OriginMap,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    let span = origins
+        .get(origin)
+        .expect("origin is missing from the supplied OriginMap");
+    write!(f, "(* src = \"")?;
+    for ch in span.file.chars() {
+        match ch {
+            '\\' => write!(f, "\\\\")?,
+            '"' => write!(f, "\\\"")?,
+            '\n' => write!(f, "\\n")?,
+            '\r' => write!(f, "\\r")?,
+            '\t' => write!(f, "\\t")?,
+            ch => write!(f, "{ch}")?,
+        }
+    }
+    write!(
+        f,
+        ":{}.{}-{}.{}\" *) ",
+        span.start.line, span.start.column, span.end.line, span.end.column
+    )
+}
 
 impl fmt::Display for Ast {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -12,46 +52,68 @@ impl fmt::Display for Ast {
 
 impl fmt::Display for Module {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "module ")?;
-        write!(f, "{}", self.name)?;
-        if !self.params.is_empty() {
-            writeln!(f, " #(")?;
-            for (index, param) in self.params.iter().enumerate() {
-                write!(f, "    ")?;
-                write!(f, "{}", param)?;
-                writeln!(
-                    f,
-                    "{}",
-                    if index + 1 == self.params.len() {
-                        ""
-                    } else {
-                        ","
-                    }
-                )?;
-            }
-            write!(f, ")")?;
-        }
-        if self.ports.is_empty() {
-            writeln!(f, " ();")?;
-        } else {
-            writeln!(f, " (")?;
-            for (index, port) in self.ports.iter().enumerate() {
-                write!(f, "    ")?;
-                write!(f, "{}", port)?;
-                writeln!(
-                    f,
-                    "{}",
-                    if index + 1 == self.ports.len() {
-                        ""
-                    } else {
-                        ","
-                    }
-                )?;
-            }
-            writeln!(f, ");")?;
-        }
-        writeln!(f, "endmodule")
+        format_module(self, None, f)
     }
+}
+
+fn format_module(
+    module: &Module,
+    origins: Option<&OriginMap>,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    if let Some(origins) = origins {
+        source_attribute(module.origin, origins, f)?;
+        writeln!(f)?;
+    }
+    write!(f, "module ")?;
+    write!(f, "{}", module.name)?;
+    if !module.params.is_empty() {
+        writeln!(f, " #(")?;
+        for (index, param) in module.params.iter().enumerate() {
+            write!(f, "    ")?;
+            if let Some(origins) = origins {
+                source_attribute(param.origin, origins, f)?;
+                writeln!(f)?;
+                write!(f, "    ")?;
+            }
+            write!(f, "{}", param)?;
+            writeln!(
+                f,
+                "{}",
+                if index + 1 == module.params.len() {
+                    ""
+                } else {
+                    ","
+                }
+            )?;
+        }
+        write!(f, ")")?;
+    }
+    if module.ports.is_empty() {
+        writeln!(f, " ();")?;
+    } else {
+        writeln!(f, " (")?;
+        for (index, port) in module.ports.iter().enumerate() {
+            write!(f, "    ")?;
+            if let Some(origins) = origins {
+                source_attribute(port.origin, origins, f)?;
+                writeln!(f)?;
+                write!(f, "    ")?;
+            }
+            write!(f, "{}", port)?;
+            writeln!(
+                f,
+                "{}",
+                if index + 1 == module.ports.len() {
+                    ""
+                } else {
+                    ","
+                }
+            )?;
+        }
+        writeln!(f, ");")?;
+    }
+    writeln!(f, "endmodule")
 }
 
 impl fmt::Display for LitInt {

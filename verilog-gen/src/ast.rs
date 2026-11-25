@@ -1,11 +1,8 @@
 use std::num::NonZero;
 
-use crate::Ident;
+use crate::{Ident, Origin};
 use derive_more::Display;
 use smallvec::SmallVec;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Origin(pub u32);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Ast {

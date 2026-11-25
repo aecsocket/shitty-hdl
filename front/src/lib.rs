@@ -22,7 +22,7 @@ pub mod prelude {
     };
     pub use crate::reg::Reg;
     pub use crate::value::{Bit, IntoValue, IntoValues, Shape, Uint, Value};
-    pub use crate::{bit, sim_assert, uint};
+    pub use crate::{bit, display, sim_assert, uint};
     pub use derive::{Arith, ArithCmp, BitCmp, Bits, Interface, Shape, Shift, hdl, module};
 }
 
@@ -34,6 +34,7 @@ pub mod __ {
     pub use crate::elab::context::Context;
     pub use crate::elab::handle::{ActionHandle, ExprHandle, InterfaceHandle};
     pub use bon;
+    pub use derive::display_format;
 
     pub fn cast<From: crate::value::Shape, To: crate::value::Shape>(
         kind: air::CastKind,
@@ -56,6 +57,14 @@ pub mod __ {
 
     pub fn subinterface(handle: InterfaceHandle, name: &str) -> InterfaceHandle {
         crate::elab::subinterface(handle, name)
+    }
+
+    pub fn display_arg(value: impl crate::value::IntoValue) -> ExprHandle {
+        value.into_value().handle()
+    }
+
+    pub fn display(format: &str, arguments: &[ExprHandle]) {
+        crate::elab::display(format, arguments);
     }
 
     pub fn assert(condition: impl crate::value::IntoValue<Out = bool>, message: &str) {

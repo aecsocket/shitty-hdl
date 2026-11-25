@@ -27,6 +27,8 @@ pub enum Parameter<'dsn> {
 #[derive(Debug, Clone)]
 pub struct Module<'dsn> {
     pub signature: &'dsn ModuleSignature<'dsn>,
+    pub primitive: Option<Primitive<'dsn>>,
+    pub modules: &'dsn [&'dsn Module<'dsn>],
     pub domains: &'dsn [&'dsn Domain<'dsn>],
     pub types: &'dsn [&'dsn NamedType<'dsn>],
     pub instances: &'dsn [&'dsn Instance<'dsn>],
@@ -35,6 +37,17 @@ pub struct Module<'dsn> {
     pub rules: &'dsn [&'dsn Rule<'dsn>],
     pub interface: &'dsn InterfaceImpl<'dsn>,
     pub scheduling: &'dsn [ScheduleConstraint<'dsn>],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Primitive<'dsn> {
+    Bram {
+        address: &'dsn Type<'dsn>,
+        data: &'dsn Type<'dsn>,
+        address_width: u32,
+        data_width: u32,
+        depth: u64,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -302,6 +315,10 @@ pub enum Statement<'dsn> {
         else_body: Option<Block<'dsn>>,
     },
     Return(Option<&'dsn Expr<'dsn>>),
+    Display {
+        format: &'dsn str,
+        arguments: &'dsn [&'dsn Expr<'dsn>],
+    },
     Assert {
         condition: &'dsn Expr<'dsn>,
         message: &'dsn str,

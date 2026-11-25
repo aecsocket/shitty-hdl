@@ -1,11 +1,19 @@
 mod arith;
 mod bits;
 mod cmp;
+mod display;
 mod hdl;
 mod interface;
 mod module;
 mod shape;
 mod shift;
+
+#[proc_macro]
+pub fn display_format(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    display::display_format(input.into())
+        .unwrap_or_else(|error| error.into_compile_error())
+        .into()
+}
 
 fn root() -> syn::Path {
     syn::parse_quote! { ::shitty_hdl }

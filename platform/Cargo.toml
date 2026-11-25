@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 board = { workspace = true }
+front = { workspace = true }
 
 [lints]
 workspace = true

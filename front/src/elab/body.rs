@@ -222,6 +222,7 @@ pub(crate) fn capture_branch<R: IntoValues>(f: impl FnOnce() -> R) -> BranchHand
             index: cx.branches.len(),
         };
         cx.branches.push(Branch {
+            module: cx.id,
             parent_scope: cx.current_scope(),
             block,
             result,

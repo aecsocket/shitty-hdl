@@ -104,11 +104,17 @@ pub enum ActiveOn {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Toolchain {
-    Vivado { design_properties: Attributes },
+    Vivado(ToolchainVivado),
     Ise,
     Quartus,
     IceStorm,
     Trellis,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToolchainVivado {
+    pub part: &'static str,
+    pub design_properties: Attributes,
 }
 
 pub type Attributes = &'static [(&'static str, &'static str)];

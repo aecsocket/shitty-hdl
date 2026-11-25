@@ -1,7 +1,8 @@
 use crate::{
-    Binding, ClockBinding, Expr, ExprKind, Field, FieldValue, Instance, Interface, InterfaceExpr,
-    InterfaceMember, LocalInterface, Method, MethodBody, MethodSignature, Module, Package,
-    Parameter, Register, Rule, Schedule, Statement, Type, Typedef, TypedefKind, Variant,
+    Binding, ClockBinding, Declaration, Expr, ExprKind, Field, FieldValue, Instance, Interface,
+    InterfaceExpr, InterfaceMember, LocalInterface, Method, MethodBody, MethodSignature, Module,
+    Package, Parameter, Register, ResetBinding, Rule, Schedule, Statement, Type, Typedef,
+    TypedefKind, Variant,
 };
 use std::fmt::{self, Write};
 
@@ -165,6 +166,7 @@ impl Printer<'_> {
         name: &str,
         arguments: &[Expr<'_>],
         clock: Option<&str>,
+        reset: Option<&str>,
     ) -> fmt::Result {
         write!(self, "{name}(")?;
         self.list(arguments)?;
@@ -173,6 +175,12 @@ impl Printer<'_> {
                 self.write_str(", ")?;
             }
             write!(self, "clocked_by {clock}")?;
+        }
+        if let Some(reset) = reset {
+            if !arguments.is_empty() || clock.is_some() {
+                self.write_str(", ")?;
+            }
+            write!(self, "reset_by {reset}")?;
         }
         self.write_str(");\n")
     }
@@ -214,8 +222,10 @@ standalone!(
     InterfaceMember,
     MethodSignature,
     ClockBinding,
+    ResetBinding,
     Module,
     Parameter,
+    Declaration,
     Register,
     Instance,
     LocalInterface,
@@ -398,6 +408,16 @@ impl Emit for ClockBinding<'_> {
     }
 }
 
+impl Emit for ResetBinding<'_> {
+    fn emit(&self, p: &mut Printer<'_>) -> fmt::Result {
+        writeln!(
+            p,
+            "Reset {} <- mkAsyncReset(2, bsv_default_reset, {});",
+            self.name, self.clock
+        )
+    }
+}
+
 impl Emit for Module<'_> {
     fn emit(&self, p: &mut Printer<'_>) -> fmt::Result {
         for schedule in self.scheduling {
@@ -413,6 +433,17 @@ impl Emit for Module<'_> {
         p.nested(|p| {
             for clock in self.clock_bindings {
                 p.node(clock)?;
+                p.write_char('\n')?;
+            }
+            if !self.reset_bindings.is_empty() {
+                p.write_str("Reset bsv_default_reset <- exposeCurrentReset;\n\n")?;
+            }
+            for reset in self.reset_bindings {
+                p.node(reset)?;
+                p.write_char('\n')?;
+            }
+            for declaration in self.declarations {
+                p.node(declaration)?;
                 p.write_char('\n')?;
             }
             for register in self.registers {
@@ -439,20 +470,30 @@ impl Emit for Module<'_> {
     }
 }
 
+impl Emit for Declaration<'_> {
+    fn emit(&self, p: &mut Printer<'_>) -> fmt::Result {
+        p.node(&self.field)?;
+        p.write_str(" = ")?;
+        p.node(&self.value)?;
+        p.write_str(";\n")
+    }
+}
+
 impl Emit for Register<'_> {
     fn emit(&self, p: &mut Printer<'_>) -> fmt::Result {
         p.write_str("Reg#(")?;
         p.node(&self.ty)?;
         write!(p, ") {} <- ", self.name)?;
         let arguments: Vec<_> = self.initial.into_iter().copied().collect();
-        p.constructor(self.constructor, &arguments, self.clock)
+        p.constructor(self.constructor, &arguments, self.clock, self.reset)
     }
 }
 
 impl Emit for Instance<'_> {
     fn emit(&self, p: &mut Printer<'_>) -> fmt::Result {
-        write!(p, "{} {} <- ", self.interface, self.name)?;
-        p.constructor(self.constructor, self.arguments, self.clock)
+        p.node(&self.interface)?;
+        write!(p, " {} <- ", self.name)?;
+        p.constructor(self.constructor, self.arguments, self.clock, self.reset)
     }
 }
 
@@ -567,6 +608,7 @@ impl Emit for Expr<'_> {
         match self.kind {
             ExprKind::Undefined | ExprKind::Unit => p.write_char('?'),
             ExprKind::Bool(value) => p.write_str(if value { "True" } else { "False" }),
+            ExprKind::Integer(value) => write!(p, "{value}"),
             ExprKind::Bits { width, words_le } => {
                 write!(p, "{width}'h")?;
                 let digits = u64::from(width).div_ceil(4);
@@ -786,6 +828,15 @@ impl Emit for Statement<'_> {
                 p.write_str(";\n")
             }
             Self::Return(None) => Err(fmt::Error),
+            Self::Display { format, arguments } => {
+                p.write_str("$display(")?;
+                p.quoted(format)?;
+                if !arguments.is_empty() {
+                    p.write_str(", ")?;
+                    p.list(arguments)?;
+                }
+                p.write_str(");\n")
+            }
             Self::Assert {
                 function,
                 condition,

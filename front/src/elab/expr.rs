@@ -161,6 +161,19 @@ pub(crate) fn shift_resize<const FROM: usize, const TO: usize>(
     }
 }
 
+pub(crate) fn display(format: &str, arguments: &[super::ExprHandle]) {
+    with_context(|cx| {
+        let arguments: Vec<_> = arguments
+            .iter()
+            .map(|argument| cx.expr(*argument))
+            .collect();
+        cx.emit(air::Statement::Display {
+            format: cx.alloc_str(format),
+            arguments: cx.alloc_slice(arguments),
+        });
+    });
+}
+
 pub(crate) fn assert(condition: impl IntoValue<Out = bool>, message: &str) {
     let condition = condition.into_value();
     with_context(|cx| {

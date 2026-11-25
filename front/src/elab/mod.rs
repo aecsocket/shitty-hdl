@@ -4,6 +4,7 @@ mod design;
 mod expr;
 pub(crate) mod handle;
 mod interface;
+mod primitive;
 mod state;
 mod types;
 
@@ -17,13 +18,14 @@ pub(crate) use body::{
 pub(crate) use context::Context;
 pub(crate) use design::DesignId;
 pub(crate) use expr::{
-    assert, binary, cast, compare, literal, shift, shift_resize, tuple, tuple_element,
+    assert, binary, cast, compare, display, literal, shift, shift_resize, tuple, tuple_element,
     uint_from_u128, unary,
 };
 pub(crate) use handle::{
     ActionHandle, BranchHandle, ClockHandle, ExprHandle, InterfaceHandle, RegisterHandle,
 };
 pub(crate) use interface::{input_interface, interface_action, module, subinterface};
+pub(crate) use primitive::bram;
 pub(crate) use state::{clock_input, register, write_register};
 
 scoped_thread_local!(static CURRENT: for<'scope> &'scope (dyn ActiveContext + 'scope));

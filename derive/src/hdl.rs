@@ -88,7 +88,7 @@ impl Rewriter<'_> {
                     let cond = &else_if.cond;
                     let then = &else_if.then_branch;
                     chain = quote! {
-                        #chain.else_if(|| #crate_::value::IntoValue::into_value(#cond), async || #then)
+                        #chain.else_if_cond(|| #crate_::value::IntoValue::into_value(#cond)).then(async || #then)
                     };
                     next = &mut else_if.else_branch;
                 } else {
@@ -109,23 +109,32 @@ impl Rewriter<'_> {
 
 impl VisitMut for Rewriter<'_> {
     fn visit_macro_mut(&mut self, mac: &mut syn::Macro) {
-        if !mac
-            .path
-            .segments
-            .last()
-            .is_some_and(|segment| segment.ident == "sim_assert")
-        {
+        let Some(segment) = mac.path.segments.last() else {
+            return;
+        };
+        let display = segment.ident == "display";
+        if !display && segment.ident != "sim_assert" {
             return;
         }
         let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
         match parser.parse2(mac.tokens.clone()) {
-            Ok(mut args) if (1..=2).contains(&args.len()) => {
+            Ok(mut args) if display && !args.is_empty() => {
+                for argument in &mut args {
+                    self.visit_expr_mut(argument);
+                }
+                mac.tokens = quote! { #args };
+            }
+            Ok(mut args) if !display && (1..=2).contains(&args.len()) => {
                 self.visit_expr_mut(args.first_mut().unwrap());
                 mac.tokens = quote! { #args };
             }
             Ok(_) => self.errors.push(syn::Error::new_spanned(
                 mac,
-                "expected sim_assert!(condition) or sim_assert!(condition, message)",
+                if display {
+                    "expected display!(value) or display!(format, arguments...)"
+                } else {
+                    "expected sim_assert!(condition) or sim_assert!(condition, message)"
+                },
             )),
             Err(error) => self.errors.push(error),
         }

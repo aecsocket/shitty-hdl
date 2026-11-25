@@ -1,7 +1,10 @@
+mod bram;
+
 use crate::{
     Binding, Block, ClockBinding, Expr, ExprKind, Field, FieldValue, Instance, Interface,
     InterfaceExpr, InterfaceMember, LocalInterface, Method, MethodBody, MethodSignature, Module,
-    Package, Parameter, Register, Rule, Schedule, Statement, Type, Typedef, TypedefKind, Variant,
+    Package, Parameter, Register, ResetBinding, Rule, Schedule, Statement, Type, Typedef,
+    TypedefKind, Variant,
 };
 use ::air as source;
 use bumpalo::Bump;
@@ -47,7 +50,10 @@ fn returns(b: source::Block<'_>) -> bool {
     })
 }
 
-pub fn from_air<'out>(storage: &'out Bump, module: &source::Module<'_>) -> Result<Package<'out>> {
+pub fn from_air<'out>(
+    storage: &'out Bump,
+    module: &source::Module<'_>,
+) -> Result<(Package<'out>, Module<'out>)> {
     Lower::new(storage, module).lower()
 }
 
@@ -439,6 +445,34 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
             error("multiple implicit clock domain identities")
         }
     }
+    fn reset(&self, domain: &source::Domain<'s>) -> Result<Option<&'o str>> {
+        if self.clock(domain)?.is_none() {
+            return Ok(None);
+        }
+        let index = self
+            .module
+            .domains
+            .iter()
+            .position(|other| same(*other, domain))
+            .ok_or_else(|| LowerError {
+                message: "undeclared reset clock domain".into(),
+            })?;
+        Ok(Some(self.text(&format!("bsv_reset_{index}"))))
+    }
+
+    fn reset_bindings(&mut self) -> Result<&'o [ResetBinding<'o>]> {
+        let mut bindings = Vec::new();
+        for domain in self.module.domains {
+            if let (Some(name), Some(clock)) = (self.reset(domain)?, self.clock(domain)?) {
+                bindings.push(ResetBinding { name, clock });
+            }
+        }
+        if !bindings.is_empty() {
+            self.import("Clocks");
+        }
+        Ok(self.slice(&bindings))
+    }
+
     fn local_name(&self, m: &source::Method<'s>) -> Result<&'o str> {
         self.module
             .methods
@@ -661,6 +695,11 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                 source::Statement::Return(value) => {
                     if let Some(expr) = value {
                         self.discover_expr(expr)?;
+                    }
+                }
+                source::Statement::Display { arguments, .. } => {
+                    for argument in arguments {
+                        self.discover_expr(argument)?;
                     }
                 }
                 source::Statement::Assert { condition, .. } => self.discover_expr(condition)?,
@@ -1302,6 +1341,26 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                         Statement::Return(value)
                     }
                 }
+                source::Statement::Display { format, arguments } => {
+                    let mut values = Vec::new();
+                    for argument in arguments {
+                        if self.is_unit(argument.ty)? {
+                            return error("cannot display a unit value");
+                        }
+                        let value = self.expr(argument)?;
+                        values.push(Expr {
+                            ty: Type::Inferred,
+                            kind: ExprKind::Call {
+                                function: "pack",
+                                arguments: self.slice(&[value]),
+                            },
+                        });
+                    }
+                    Statement::Display {
+                        format: self.text(format),
+                        arguments: self.slice(&values),
+                    }
+                }
                 source::Statement::Assert { condition, message } => {
                     Self::boolean(condition)?;
                     self.import("Assert");
@@ -1427,7 +1486,68 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
             }
         }
     }
-    fn lower(mut self) -> Result<Package<'o>> {
+    fn lower(mut self) -> Result<(Package<'o>, Module<'o>)> {
+        let root = self.module;
+        let mut modules = Vec::new();
+        self.lower_modules(root, &mut Vec::new(), &mut Vec::new(), &mut modules)?;
+        unique(modules.iter().map(|module| module.name))?;
+        let top = modules
+            .iter()
+            .find(|module| module.name == root.signature.name)
+            .copied()
+            .ok_or_else(|| LowerError {
+                message: "missing top module".into(),
+            })?;
+        let package = Package {
+            name: self.text(
+                root.signature
+                    .name
+                    .strip_prefix("mk_")
+                    .unwrap_or(root.signature.name),
+            ),
+            imports: self.slice(&self.imports),
+            typedefs: self.slice(&self.typedefs),
+            interfaces: self.slice(&self.interfaces),
+            modules: self.slice(&modules),
+        };
+        Ok((package, top))
+    }
+
+    fn lower_modules(
+        &mut self,
+        module: &'m source::Module<'s>,
+        visiting: &mut Vec<&'m source::Module<'s>>,
+        lowered: &mut Vec<&'m source::Module<'s>>,
+        modules: &mut Vec<Module<'o>>,
+    ) -> Result<()> {
+        if lowered.iter().any(|other| same(*other, module)) {
+            return Ok(());
+        }
+        if visiting.iter().any(|other| same(*other, module)) {
+            return error("recursive module definitions");
+        }
+        visiting.push(module);
+        for child in module.modules {
+            self.lower_modules(child, visiting, lowered, modules)?;
+        }
+        visiting.pop();
+        self.module = module;
+        self.implementations.clear();
+        self.args.clear();
+        self.locals.clear();
+        self.declared_locals.clear();
+        self.reserved.clear();
+        self.visited_exprs.clear();
+        self.visited_refs.clear();
+        modules.push(self.lower_module()?);
+        lowered.push(module);
+        Ok(())
+    }
+
+    fn lower_module(&mut self) -> Result<Module<'o>> {
+        if let Some(primitive) = self.module.primitive {
+            return self.primitive(primitive);
+        }
         let m = self.module;
         for (index, domain) in m.domains.iter().enumerate() {
             if m.domains[..index].iter().any(|p| same(*p, *domain)) {
@@ -1441,7 +1561,9 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
             }
         }
         self.discover()?;
-        let mut names = vec!["bsv_default_clock"];
+        let reset_bindings = self.reset_bindings()?;
+        let mut names = vec!["bsv_default_clock", "bsv_default_reset"];
+        names.extend(reset_bindings.iter().map(|binding| binding.name));
         for p in m.signature.parameters {
             names.push(match p {
                 source::Parameter::Value { name, .. }
@@ -1500,6 +1622,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                 constructor,
                 initial,
                 clock: self.clock(r.domain)?,
+                reset: self.reset(r.domain)?,
             });
         }
         let mut instances = Vec::new();
@@ -1564,13 +1687,14 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
             instances.push(Instance {
                 name: self.text(i.name),
                 constructor: self.text(i.module.name),
-                interface,
+                interface: Type::Named(interface),
                 arguments: self.slice(&arguments),
                 clock: self.clock(i.domain)?,
+                reset: self.reset(i.domain)?,
             });
         }
         let mut local_interfaces = Vec::new();
-        for (index, method) in m.methods.iter().enumerate() {
+        for method in m.methods {
             self.args.clear();
             self.locals.clear();
             self.declared_locals.clear();
@@ -1582,7 +1706,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                 self.args.push((argument, name));
             }
             let signature = self.signature(method.signature, Some("invoke"))?;
-            let name = self.text(&format!("BsvLocalMethod{index}"));
+            let name = self.text(&format!("BsvLocalMethod{}", self.interfaces.len()));
             if self.interfaces.iter().any(|i| i.name == name)
                 || self.typedefs.iter().any(|t| t.name == name)
             {
@@ -1679,7 +1803,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
                 second: self.schedule_target(b)?,
             });
         }
-        let root = Module {
+        Ok(Module {
             name: self.text(m.signature.name),
             clock_bindings: self.slice(&[ClockBinding {
                 name: "bsv_default_clock",
@@ -1687,19 +1811,14 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
             }]),
             parameters: self.slice(&parameters),
             interface,
+            reset_bindings,
+            declarations: &[],
             registers: self.slice(&registers),
             instances: self.slice(&instances),
             local_interfaces: self.slice(&local_interfaces),
             rules: self.slice(&rules),
             implementation,
             scheduling: self.slice(&scheduling),
-        };
-        Ok(Package {
-            name: self.text(m.signature.name),
-            imports: self.slice(&self.imports),
-            typedefs: self.slice(&self.typedefs),
-            interfaces: self.slice(&self.interfaces),
-            modules: self.slice(&[root]),
         })
     }
 }

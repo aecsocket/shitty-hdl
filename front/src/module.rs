@@ -118,20 +118,39 @@ pub struct If<R: IntoValues> {
 impl<R: IntoValues> If<R> {
     #[must_use]
     pub fn else_if(
-        mut self,
+        self,
         cond: impl FnOnce() -> Value<bool>,
         then: impl AsyncFnOnce() -> R,
     ) -> Self {
-        let cond = elab::capture_branch(cond);
-        let branch = elab::capture_branch(|| elab::run_ready(then()));
-        self.cases.push((cond, branch));
-        self
+        self.else_if_cond(cond).then(then)
+    }
+
+    #[must_use]
+    pub fn else_if_cond(self, cond: impl FnOnce() -> Value<bool>) -> ElseIf<R> {
+        ElseIf {
+            chain: self,
+            cond: elab::capture_branch(cond),
+        }
     }
 
     pub fn else_(mut self, then: impl AsyncFnOnce() -> R) -> R::Values {
         let branch = elab::capture_branch(|| elab::run_ready(then()));
         let value = elab::finish_if::<R::Out>(mem::take(&mut self.cases), Some(branch));
         R::Out::make_values(value)
+    }
+}
+
+pub struct ElseIf<R: IntoValues> {
+    chain: If<R>,
+    cond: elab::BranchHandle,
+}
+
+impl<R: IntoValues> ElseIf<R> {
+    #[must_use]
+    pub fn then(mut self, then: impl AsyncFnOnce() -> R) -> If<R> {
+        let branch = elab::capture_branch(|| elab::run_ready(then()));
+        self.chain.cases.push((self.cond, branch));
+        self.chain
     }
 }
 

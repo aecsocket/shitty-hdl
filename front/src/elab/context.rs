@@ -12,12 +12,43 @@ pub(crate) struct Frame<'dsn> {
 }
 
 pub(crate) struct Branch<'dsn> {
+    pub module: usize,
     pub parent_scope: usize,
     pub block: air::Block<'dsn>,
     pub result: &'dsn air::Expr<'dsn>,
 }
 
+pub(crate) struct ModuleState<'dsn> {
+    pub(crate) root_active: bool,
+    pub(crate) root_defined: bool,
+    pub(crate) definitions: Vec<&'dsn air::MethodSignature<'dsn>>,
+    name: &'dsn str,
+    pub(crate) parameters: Vec<&'dsn air::Parameter<'dsn>>,
+    instances: Vec<&'dsn air::Instance<'dsn>>,
+    pub(crate) registers: Vec<&'dsn air::Register<'dsn>>,
+    pub(crate) methods: Vec<&'dsn air::Method<'dsn>>,
+    pub(crate) rules: Vec<&'dsn air::Rule<'dsn>>,
+    interface: Option<&'dsn air::InterfaceImpl<'dsn>>,
+    scheduling: Vec<air::ScheduleConstraint<'dsn>>,
+    modules: Vec<&'dsn air::Module<'dsn>>,
+    arguments: Vec<air::InstanceArgument<'dsn>>,
+    imports: HashMap<(u8, usize), usize>,
+    id: usize,
+}
+
 pub struct Context<'dsn> {
+    modules: Vec<&'dsn air::Module<'dsn>>,
+    arguments: Vec<air::InstanceArgument<'dsn>>,
+    imports: HashMap<(u8, usize), usize>,
+    pub(crate) id: usize,
+    next_module: usize,
+    parents: Vec<ModuleState<'dsn>>,
+    expression_owners: Vec<usize>,
+    action_owners: Vec<usize>,
+    local_action_interfaces:
+        HashMap<usize, (&'dsn air::InterfaceRef<'dsn>, &'dsn air::Interface<'dsn>)>,
+    interface_owners: Vec<usize>,
+    pub(crate) register_handles: Vec<(&'dsn air::Register<'dsn>, usize)>,
     pub(crate) arena: &'dsn Bump,
     pub(crate) design_id: DesignId,
     pub(crate) root_active: bool,
@@ -57,6 +88,17 @@ macro_rules! record {
 impl<'dsn> Context<'dsn> {
     pub(crate) fn new(arena: &'dsn Bump, design_id: DesignId) -> Self {
         Self {
+            modules: Vec::new(),
+            arguments: Vec::new(),
+            imports: HashMap::new(),
+            id: 0,
+            next_module: 1,
+            parents: Vec::new(),
+            expression_owners: Vec::new(),
+            action_owners: Vec::new(),
+            local_action_interfaces: HashMap::new(),
+            interface_owners: Vec::new(),
+            register_handles: Vec::new(),
             arena,
             design_id,
             root_active: false,
@@ -102,7 +144,9 @@ impl<'dsn> Context<'dsn> {
     }
 
     pub(crate) fn domain<D: 'static>(&mut self, name: &str) -> &'dsn air::Domain<'dsn> {
-        self.intern_domain(TypeId::of::<D>(), name).1
+        let domain = self.intern_domain(TypeId::of::<D>(), name).1;
+        self.ensure_clock(domain);
+        domain
     }
 
     pub(crate) fn intern_domain(
@@ -161,13 +205,38 @@ impl<'dsn> Context<'dsn> {
             design_id: self.design_id,
             index: self.expressions.len(),
         };
+        self.expression_owners.push(self.id);
         self.expressions.push((expr, self.current_scope()));
         handle
     }
 
-    pub(crate) fn expr(&self, handle: ExprHandle) -> &'dsn air::Expr<'dsn> {
+    pub(crate) fn expr(&mut self, handle: ExprHandle) -> &'dsn air::Expr<'dsn> {
         self.check_design(handle.design_id);
         let (expr, mut scope) = self.expressions[handle.index];
+        if self.expression_owners[handle.index] != self.id {
+            assert_eq!(
+                scope, 0,
+                "cannot capture an action-scoped expression in another module"
+            );
+            if let Some(&index) = self.imports.get(&(0, handle.index)) {
+                return self.expressions[index].0;
+            }
+            let value = self.in_parent(|cx| cx.expr(handle));
+            let parameter = self.add_parameter(air::Parameter::Value {
+                name: self.capture_name(),
+                ty: value.ty,
+            });
+            self.arguments
+                .push(air::InstanceArgument::Value { parameter, value });
+            let expr = self.alloc(air::Expr {
+                ty: value.ty,
+                kind: air::ExprKind::Parameter(parameter),
+            });
+            let imported = self.push_expr(expr);
+            self.expressions[imported.index].1 = 0;
+            self.imports.insert((0, handle.index), imported.index);
+            return expr;
+        }
         let target = scope;
         scope = self.current_scope();
         while scope != 0 && scope != target {
@@ -188,9 +257,52 @@ impl<'dsn> Context<'dsn> {
     }
 
     #[must_use]
-    pub fn action_ref(&self, handle: ActionHandle) -> air::MethodRef<'dsn> {
+    pub fn action_ref(&mut self, handle: ActionHandle) -> air::MethodRef<'dsn> {
         self.check_design(handle.design_id);
-        self.actions[handle.index]
+        if self.action_owners[handle.index] == self.id {
+            return self.actions[handle.index];
+        }
+        if let Some(&index) = self.imports.get(&(1, handle.index)) {
+            return self.actions[index];
+        }
+        let (interface, signature, ty) = self.in_parent(|cx| {
+            let method = cx.action_ref(handle);
+            let signature = match method {
+                air::MethodRef::Local(method) => method.signature,
+                air::MethodRef::Interface {
+                    interface,
+                    signature,
+                } => {
+                    return (interface, signature, Self::interface_type(interface));
+                }
+            };
+            if let Some(&(interface, ty)) = cx.local_action_interfaces.get(&handle.index) {
+                return (interface, signature, ty);
+            }
+            let ty = cx.alloc(air::Interface {
+                name: cx.alloc_str(&format!("CapturedMethod_{}", handle.index)),
+                members: cx.alloc_slice([air::InterfaceMember::Method(signature)]),
+            });
+            let implementation = cx.alloc(air::InterfaceImpl {
+                ty,
+                members: cx.alloc_slice([air::InterfaceBinding::Method {
+                    declaration: signature,
+                    method,
+                }]),
+            });
+            let interface = cx.alloc(air::InterfaceRef::Local(implementation));
+            cx.local_action_interfaces
+                .insert(handle.index, (interface, ty));
+            (interface, signature, ty)
+        });
+        let interface = self.import_interface(interface, ty);
+        let method = air::MethodRef::Interface {
+            interface,
+            signature,
+        };
+        let imported = self.push_action(method);
+        self.imports.insert((1, handle.index), imported.index);
+        method
     }
 
     pub(crate) fn push_action(&mut self, method: air::MethodRef<'dsn>) -> ActionHandle {
@@ -198,6 +310,7 @@ impl<'dsn> Context<'dsn> {
             design_id: self.design_id,
             index: self.actions.len(),
         };
+        self.action_owners.push(self.id);
         self.actions.push(method);
         handle
     }
@@ -211,21 +324,36 @@ impl<'dsn> Context<'dsn> {
             design_id: self.design_id,
             index: self.interface_refs.len(),
         };
+        self.interface_owners.push(self.id);
         self.interface_refs.push((interface, ty));
         handle
     }
 
     pub(crate) fn interface_ref(
-        &self,
+        &mut self,
         handle: InterfaceHandle,
     ) -> (&'dsn air::InterfaceRef<'dsn>, &'dsn air::Interface<'dsn>) {
         self.check_design(handle.design_id);
-        self.interface_refs[handle.index]
+        if self.interface_owners[handle.index] == self.id {
+            return self.interface_refs[handle.index];
+        }
+        if let Some(&index) = self.imports.get(&(2, handle.index)) {
+            return self.interface_refs[index];
+        }
+        let (interface, ty) = self.in_parent(|cx| cx.interface_ref(handle));
+        let interface = self.import_interface(interface, ty);
+        let imported = self.push_interface(interface, ty);
+        self.imports.insert((2, handle.index), imported.index);
+        (interface, ty)
     }
 
     pub(crate) fn branch(&self, handle: BranchHandle) -> &Branch<'dsn> {
         self.check_design(handle.design_id);
         let branch = &self.branches[handle.index];
+        assert_eq!(
+            branch.module, self.id,
+            "conditional builder escaped its defining module"
+        );
         assert_eq!(
             branch.parent_scope,
             self.current_scope(),
@@ -262,7 +390,210 @@ impl<'dsn> Context<'dsn> {
         }
     }
 
-    pub(crate) fn finish(self) -> air::Module<'dsn> {
+    pub(crate) fn record_register_handle(&mut self, register: &'dsn air::Register<'dsn>) {
+        self.register_handles.push((register, self.id));
+    }
+
+    pub(crate) fn register_for_write(&self, index: usize) -> &'dsn air::Register<'dsn> {
+        let (register, owner) = self.register_handles[index];
+        assert_eq!(
+            owner, self.id,
+            "cannot write a register from another module"
+        );
+        register
+    }
+
+    fn capture_name(&self) -> &'dsn str {
+        let mut index = self.parameters.len();
+        loop {
+            let name = format!("capture_{index}");
+            if self.parameters.iter().all(|p| match p {
+                air::Parameter::Value { name: existing, .. }
+                | air::Parameter::Interface { name: existing, .. } => *existing != name,
+                air::Parameter::Clock { domain } => domain.name != name,
+            }) {
+                return self.alloc_str(&name);
+            }
+            index += 1;
+        }
+    }
+
+    fn interface_type(interface: &'dsn air::InterfaceRef<'dsn>) -> &'dsn air::Interface<'dsn> {
+        match interface {
+            air::InterfaceRef::Parameter(parameter) => match parameter {
+                air::Parameter::Interface { ty, .. } => ty,
+                _ => panic!("expected interface parameter"),
+            },
+            air::InterfaceRef::Instance(instance) => instance.module.interface,
+            air::InterfaceRef::Local(implementation) => implementation.ty,
+            air::InterfaceRef::Subinterface { member, .. } => match member {
+                air::InterfaceMember::Interface { ty, .. } => ty,
+                _ => panic!("expected subinterface member"),
+            },
+        }
+    }
+
+    fn import_interface(
+        &mut self,
+        interface: &'dsn air::InterfaceRef<'dsn>,
+        ty: &'dsn air::Interface<'dsn>,
+    ) -> &'dsn air::InterfaceRef<'dsn> {
+        let key = (3, ptr::from_ref(interface) as usize);
+        if let Some(&index) = self.imports.get(&key) {
+            return self.interface_refs[index].0;
+        }
+        let parameter = self.add_parameter(air::Parameter::Interface {
+            name: self.capture_name(),
+            ty,
+        });
+        self.arguments.push(air::InstanceArgument::Interface {
+            parameter,
+            interface,
+        });
+        let imported = self.alloc(air::InterfaceRef::Parameter(parameter));
+        let handle = self.push_interface(imported, ty);
+        self.imports.insert(key, handle.index);
+        imported
+    }
+
+    pub(crate) fn ensure_clock(&mut self, domain: &'dsn air::Domain<'dsn>) {
+        if self
+            .parameters
+            .iter()
+            .any(|p| matches!(p, air::Parameter::Clock { domain: d } if ptr::eq(*d, domain)))
+        {
+            return;
+        }
+        if !self.parents.is_empty() {
+            self.in_parent(|cx| cx.ensure_clock(domain));
+        }
+        let parameter = self.add_parameter(air::Parameter::Clock { domain });
+        if !self.parents.is_empty() {
+            self.arguments
+                .push(air::InstanceArgument::Clock { parameter, domain });
+        }
+    }
+
+    fn swap_state(&mut self, state: &mut ModuleState<'dsn>) {
+        std::mem::swap(&mut self.root_active, &mut state.root_active);
+        std::mem::swap(&mut self.root_defined, &mut state.root_defined);
+        std::mem::swap(&mut self.definitions, &mut state.definitions);
+        std::mem::swap(&mut self.name, &mut state.name);
+        std::mem::swap(&mut self.parameters, &mut state.parameters);
+        std::mem::swap(&mut self.instances, &mut state.instances);
+        std::mem::swap(&mut self.registers, &mut state.registers);
+        std::mem::swap(&mut self.methods, &mut state.methods);
+        std::mem::swap(&mut self.rules, &mut state.rules);
+        std::mem::swap(&mut self.interface, &mut state.interface);
+        std::mem::swap(&mut self.scheduling, &mut state.scheduling);
+        std::mem::swap(&mut self.modules, &mut state.modules);
+        std::mem::swap(&mut self.arguments, &mut state.arguments);
+        std::mem::swap(&mut self.imports, &mut state.imports);
+        std::mem::swap(&mut self.id, &mut state.id);
+    }
+
+    fn in_parent<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let mut parent = self
+            .parents
+            .pop()
+            .expect("HDL handle escaped its defining module");
+        self.swap_state(&mut parent);
+        let frames = std::mem::take(&mut self.frames);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(self)));
+        self.frames = frames;
+        self.swap_state(&mut parent);
+        self.parents.push(parent);
+        match result {
+            Ok(value) => value,
+            Err(error) => std::panic::resume_unwind(error),
+        }
+    }
+
+    pub(crate) fn begin_module(&mut self, name: &str) {
+        assert!(
+            self.frames.is_empty(),
+            "cannot construct module instances in action bodies"
+        );
+        let id = self.next_module;
+        self.next_module += 1;
+        let mut state = ModuleState {
+            root_active: true,
+            root_defined: false,
+            definitions: Vec::new(),
+            name: self.alloc_str(&format!(
+                "{}_child_{name}_{id}",
+                self.parents.first().map_or(self.name, |parent| parent.name)
+            )),
+            parameters: Vec::new(),
+            instances: Vec::new(),
+            registers: Vec::new(),
+            methods: Vec::new(),
+            rules: Vec::new(),
+            interface: None,
+            scheduling: Vec::new(),
+            modules: Vec::new(),
+            arguments: Vec::new(),
+            imports: HashMap::new(),
+            id,
+        };
+        self.swap_state(&mut state);
+        self.parents.push(state);
+    }
+
+    pub(crate) fn abort_module(&mut self) {
+        let mut parent = self.parents.pop().expect("missing parent module");
+        self.swap_state(&mut parent);
+    }
+
+    pub(crate) fn end_module(&mut self) -> InterfaceHandle {
+        let domain = self
+            .parameters
+            .iter()
+            .find_map(|p| match p {
+                air::Parameter::Clock { domain } => Some(*domain),
+                _ => None,
+            })
+            .or_else(|| self.domains.first().copied())
+            .unwrap_or_else(|| self.intern_domain(TypeId::of::<()>(), "clk").1);
+        self.ensure_clock(domain);
+        let module = self.alloc(self.finish());
+        let arguments = self.alloc_slice(self.arguments.iter().copied());
+        self.abort_module();
+        self.modules.push(module);
+        let instance = self.add_instance(air::Instance {
+            name: self.alloc_str(&format!("instance_{}", self.instances.len())),
+            module: module.signature,
+            arguments,
+            domain,
+        });
+        let interface = self.alloc(air::InterfaceRef::Instance(instance));
+        self.push_interface(interface, module.signature.interface)
+    }
+
+    pub(crate) fn primitive_name(&mut self) -> &'dsn str {
+        let id = self.next_module;
+        self.next_module += 1;
+        self.alloc_str(&format!("mk_bram_{id}"))
+    }
+
+    pub(crate) fn attach_primitive(
+        &mut self,
+        module: &'dsn air::Module<'dsn>,
+        arguments: &'dsn [air::InstanceArgument<'dsn>],
+        domain: &'dsn air::Domain<'dsn>,
+    ) -> InterfaceHandle {
+        self.modules.push(module);
+        let instance = self.add_instance(air::Instance {
+            name: self.alloc_str(&format!("instance_{}", self.instances.len())),
+            module: module.signature,
+            arguments,
+            domain,
+        });
+        let interface = self.alloc(air::InterfaceRef::Instance(instance));
+        self.push_interface(interface, module.signature.interface)
+    }
+
+    pub(crate) fn finish(&self) -> air::Module<'dsn> {
         assert!(self.frames.is_empty(), "unfinished action body");
         let interface = self.interface.unwrap_or_else(|| {
             let ty = self.alloc(air::Interface {
@@ -276,16 +607,42 @@ impl<'dsn> Context<'dsn> {
             parameters: self.arena.alloc_slice_copy(&self.parameters),
             interface: interface.ty,
         });
+        let mut domains: Vec<&'dsn air::Domain<'dsn>> = Vec::new();
+        for domain in self
+            .parameters
+            .iter()
+            .filter_map(|parameter| match parameter {
+                air::Parameter::Clock { domain } => Some(*domain),
+                _ => None,
+            })
+            .chain(self.registers.iter().map(|register| register.domain))
+            .chain(self.instances.iter().map(|instance| instance.domain))
+            .chain(self.instances.iter().flat_map(|instance| {
+                instance
+                    .arguments
+                    .iter()
+                    .filter_map(|argument| match argument {
+                        air::InstanceArgument::Clock { domain, .. } => Some(*domain),
+                        _ => None,
+                    })
+            }))
+        {
+            if !domains.iter().any(|existing| ptr::eq(*existing, domain)) {
+                domains.push(domain);
+            }
+        }
         air::Module {
             signature,
-            domains: self.arena.alloc_slice_copy(&self.domains),
+            primitive: None,
+            modules: self.arena.alloc_slice_copy(&self.modules),
+            domains: self.arena.alloc_slice_copy(&domains),
             types: self.arena.alloc_slice_copy(&self.types),
             instances: self.arena.alloc_slice_copy(&self.instances),
             registers: self.arena.alloc_slice_copy(&self.registers),
             methods: self.arena.alloc_slice_copy(&self.methods),
             rules: self.arena.alloc_slice_copy(&self.rules),
             interface,
-            scheduling: self.arena.alloc_slice_fill_iter(self.scheduling),
+            scheduling: self.arena.alloc_slice_copy(&self.scheduling),
         }
     }
 }

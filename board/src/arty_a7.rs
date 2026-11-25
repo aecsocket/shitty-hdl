@@ -2,7 +2,7 @@ use std::num::NonZero;
 
 use crate::{
     ActiveOn, Board, Button, Clock, Ddr3, DiffPair, Fpga, Led, Pin, Reset, Resources, Switch,
-    Toolchain, Uart,
+    Toolchain, ToolchainVivado, Uart,
 };
 
 pub const A7_35T: Board = Board {
@@ -10,6 +10,10 @@ pub const A7_35T: Board = Board {
         device: "xc7a35ti",
         ..A7.fpga
     },
+    toolchain: Toolchain::Vivado(ToolchainVivado {
+        part: "xc7a35ticsg324-1L",
+        ..TOOLCHAIN
+    }),
     ..A7
 };
 
@@ -18,13 +22,15 @@ pub const A7_100T: Board = Board {
         device: "xc7a100ti",
         ..A7.fpga
     },
+    toolchain: Toolchain::Vivado(ToolchainVivado {
+        part: "xc7a100tcsg324-1",
+        ..TOOLCHAIN
+    }),
     ..A7
 };
 
 const A7: Board = Board {
-    toolchain: Toolchain::Vivado {
-        design_properties: &[("CFGBVS", "VCCO"), ("CONFIG_VOLTAGE", "3.3")],
-    },
+    toolchain: Toolchain::Vivado(TOOLCHAIN),
     fpga: Fpga {
         device: "",
         package: "csg324",
@@ -98,6 +104,11 @@ const A7: Board = Board {
             data_attributes: &[("IN_TERM", "UNTUNED_SPLIT_40")],
         }],
     },
+};
+
+const TOOLCHAIN: ToolchainVivado = ToolchainVivado {
+    part: "",
+    design_properties: &[("CFGBVS", "VCCO"), ("CONFIG_VOLTAGE", "3.3")],
 };
 
 const fn led(name: &'static str) -> Led {

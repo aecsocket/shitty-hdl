@@ -1,0 +1,12 @@
+[package]
+name = "shitty-hdl-toolchain-api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+board = { workspace = true }
+bsv = { workspace = true }
+
+[lints]
+workspace = true

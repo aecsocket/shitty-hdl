@@ -2,7 +2,8 @@ use front::prelude::*;
 use platform::Platform;
 
 #[module(crate = front)]
-pub fn blinky(platform: Platform, clk: Clock) {
+pub fn blinky(platform: Platform) {
+    let clk = platform.default_clock().expect("requires default clock");
     let default_clock_hz = platform.default_clock_hz.expect("requires default clock");
     let half_freq = default_clock_hz.get() / 2;
 

@@ -79,20 +79,50 @@ pub(crate) fn interface_action<In: Shape, Out: Shape>(
 }
 
 pub(crate) fn module<I: Interface>(name: &str, f: impl FnOnce() -> I) -> I {
-    with_context(|cx| {
+    let nested = with_context(|cx| {
         assert!(
-            !cx.root_active && !cx.root_defined,
-            "elaborate one root module at a time; nested module definitions are not supported yet"
+            cx.frames.is_empty(),
+            "cannot construct module instances in action bodies"
         );
-        cx.root_active = true;
-        cx.set_name(&format!("mk_{name}"));
+        if cx.root_active {
+            cx.begin_module(name);
+            true
+        } else {
+            assert!(!cx.root_defined, "elaborate one root module at a time");
+            cx.root_active = true;
+            cx.set_name(&format!("mk_{name}"));
+            false
+        }
     });
-    let interface = f();
-    with_context(|cx| {
-        let implementation = interface.air_bind(cx);
-        cx.set_interface(implementation.clone());
-        cx.root_active = false;
-        cx.root_defined = true;
-    });
-    interface
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let interface = f();
+        with_context(|cx| {
+            let implementation = interface.air_bind(cx);
+            cx.set_interface(implementation.clone());
+        });
+        interface
+    }));
+    match result {
+        Ok(_interface) if nested => {
+            let handle = with_context(|cx| cx.end_module());
+            I::from_handle(handle)
+        }
+        Ok(interface) => {
+            with_context(|cx| {
+                cx.root_active = false;
+                cx.root_defined = true;
+            });
+            interface
+        }
+        Err(error) => {
+            with_context(|cx| {
+                if nested {
+                    cx.abort_module();
+                } else {
+                    cx.root_active = false;
+                }
+            });
+            std::panic::resume_unwind(error)
+        }
+    }
 }

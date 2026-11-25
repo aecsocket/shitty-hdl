@@ -20,7 +20,7 @@ pub(crate) fn clock_input<D: 'static>(name: &str) -> ClockHandle {
                 }),
                 "duplicate module parameter name"
             );
-            cx.add_parameter(air::Parameter::Clock { domain });
+            cx.ensure_clock(domain);
         }
         ClockHandle {
             design_id: cx.design_id,
@@ -48,12 +48,13 @@ pub(crate) fn register<T: Shape>(clock: Clock, init: Option<T>) -> (RegisterHand
                 domain
             }
         };
+        cx.ensure_clock(domain);
         let ty = cx.ty::<T>();
         let reset = match init {
             Some(init) => air::RegisterReset::Synchronous(init.air_value(cx)),
             None => air::RegisterReset::Uninitialized,
         };
-        let index = cx.registers.len();
+        let index = cx.register_handles.len();
         let name = cx.alloc_str(&format!("reg_{index}"));
         let register = cx.add_register(air::Register {
             name,
@@ -61,6 +62,7 @@ pub(crate) fn register<T: Shape>(clock: Clock, init: Option<T>) -> (RegisterHand
             domain,
             reset,
         });
+        cx.record_register_handle(register);
         let handle = RegisterHandle {
             design_id: cx.design_id,
             index,
@@ -77,7 +79,7 @@ pub(crate) fn register<T: Shape>(clock: Clock, init: Option<T>) -> (RegisterHand
 pub(crate) fn write_register<T: Shape>(handle: RegisterHandle, value: Value<T>) {
     with_context(|cx| {
         cx.check_design(handle.design_id);
-        let register = cx.registers[handle.index];
+        let register = cx.register_for_write(handle.index);
         let value = cx.typed_expr::<T>(value.handle());
         assert!(
             ptr::eq(register.ty, value.ty),

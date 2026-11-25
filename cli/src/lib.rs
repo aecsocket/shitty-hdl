@@ -6,7 +6,12 @@ pub use demo::blinky;
 use anyhow::{Context as _, Result};
 use board::Board;
 use platform::Platform;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::LazyLock,
+    time::Instant,
+};
+use toolchain_bsc::BluespecCompiler;
 
 #[derive(clap::Parser)]
 struct Cli {
@@ -16,6 +21,7 @@ struct Cli {
 
 #[derive(clap::Subcommand)]
 enum Command {
+    Check,
     Build,
     Upload,
 }
@@ -24,6 +30,7 @@ struct Context {
     out_dir: PathBuf,
     board: Board,
     make_top: Box<dyn FnOnce(Platform)>,
+    bsc: Box<dyn BluespecCompiler>,
 }
 
 #[macro_export]
@@ -34,11 +41,25 @@ macro_rules! cli {
     };
 }
 
+static START: LazyLock<Instant> = LazyLock::new(Instant::now);
+
 pub fn cli<R>(
     manifest_dir: impl AsRef<Path>,
     board: Board,
     make_top: impl FnOnce(Platform) -> R + 'static,
 ) -> Result<()> {
+    LazyLock::force(&START);
+
+    tracing_subscriber::fmt()
+        .without_time()
+        .with_target(false)
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .try_init()
+        .map_err(|error| anyhow::anyhow!("initializing tracing subscriber: {error}"))?;
+
     let dir = manifest_dir.as_ref();
     let metadata = cargo_metadata::MetadataCommand::new()
         .current_dir(dir)
@@ -51,14 +72,17 @@ pub fn cli<R>(
         .join("hdl")
         .join(env!("CARGO_CRATE_NAME"))
         .into_std_path_buf();
+    let bsc = toolchain_bsc::SystemBluespec::default();
     let cx = Context {
         out_dir,
         board,
         make_top: Box::new(|platform| drop(make_top(platform))),
+        bsc: Box::new(bsc),
     };
 
     let cli = <Cli as clap::Parser>::parse();
     match cli.command {
+        Command::Check => task::check(cx),
         Command::Build => task::build(cx),
         Command::Upload => task::upload(cx),
     }

@@ -1,6 +1,6 @@
-use derive::{Interface, module};
+use derive::Interface;
 
-use crate::{method::Method, value::Shape};
+use crate::{domain::Clock, elab, method::Method, ops::Bits, value::Shape};
 
 #[derive(Interface)]
 #[interface(crate = crate)]
@@ -9,7 +9,7 @@ pub struct Bram<Addr: Shape, Data: Shape> {
     pub write: Method<(Addr, Data), ()>,
 }
 
-#[module(crate = crate, builder)]
-pub fn bram<Addr: Shape, Data: Shape>(depth: u64) -> Bram<Addr, Data> {
-    todo!();
+#[bon::builder(crate = ::bon)]
+pub fn bram<Addr: Bits, Data: Bits>(clk: Clock, depth: u64) -> Bram<Addr, Data> {
+    elab::bram(clk, depth)
 }

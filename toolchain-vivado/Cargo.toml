@@ -1,0 +1,14 @@
+[package]
+name = "shitty-hdl-toolchain-vivado"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+board = { workspace = true }
+bsv = { workspace = true }
+toolchain-api = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

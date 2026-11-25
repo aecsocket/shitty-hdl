@@ -80,11 +80,18 @@ pub struct ClockBinding<'a> {
     pub constructor: &'a str,
 }
 #[derive(Debug, Clone, Copy)]
+pub struct ResetBinding<'a> {
+    pub name: &'a str,
+    pub clock: &'a str,
+}
+#[derive(Debug, Clone, Copy)]
 pub struct Module<'a> {
     pub name: &'a str,
     pub clock_bindings: &'a [ClockBinding<'a>],
+    pub reset_bindings: &'a [ResetBinding<'a>],
     pub parameters: &'a [Parameter<'a>],
     pub interface: &'a str,
+    pub declarations: &'a [Declaration<'a>],
     pub registers: &'a [Register<'a>],
     pub instances: &'a [Instance<'a>],
     pub local_interfaces: &'a [LocalInterface<'a>],
@@ -99,20 +106,27 @@ pub enum Parameter<'a> {
     Clock(&'a str),
 }
 #[derive(Debug, Clone, Copy)]
+pub struct Declaration<'a> {
+    pub field: Field<'a>,
+    pub value: Expr<'a>,
+}
+#[derive(Debug, Clone, Copy)]
 pub struct Register<'a> {
     pub name: &'a str,
     pub ty: Type<'a>,
     pub constructor: &'a str,
     pub initial: Option<&'a Expr<'a>>,
     pub clock: Option<&'a str>,
+    pub reset: Option<&'a str>,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct Instance<'a> {
     pub name: &'a str,
     pub constructor: &'a str,
-    pub interface: &'a str,
+    pub interface: Type<'a>,
     pub arguments: &'a [Expr<'a>],
     pub clock: Option<&'a str>,
+    pub reset: Option<&'a str>,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct LocalInterface<'a> {
@@ -166,6 +180,7 @@ pub enum ExprKind<'a> {
     Undefined,
     Unit,
     Bool(bool),
+    Integer(u64),
     Bits {
         width: u32,
         words_le: &'a [u64],
@@ -249,6 +264,10 @@ pub enum Statement<'a> {
         else_body: Option<Block<'a>>,
     },
     Return(Option<Expr<'a>>),
+    Display {
+        format: &'a str,
+        arguments: &'a [Expr<'a>],
+    },
     Assert {
         function: &'a str,
         condition: Expr<'a>,

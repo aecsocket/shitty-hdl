@@ -1,0 +1,12 @@
+[package]
+name = "shitty-hdl-toolchain-bsc"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+bsv = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

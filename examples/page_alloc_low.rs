@@ -67,6 +67,7 @@ pub fn page_alloc(clk: Clock, mut heap: Heap) -> PageAlloc {
         if free_head == PageAddr::invalid() {
             // bump allocate
             sim_assert!(next_clean != PageAddr::invalid(), "OOM");
+            display!("allocating page {next_clean:x}");
 
             alloc_out_r <<= next_clean;
             next_clean <<= next_clean + 1;
@@ -98,6 +99,7 @@ pub fn page_alloc(clk: Clock, mut heap: Heap) -> PageAlloc {
     let mut free_req_captured = Reg::<PageAddr>::uninit(clk);
     let free_req = Action::when(state == State::Idle).define_as(|page: Value<PageAddr>| {
         sim_assert!(page != PageAddr::invalid(), "freeing invalid page");
+        display!("freeing page {:x}", page);
         sim_assert!(free_count < PageAddr::invalid(), "freeing too many pages");
 
         heap.write
@@ -124,7 +126,7 @@ fn main() {
     let storage = elab::Bump::new();
     let module = elab::elaborate(&storage, || {
         let clk = Clock::input("clk");
-        let heap = Heap::input("heap");
+        let heap = bram::<Addr, Word>().clk(clk).depth(1024).call();
         page_alloc(clk, heap);
     });
     println!(
@@ -136,7 +138,7 @@ fn main() {
     );
     println!("{module:#?}");
 
-    let package = bsv::from_air(&storage, &module).expect("AIR to BSV lowering failed");
+    let (package, _) = bsv::from_air(&storage, &module).expect("AIR to BSV lowering failed");
     println!(
         "BSV {}: {} type definitions, {} interfaces, {} modules",
         package.name,

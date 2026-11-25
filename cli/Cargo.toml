@@ -11,6 +11,11 @@ cargo_metadata = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 front = { workspace = true }
 platform = { workspace = true }
+toolchain-api = { workspace = true }
+toolchain-bsc = { workspace = true }
+toolchain-vivado = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [lints]
 workspace = true

@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::ops::{Deref, ShlAssign};
 
 use crate::value::{IntoValue, Shape, Value};
 
@@ -19,6 +19,10 @@ impl<T: Shape> Reg<T> {
     pub fn new(init: T) -> Self {
         todo!();
     }
+
+    pub fn assign(&mut self, rhs: impl IntoValue<Out = T>) {
+        todo!();
+    }
 }
 
 impl<T: Shape> Deref for Reg<T> {
@@ -34,6 +38,12 @@ impl<T: Shape> IntoValue for Reg<T> {
 
     fn into_value(self) -> Value<Self::Out> {
         self.value
+    }
+}
+
+impl<T: Shape, Rhs: IntoValue<Out = T>> ShlAssign<Rhs> for Reg<T> {
+    fn shl_assign(&mut self, rhs: Rhs) {
+        self.assign(rhs);
     }
 }
 

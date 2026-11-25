@@ -1,3 +1,10 @@
+mod bit;
+mod int;
+mod prim;
+
+pub use bit::*;
+pub use int::*;
+
 use std::marker::PhantomData;
 
 pub trait Shape: Sized {

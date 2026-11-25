@@ -1,3 +1,4 @@
+mod bits;
 mod interface;
 mod module;
 mod shape;
@@ -68,6 +69,11 @@ pub fn module(
 #[proc_macro_derive(Interface, attributes(interface))]
 pub fn interface(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     interface::derive(input.into()).into()
+}
+
+#[proc_macro_derive(Bits, attributes(bits))]
+pub fn bits(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    bits::derive(input.into()).into()
 }
 
 #[proc_macro_derive(Shape, attributes(shape))]

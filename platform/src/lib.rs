@@ -10,7 +10,7 @@ use core::{
     signal::Signal,
     util::Period,
 };
-use std::{backtrace::Backtrace, mem, num::NonZero};
+use std::{backtrace::Backtrace, cell::RefCell, mem, num::NonZero, rc::Rc};
 
 #[derive(Debug)]
 pub struct Platform {
@@ -22,6 +22,16 @@ pub struct Platform {
     pub switch: Resources<In<bool>>,
     pub uart: Resources<Uart>,
     pub ddr3: Resources<Ddr3>,
+    #[doc(hidden)]
+    pub elab: Rc<RefCell<PlatformElab>>,
+}
+
+#[derive(Debug, Default)]
+pub struct PlatformElab {
+    pub bindings: Vec<PinBinding>,
+    pub clock_bindings: Vec<ClockBinding>,
+    pub default_clock: Option<Signal<bool>>,
+    owner: Option<ir::DesignId>,
 }
 
 #[derive(Debug)]
@@ -35,16 +45,27 @@ pub struct Ddr3 {
     // todo
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PinBinding {
+    pub signal: ir::SignalId,
+    pub bit: u32,
+    pub package_pin: String,
+    pub io_standard: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ClockBinding {
+    pub signal: ir::SignalId,
+    pub period: Period,
+}
+
 #[derive(Debug)]
 pub struct Resources<T> {
     items: Vec<ResourceState<T>>,
 }
 
-#[derive(Debug)]
 enum ResourceState<T> {
-    /// Still held by the [`Platform`].
-    Held { item: T },
-    /// Used by a consumer of the [`Platform`].
+    Held { make: Box<dyn FnOnce() -> T> },
     Used { at: Backtrace },
 }
 
@@ -52,33 +73,23 @@ impl<T> Resources<T> {
     #[track_caller]
     pub fn take(&mut self, index: usize) -> T {
         let state = self.items.get_mut(index).expect("invalid resource index");
-        let here = Backtrace::force_capture();
-        let old = mem::replace(state, ResourceState::Used { at: here });
+        if let ResourceState::Used { at } = state {
+            panic!("item already used at {at:?}");
+        }
+        let old = mem::replace(
+            state,
+            ResourceState::Used {
+                at: Backtrace::force_capture(),
+            },
+        );
         match old {
-            ResourceState::Held { item } => item,
-            ResourceState::Used { at } => {
-                panic!("item already used at {at:?}");
-            }
+            ResourceState::Held { make } => make(),
+            ResourceState::Used { .. } => unreachable!(),
         }
     }
 }
 
 #[must_use]
 pub fn from_board(board: Board) -> Platform {
-    let default_clock = board.resources.default_clock.map(|idx| {
-        board
-            .resources
-            .clock
-            .get(idx)
-            .expect("invalid default clock index")
-    });
-    let default_clock_hz = default_clock.map(|clock| clock.hz);
-
-    // let reset = board.resources.reset.iter().map(|reset| );
-
-    Platform {
-        board,
-        default_clock_hz,
-        reset,
-    }
+    slop::from_board(board)
 }

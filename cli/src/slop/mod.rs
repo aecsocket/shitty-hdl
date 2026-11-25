@@ -67,15 +67,22 @@ pub(super) fn build<Top: Module>(
         "unsupported toolchain {:?}",
         board.toolchain
     );
-    let platform = Platform::from_board(board)?;
-    let capture = platform.clone();
-    let mut clock = None;
-    let (mut design, top) = ir::elaborate_named(Top::NAME, || -> Result<Top> {
-        clock = Some(platform.clocks.try_take(0)?.id());
-        Ok(make_top(platform))
+    let (mut design, (_top, elab)) = ir::elaborate_named(Top::NAME, || {
+        let platform = shitty_hdl_platform::from_board(board);
+        let elab = platform.elab.clone();
+        (make_top(platform), elab)
     })?;
-    let _top = top?;
-    design.bind_domain_clock::<Sync>(clock.context("default clock was not allocated")?)?;
+    let (bindings, clock_bindings, clock) = {
+        let elab = elab.borrow();
+        (
+            elab.bindings.clone(),
+            elab.clock_bindings.clone(),
+            elab.default_clock.map(|signal| signal.id()),
+        )
+    };
+    if let Some(clock) = clock {
+        design.bind_domain_clock::<Sync>(clock)?;
+    }
     for domain in &design.domains {
         ensure!(
             domain.clock.is_some(),
@@ -83,7 +90,7 @@ pub(super) fn build<Top: Module>(
             domain.name
         );
     }
-    let bindings = capture.bindings();
+
     for (index, signal) in design.signals.iter().enumerate() {
         if signal.port.is_some() {
             for bit in 0..signal.ty.width {
@@ -101,7 +108,7 @@ pub(super) fn build<Top: Module>(
     let xdc = render_constraints(
         board.toolchain,
         &bindings,
-        &capture.clock_bindings(),
+        &clock_bindings,
         &lowered.port_names,
     )?;
     let name = safe_name(Top::NAME);

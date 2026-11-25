@@ -1,3 +1,3 @@
-## Reference source code
-
-`references/` is gitignored and contains external reference source code. Use CLI tools (such as `ls`, `find`, `rg`, and `sed`) to discover and read files under `references/`, rather than editor file-search or file-reading tools, which may omit ignored paths.
+- `references/` contains external reference source code. Use CLI tools to discover and read those files, instead of using editor harness tools.
+- Do not write comments, doc comments, or markdown files unless prompted by the user.
+- Do not write tests unless prompted by the user.

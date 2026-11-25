@@ -650,7 +650,6 @@ dependencies = [
 name = "shitty-hdl-platform"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "shitty-hdl-board",
  "shitty-hdl-core",
 ]

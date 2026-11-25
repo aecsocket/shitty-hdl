@@ -9,7 +9,7 @@ pub trait Toolchain {
     fn make_bitstream(
         &self,
         input: BitstreamInput,
-        progress: &mut dyn FnMut(MakeBitstreamEvent),
+        progress: &mut (dyn FnMut(MakeBitstreamEvent) + Send),
     ) -> Result<()>;
 
     fn program(&self) -> Result<()>;
@@ -36,7 +36,7 @@ pub enum MakeBitstreamEvent {
     WriteBitstream,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Bindings {
     pub clock: Vec<Binding<board::Clock>>,
     pub reset: Vec<Binding<board::Reset>>,

@@ -40,6 +40,8 @@ impl BluespecCompiler for SystemBluespec {
             .arg(bsv_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        debug!("spawning {command:?}");
+
         let mut child = command
             .spawn()
             .with_context(|| anyhow!("spawning {command:?}"))?;

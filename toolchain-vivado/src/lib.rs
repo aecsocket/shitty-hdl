@@ -1,15 +1,15 @@
 use std::{
     fmt::{self, Write as _},
     fs,
-    io::{self, BufRead, BufReader, Write as _},
+    io::{BufRead, BufReader},
     path::PathBuf,
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     thread,
 };
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use toolchain_api::{Binding, Bindings, BitstreamInput, MakeBitstreamEvent, Toolchain};
-use tracing::debug;
+use tracing::{debug, warn};
 
 pub struct Vivado {
     pub bin: PathBuf,
@@ -27,7 +27,7 @@ impl Toolchain for Vivado {
     fn make_bitstream(
         &self,
         input: BitstreamInput,
-        progress: &mut dyn FnMut(MakeBitstreamEvent),
+        progress: &mut (dyn FnMut(MakeBitstreamEvent) + Send),
     ) -> Result<()> {
         const SCRIPT_PATH: &str = "build.tcl";
         const SCRIPT_CONTENTS: &str = include_str!("build.tcl");
@@ -63,12 +63,32 @@ impl Toolchain for Vivado {
             .arg(part)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        debug!("spawning vivado: {command:?}");
+        debug!("spawning {command:?}");
 
         let mut child = command
             .spawn()
-            .with_context(|| anyhow!("spawning vivado ({vivado_bin:?})"))?;
-        forward_output(&mut child, progress)
+            .with_context(|| anyhow!("spawning {command:?}"))?;
+        let stdout = child.stdout.take().expect("`stdout` is `Stdio::piped()`");
+        let stderr = child.stderr.take().expect("`stderr` is `Stdio::piped()`");
+
+        thread::scope(|scope| {
+            scope.spawn(move || {
+                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                    handle_stdout(&line, progress);
+                }
+            });
+
+            scope.spawn(move || {
+                for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                    warn!("vivado: {line}");
+                }
+            });
+        });
+
+        let status = child.wait().context("waiting for vivado to finish")?;
+        ensure!(status.success(), "vivado failed");
+
+        Ok(())
     }
 
     fn program(&self) -> Result<()> {
@@ -138,61 +158,19 @@ fn tcl_word(value: &str) -> String {
     word
 }
 
-fn forward_output(child: &mut Child, progress: &mut dyn FnMut(MakeBitstreamEvent)) -> Result<()> {
-    let stdout = child.stdout.take().expect("`stdout` is `Stdio::piped()`");
-    let mut stderr = child.stderr.take().expect("`stderr` is `Stdio::piped()`");
-
-    thread::scope(|scope| -> Result<()> {
-        let stderr_thread = scope.spawn(move || {
-            io::copy(&mut stderr, &mut io::stderr().lock()).context("forwarding stderr")
-        });
-        let stdout_result = (|| -> Result<()> {
-            let mut reader = BufReader::new(stdout);
-            let mut line = Vec::new();
-            loop {
-                line.clear();
-                if reader
-                    .read_until(b'\n', &mut line)
-                    .context("reading stdout")?
-                    == 0
-                {
-                    break;
-                }
-                {
-                    let mut out = io::stdout().lock();
-                    out.write_all(&line).context("forwarding stdout")?;
-                    out.flush().context("flushing stdout")?;
-                }
-                if let Some(marker) = line.strip_prefix(b"shitty_hdl:") {
-                    let marker = str::from_utf8(marker)
-                        .context("invalid progress marker")?
-                        .trim();
-                    let event = match marker {
-                        "Synthesis" => MakeBitstreamEvent::Synthesis,
-                        "Optimization" => MakeBitstreamEvent::Optimization,
-                        "Placement" => MakeBitstreamEvent::Placement,
-                        "PhysicalOptimization" => MakeBitstreamEvent::PhysicalOptimization,
-                        "Routing" => MakeBitstreamEvent::Routing,
-                        "WriteBitstream" => MakeBitstreamEvent::WriteBitstream,
-                        _ => panic!("unknown progress marker: {marker}"),
-                    };
-                    progress(event);
-                }
-            }
-            Ok(())
-        })();
-        if stdout_result.is_err() {
-            let _ = child.kill();
-        }
-        let status = child.wait().context("waiting for child");
-        let stderr_result = stderr_thread
-            .join()
-            .map_err(|_| anyhow!("stderr forwarding thread panicked"));
-        stdout_result?;
-        stderr_result??;
-        let status = status?;
-
-        ensure!(status.success(), "failed: {status}");
-        Ok(())
-    })
+fn handle_stdout(line: &str, progress: &mut dyn FnMut(MakeBitstreamEvent)) {
+    if let Some(marker) = line.strip_prefix("shitty_hdl:") {
+        let event = match marker {
+            "Synthesis" => MakeBitstreamEvent::Synthesis,
+            "Optimization" => MakeBitstreamEvent::Optimization,
+            "Placement" => MakeBitstreamEvent::Placement,
+            "PhysicalOptimization" => MakeBitstreamEvent::PhysicalOptimization,
+            "Routing" => MakeBitstreamEvent::Routing,
+            "WriteBitstream" => MakeBitstreamEvent::WriteBitstream,
+            _ => panic!("unknown progress marker: {marker}"),
+        };
+        progress(event);
+    } else {
+        debug!("vivado: {line}");
+    }
 }

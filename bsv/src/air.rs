@@ -117,6 +117,9 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
     fn text(&self, s: &str) -> &'o str {
         self.arena.alloc_str(s)
     }
+    fn module_name(&self, name: &str) -> &'o str {
+        self.text(name.strip_prefix("mk_").unwrap_or(name))
+    }
     fn type_name(&self, name: &str) -> &'o str {
         self.text(&format!("T_{name}"))
     }
@@ -709,7 +712,8 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
     }
     fn discover(&mut self) -> Result<()> {
         let m = self.module;
-        self.reserved.insert(m.signature.name.to_owned());
+        self.reserved
+            .insert(self.module_name(m.signature.name).to_owned());
         for ty in m.types {
             self.named(ty)?;
         }
@@ -727,7 +731,8 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
         }
         self.collect_impl(m.interface, &mut Vec::new())?;
         for instance in m.instances {
-            self.reserved.insert(instance.module.name.to_owned());
+            self.reserved
+                .insert(self.module_name(instance.module.name).to_owned());
             self.iface(instance.module.interface)?;
             for parameter in instance.module.parameters {
                 match parameter {
@@ -1491,20 +1496,16 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
         let mut modules = Vec::new();
         self.lower_modules(root, &mut Vec::new(), &mut Vec::new(), &mut modules)?;
         unique(modules.iter().map(|module| module.name))?;
+        let top_name = self.module_name(root.signature.name);
         let top = modules
             .iter()
-            .find(|module| module.name == root.signature.name)
+            .find(|module| module.name == top_name)
             .copied()
             .ok_or_else(|| LowerError {
                 message: "missing top module".into(),
             })?;
         let package = Package {
-            name: self.text(
-                root.signature
-                    .name
-                    .strip_prefix("mk_")
-                    .unwrap_or(root.signature.name),
-            ),
+            name: top_name,
             imports: self.slice(&self.imports),
             typedefs: self.slice(&self.typedefs),
             interfaces: self.slice(&self.interfaces),
@@ -1686,7 +1687,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
             }
             instances.push(Instance {
                 name: self.text(i.name),
-                constructor: self.text(i.module.name),
+                constructor: self.module_name(i.module.name),
                 interface: Type::Named(interface),
                 arguments: self.slice(&arguments),
                 clock: self.clock(i.domain)?,
@@ -1804,7 +1805,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
             });
         }
         Ok(Module {
-            name: self.text(m.signature.name),
+            name: self.module_name(m.signature.name),
             clock_bindings: self.slice(&[ClockBinding {
                 name: "bsv_default_clock",
                 constructor: "exposeCurrentClock",

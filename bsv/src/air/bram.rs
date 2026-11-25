@@ -289,7 +289,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
             reset,
         };
         Ok(Module {
-            name: self.text(m.signature.name),
+            name: self.module_name(m.signature.name),
             clock_bindings: self.slice(&[ClockBinding {
                 name: "bsv_default_clock",
                 constructor: "exposeCurrentClock",

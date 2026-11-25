@@ -4,7 +4,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Uint<const N: usize>(Bit<N>);
+pub struct Uint<const N: usize>(pub Bit<N>);
 
 impl<const N: usize> Shape for Uint<N> {
     type View = ValueView<Self>;
@@ -16,10 +16,12 @@ impl<const N: usize> Bits for Uint<N> {
     type Packed = Bit<N>;
 
     fn pack(this: Value<Self>) -> Value<Self::Packed> {
+        let _ = this;
         todo!();
     }
 
     fn unpack(bits: Value<Self::Packed>) -> Value<Self> {
+        let _ = bits;
         todo!();
     }
 }

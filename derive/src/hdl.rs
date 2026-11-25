@@ -20,6 +20,9 @@ fn derive_(attr: TokenStream, input: TokenStream) -> Result<TokenStream> {
     let options = syn::parse2::<Options>(attr)?;
     let mut function = syn::parse2::<ItemFn>(input)?;
     rewrite(&mut function.block, &options.crate_)?;
+    function
+        .attrs
+        .push(parse_quote! { #[allow(clippy::future_not_send)] });
     Ok(quote! { #function })
 }
 
@@ -111,10 +114,11 @@ impl VisitMut for Rewriter<'_> {
         for (index, stmt) in block.stmts.iter_mut().enumerate() {
             let was_if = matches!(stmt, Stmt::Expr(Expr::If(_), _));
             self.visit_stmt_mut(stmt);
-            if was_if && index + 1 < len {
-                if let Stmt::Expr(_, semi) = stmt {
-                    *semi = Some(Default::default());
-                }
+            if was_if
+                && index + 1 < len
+                && let Stmt::Expr(_, semi) = stmt
+            {
+                *semi = Some(Default::default());
             }
         }
     }

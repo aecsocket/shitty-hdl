@@ -82,6 +82,7 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
         let name = &field.ident;
         let vis = &field.vis;
         methods.push(quote! {
+            #[allow(clippy::future_not_send, clippy::unused_async_trait_impl)]
             #vis async fn #name(&self, #(#names: impl #crate_::value::IntoValue<Out = #inputs>),*) #output {
                 let _ = (#(#names,)*);
                 ::core::todo!()
@@ -91,8 +92,10 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
     let ident = &input.ident;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     Ok(quote! {
+        #[allow(clippy::trait_duplication_in_bounds)]
         impl #impl_generics #crate_::module::Interface for #ident #ty_generics #where_clause {}
 
+        #[allow(clippy::trait_duplication_in_bounds)]
         impl #impl_generics #ident #ty_generics #where_clause {
             #(#methods)*
         }

@@ -18,6 +18,7 @@ impl<T: Shape> Copy for Reg<T> {}
 
 impl<T: Shape> Reg<T> {
     pub fn new(init: T) -> Self {
+        drop(init);
         todo!();
     }
 

@@ -1,3 +1,10 @@
+#![doc = include_str!("../README.md")]
+
+#[cfg(feature = "from_pir")]
+mod from_pir;
+
+#[cfg(feature = "from_pir")]
+pub use from_pir::from_pir;
 pub use irt::{Bits, Ident, Pattern, ShapeSize, Signal, SignalDef};
 
 use irt::ptr_identity;

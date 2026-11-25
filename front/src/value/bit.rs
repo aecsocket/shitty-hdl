@@ -1,9 +1,9 @@
 use smallvec::SmallVec;
 
 use crate::{
+    domain::Domain,
     elab::{self, Context, ExprHandle},
     ops::{BitCmp, Bits},
-    domain::Domain,
     value::{Shape, Value, ValueView},
 };
 
@@ -90,12 +90,17 @@ impl<const N: usize> Bit<N> {
 
     #[must_use]
     pub fn constant<const VALUE: u128>() -> Self {
+        Self::from_u128(VALUE)
+    }
+
+    #[must_use]
+    pub fn from_u128(value: u128) -> Self {
         assert!(
-            N >= 128 || (VALUE >> N) == 0,
-            "`VALUE` cannot fit in `Bit<N>`"
+            N >= 128 || (value >> N) == 0,
+            "`value` cannot fit in `Bit<N>`"
         );
         #[expect(clippy::cast_possible_truncation, reason = "intentional")]
-        let (lo, hi) = (VALUE as u64, (VALUE >> 64) as u64);
+        let (lo, hi) = (value as u64, (value >> 64) as u64);
         let Self(mut words) = Self::none();
         if !words.is_empty() {
             words[0] = lo;
@@ -120,5 +125,3 @@ macro_rules! bit {
         $crate::value::Bit::constant::<VALUE>()
     }};
 }
-
-

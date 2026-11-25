@@ -6,7 +6,6 @@ edition.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 board = { workspace = true }
-bsv = { workspace = true }
 toolchain-api = { workspace = true }
 tracing = { workspace = true }
 

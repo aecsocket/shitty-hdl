@@ -12,7 +12,7 @@ use crate::{
     value::{IntoValues, Shape, Uint, Value},
 };
 
-use super::{with_context, RegisterHandle};
+use super::{RegisterHandle, with_context};
 
 /// The async FSM's state register; unlike the public [`crate::reg::Reg`],
 /// it is not branded with a domain marker, because it always belongs to
@@ -64,13 +64,13 @@ fn state_value(value: usize) -> Value<Internal, Uint<32>> {
     super::uint_from_u128::<Internal, 32>(value as u128)
 }
 
+#[must_use]
 pub fn unit_value() -> super::ExprHandle {
     with_context(|cx| {
         let unit = cx.unit();
         cx.push_expr(unit)
     })
 }
-
 
 fn with_flow<R>(f: impl FnOnce(&mut Flow) -> R) -> R {
     with_context(|cx| {
@@ -166,7 +166,9 @@ fn finish_state(value: usize) {
     state.write(state_value(value));
 }
 
-pub fn define_async_method<'a, D: Domain, In, Out, F>(f: F) -> (Action<D, In, ()>, Action<D, (), Out>)
+pub fn define_async_method<'a, D: Domain, In, Out, F>(
+    f: F,
+) -> (Action<D, In, ()>, Action<D, (), Out>)
 where
     In: Shape,
     Out: Shape,
@@ -189,30 +191,31 @@ where
     let req = Action::from_handle(super::define_action::<D, In, ()>(
         Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0)).handle()),
         |args_in| {
-        if let Some(id) = args {
-            super::write_register::<D, In>(id, In::pack_values(args_in));
-            state.write(state_value(1));
-            with_flow(|flow| flow.current = 1);
-        } else {
-            let f = body.take().expect("async method body was already consumed");
-            let mut future = Box::pin(f(In::make_values(Value::from_handle(unit_value()))));
-            match poll_segment(future.as_mut()) {
-                Poll::Pending => {}
-                Poll::Ready(value) => {
-                    if let Some(id) = result {
-                        super::write_register::<D, Out>(id, Out::pack_values(value));
+            if let Some(id) = args {
+                super::write_register::<D, In>(id, In::pack_values(args_in));
+                state.write(state_value(1));
+                with_flow(|flow| flow.current = 1);
+            } else {
+                let f = body.take().expect("async method body was already consumed");
+                let mut future = Box::pin(f(In::make_values(Value::from_handle(unit_value()))));
+                match poll_segment(future.as_mut()) {
+                    Poll::Pending => {}
+                    Poll::Ready(value) => {
+                        if let Some(id) = result {
+                            super::write_register::<D, Out>(id, Out::pack_values(value));
+                        }
+                        let done = with_flow(|flow| {
+                            let done = flow.next;
+                            flow.next += 1;
+                            done
+                        });
+                        finish_state(done);
                     }
-                    let done = with_flow(|flow| {
-                        let done = flow.next;
-                        flow.next += 1;
-                        done
-                    });
-                    finish_state(done);
                 }
+                slot = Some(future);
             }
-            slot = Some(future);
-        }
-    }));
+        },
+    ));
 
     let mut future = match slot.take() {
         Some(future) => future,
@@ -259,21 +262,24 @@ where
 
     let mut slot: Option<Pin<Box<dyn Future<Output = R> + 'a>>> = None;
 
-    super::define_rule(Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0)).handle()), || {
-        let mut future = Box::pin(f());
-        match poll_segment(future.as_mut()) {
-            Poll::Pending => {}
-            Poll::Ready(_) => {
-                let done = with_flow(|flow| {
-                    let done = flow.next;
-                    flow.next += 1;
-                    done
-                });
-                finish_state(done);
+    super::define_rule(
+        Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0)).handle()),
+        || {
+            let mut future = Box::pin(f());
+            match poll_segment(future.as_mut()) {
+                Poll::Pending => {}
+                Poll::Ready(_) => {
+                    let done = with_flow(|flow| {
+                        let done = flow.next;
+                        flow.next += 1;
+                        done
+                    });
+                    finish_state(done);
+                }
             }
-        }
-        slot = Some(future);
-    });
+            slot = Some(future);
+        },
+    );
 
     let mut future = slot.take().expect("async rule body was not polled");
     drive(&mut future, |_| {
@@ -288,6 +294,7 @@ where
     with_context(|cx| cx.async_flow = None);
 }
 
+#[must_use]
 pub fn lower_async_if<'a, D: Domain, R: IntoValues<D>>(
     cond: Value<D, bool>,
     then: Pin<Box<dyn Future<Output = R> + 'a>>,

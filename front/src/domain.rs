@@ -17,7 +17,7 @@ pub trait IntoClock<D: Domain> {
 }
 
 impl<D: Domain> IntoClock<D> for Clock<D> {
-    fn into_clock(self) -> Clock<D> {
+    fn into_clock(self) -> Self {
         self
     }
 }

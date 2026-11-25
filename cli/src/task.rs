@@ -91,7 +91,7 @@ pub fn program(mut cx: Context) -> Result<()> {
         bitstream_path
     } else {
         info!("no bitstream found; building first");
-        build_generated_bitstream(&mut cx, generated)?
+        build_generated_bitstream(&cx, generated)?
     };
     program_bitstream(&cx, &bitstream_path)
 }

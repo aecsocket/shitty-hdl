@@ -1,5 +1,6 @@
 use crate::{
     domain::Domain,
+    ops::Arith,
     value::{IntoValue, Shape, Value},
 };
 
@@ -9,7 +10,7 @@ pub trait BitCmp: Shape {
     fn ne<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
 }
 
-pub trait ArithCmp: BitCmp + crate::ops::Arith {
+pub trait ArithCmp: BitCmp + Arith {
     fn gt<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
 
     fn ge<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, bool>;
@@ -50,17 +51,11 @@ where
     Self::Out: BitCmp,
 {
     fn eq(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
-        <Self::Out as BitCmp>::eq(
-            self.into_value(),
-            rhs.into_operand(),
-        )
+        <Self::Out as BitCmp>::eq(self.into_value(), rhs.into_operand())
     }
 
     fn ne(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
-        <Self::Out as BitCmp>::ne(
-            self.into_value(),
-            rhs.into_operand(),
-        )
+        <Self::Out as BitCmp>::ne(self.into_value(), rhs.into_operand())
     }
 }
 
@@ -71,31 +66,19 @@ where
     Self::Out: ArithCmp,
 {
     fn gt(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
-        <Self::Out as ArithCmp>::gt(
-            self.into_value(),
-            rhs.into_operand(),
-        )
+        <Self::Out as ArithCmp>::gt(self.into_value(), rhs.into_operand())
     }
 
     fn ge(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
-        <Self::Out as ArithCmp>::ge(
-            self.into_value(),
-            rhs.into_operand(),
-        )
+        <Self::Out as ArithCmp>::ge(self.into_value(), rhs.into_operand())
     }
 
     fn lt(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
-        <Self::Out as ArithCmp>::lt(
-            self.into_value(),
-            rhs.into_operand(),
-        )
+        <Self::Out as ArithCmp>::lt(self.into_value(), rhs.into_operand())
     }
 
     fn le(self, rhs: impl CmpOperand<D, Self::Out>) -> Value<D, bool> {
-        <Self::Out as ArithCmp>::le(
-            self.into_value(),
-            rhs.into_operand(),
-        )
+        <Self::Out as ArithCmp>::le(self.into_value(), rhs.into_operand())
     }
 }
 

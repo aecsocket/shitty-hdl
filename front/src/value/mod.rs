@@ -1,9 +1,11 @@
 mod bit;
 mod int;
 mod prim;
+mod vector;
 
 pub use bit::*;
 pub use int::*;
+pub use vector::*;
 
 use std::marker::PhantomData;
 
@@ -37,7 +39,10 @@ pub struct Value<D: Domain, T: Shape> {
 impl<D: Domain, T: Shape> Value<D, T> {
     #[must_use]
     pub(crate) const fn from_handle(handle: ExprHandle) -> Self {
-        Self { handle, _brand: PhantomData }
+        Self {
+            handle,
+            _brand: PhantomData,
+        }
     }
 
     #[must_use]
@@ -66,14 +71,17 @@ pub trait IntoValue<D: Domain>: private::Sealed {
 }
 
 mod private {
-    use crate::{domain::Domain, value::Shape};
+    use crate::domain::Domain;
+    use crate::io::Output;
+    use crate::reg::Reg;
+    use crate::value::Shape;
 
     pub trait Sealed {}
 
     impl<T: Shape> Sealed for T {}
     impl<D: Domain, T: Shape> Sealed for super::Value<D, T> {}
-    impl<D: Domain> Sealed for crate::io::Output<D> {}
-    impl<D: Domain, T: Shape> Sealed for crate::reg::Reg<D, T> {}
+    impl<D: Domain> Sealed for Output<D> {}
+    impl<D: Domain, T: Shape> Sealed for Reg<D, T> {}
 }
 
 impl<D: Domain, T: Shape> IntoValue<D> for T {
@@ -87,7 +95,7 @@ impl<D: Domain, T: Shape> IntoValue<D> for T {
 impl<D: Domain, T: Shape> IntoValue<D> for Value<D, T> {
     type Out = T;
 
-    fn into_value(self) -> Value<D, T> {
+    fn into_value(self) -> Self {
         self
     }
 }

@@ -501,7 +501,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "shitty-hdl-board",
- "shitty-hdl-bsv",
 ]
 
 [[package]]
@@ -509,7 +508,6 @@ name = "shitty-hdl-toolchain-bsc"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "shitty-hdl-bsv",
  "tracing",
 ]
 
@@ -519,7 +517,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "shitty-hdl-board",
- "shitty-hdl-bsv",
  "shitty-hdl-toolchain-api",
  "tracing",
 ]

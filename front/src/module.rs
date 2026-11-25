@@ -73,7 +73,10 @@ impl DefineRule {
     }
 }
 
-pub struct Action<D: Domain, In: Shape, Out: Shape>(elab::ActionHandle, PhantomData<(D, (In, Out))>);
+pub struct Action<D: Domain, In: Shape, Out: Shape>(
+    elab::ActionHandle,
+    PhantomData<(D, (In, Out))>,
+);
 
 impl<D: Domain, In: Shape, Out: Shape> Action<D, In, Out> {
     #[must_use]
@@ -99,7 +102,10 @@ impl<D: Domain, In: Shape, Out: Shape> Action<D, In, Out> {
         Self::from_handle(elab::define_action::<D, In, Out>(None, f))
     }
 
-    pub fn call(&mut self, args: impl IntoValues<D, Out = In, Values = In::Values<D>>) -> Value<D, Out> {
+    pub fn call(
+        &mut self,
+        args: impl IntoValues<D, Out = In, Values = In::Values<D>>,
+    ) -> Value<D, Out> {
         let output = elab::call_action::<D, In, Out>(self.0, args.into_values());
         Out::pack_values(output)
     }
@@ -112,7 +118,7 @@ pub struct DefineAction<D: Domain, In: Shape, Out: Shape>(
 
 impl<D: Domain, In: Shape, Out: Shape> DefineAction<D, In, Out> {
     pub fn define_as(self, f: impl FnOnce(In::Values<D>) -> Out::Values<D>) -> Action<D, In, Out> {
-        let guard = self.0.map(|guard| guard.handle());
+        let guard = self.0.map(super::value::Value::handle);
         Action::from_handle(elab::define_action::<D, In, Out>(guard, f))
     }
 }

@@ -86,6 +86,10 @@ impl<const N: usize> Arith for Uint<N> {
         elab::binary(air::BinaryOp::Subtract, lhs, rhs)
     }
 
+    fn mul<D: Domain>(lhs: Value<D, Self>, rhs: Value<D, Self>) -> Value<D, Self> {
+        elab::binary(air::BinaryOp::Multiply, lhs, rhs)
+    }
+
     fn from_u128<D: Domain>(value: u128) -> Value<D, Self> {
         elab::uint_from_u128(value)
     }
@@ -115,6 +119,26 @@ impl<const N: usize> Uint<N> {
     #[must_use]
     pub fn constant<const VALUE: u128>() -> Self {
         Self(Bit::constant::<VALUE>())
+    }
+}
+
+macro_rules! impl_from_uint {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl<const N: usize> From<$ty> for Uint<N> {
+                fn from(value: $ty) -> Self {
+                    Self(Bit::from_u128(u128::from(value)))
+                }
+            }
+        )*
+    };
+}
+
+impl_from_uint!(u8, u16, u32, u64, u128);
+
+impl<const N: usize> From<usize> for Uint<N> {
+    fn from(value: usize) -> Self {
+        Self(Bit::from_u128(value as u128))
     }
 }
 

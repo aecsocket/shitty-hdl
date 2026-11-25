@@ -13,11 +13,11 @@ pub mod ops;
 pub mod reg;
 pub mod value;
 pub mod prelude {
-    pub use crate::elements;
-    pub use crate::elements::sim_finish;
-    pub use crate::elements::{DisplayArgHardware, DisplayArgText, DisplaySpec};
     pub use crate::domain::{Clock, Domain};
     pub use crate::elab::elaborate;
+    pub use crate::elements;
+    pub use crate::elements::sim_finish;
+    pub use crate::elements::{DisplayArgHardware, DisplayArgText, DisplaySpec, mux};
     pub use crate::method::Method;
     pub use crate::module::{Action, Interface, Rule};
     pub use crate::ops::{
@@ -25,7 +25,7 @@ pub mod prelude {
         ShrTrunc, Trunc, Unpack, Zext,
     };
     pub use crate::reg::Reg;
-    pub use crate::value::{Bit, IntoValue, IntoValues, Shape, Uint, Value};
+    pub use crate::value::{Bit, IntoValue, IntoValues, Shape, Uint, Value, Vector};
     pub use crate::{bit, display, displayln, sim_assert, uint};
     pub use derive::{Arith, ArithCmp, BitCmp, Bits, Domain, Interface, Shape, Shift, hdl, module};
 }
@@ -35,28 +35,35 @@ pub use derive::*;
 
 #[doc(hidden)]
 pub mod __ {
-    pub use crate::elements::{DisplayArgHardware, DisplayArgText, DisplaySpec};
     pub use crate::elab::context::Context;
     pub use crate::elab::handle::{ActionHandle, ExprHandle, InterfaceHandle};
+    pub use crate::elements::{DisplayArgHardware, DisplayArgText, DisplaySpec};
     pub use bon;
     pub use derive::{display_format, displayln_format};
 
+    use crate::domain::Domain;
     use crate::elab;
     use crate::elab::{
         cast as elab_cast, compare as elab_compare, display as elab_display, module as elab_module,
         subinterface as elab_subinterface,
     };
     use crate::module::Interface;
-    use crate::domain::Domain;
     use crate::value::{IntoValue, Shape, Value};
 
     #[must_use]
-    pub fn cast<D: Domain, From: Shape, To: Shape>(kind: air::CastKind, value: Value<D, From>) -> Value<D, To> {
+    pub fn cast<D: Domain, From: Shape, To: Shape>(
+        kind: air::CastKind,
+        value: Value<D, From>,
+    ) -> Value<D, To> {
         elab_cast(kind, value)
     }
 
     #[must_use]
-    pub fn compare<D: Domain, T: Shape>(op: air::BinaryOp, lhs: Value<D, T>, rhs: Value<D, T>) -> Value<D, bool> {
+    pub fn compare<D: Domain, T: Shape>(
+        op: air::BinaryOp,
+        lhs: Value<D, T>,
+        rhs: Value<D, T>,
+    ) -> Value<D, bool> {
         elab_compare(op, lhs, rhs)
     }
 

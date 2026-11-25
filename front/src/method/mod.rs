@@ -92,15 +92,12 @@ impl<D: Domain, Out: IntoValues<D>> Future for Call<D, Out> {
     type Output = Out::Values;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut TaskContext<'_>) -> Poll<Self::Output> {
-        match self.issue.take() {
-            Some(issue) => {
-                issue();
-                Poll::Pending
-            }
-            None => {
-                let raw = elab::call_action::<D, (), Out::Out>(self.out.handle(), ());
-                Poll::Ready(raw)
-            }
+        if let Some(issue) = self.issue.take() {
+            issue();
+            Poll::Pending
+        } else {
+            let raw = elab::call_action::<D, (), Out::Out>(self.out.handle(), ());
+            Poll::Ready(raw)
         }
     }
 }

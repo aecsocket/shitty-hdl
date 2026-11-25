@@ -39,8 +39,8 @@ pub fn sync_flop<D1: Domain, D2: Domain>(
 /// synchronous (e.g. phase-locked multiples), or as the building block
 /// of a custom crossing primitive.
 #[must_use]
-pub fn unsafe_synchronizer<D1: Domain, D2: Domain, T: Shape>(value: Value<D1, T>) -> Value<D2, T> {
+pub const fn unsafe_synchronizer<D1: Domain, D2: Domain, T: Shape>(
+    value: Value<D1, T>,
+) -> Value<D2, T> {
     Value::from_handle(value.handle())
 }
-
-

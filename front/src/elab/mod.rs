@@ -38,8 +38,7 @@ pub fn elaborate(storage: &Bump, f: impl FnOnce()) -> air::Module<'_> {
     let design_id = DesignId::new();
     let context = RefCell::new(Context::new(storage, design_id));
     CURRENT.set(&context as &dyn ActiveContext, f);
-    let module = context.into_inner().finish();
-    module
+    context.into_inner().finish()
 }
 
 pub(crate) fn with_context<R>(f: impl for<'dsn> FnOnce(&mut Context<'dsn>) -> R) -> R {

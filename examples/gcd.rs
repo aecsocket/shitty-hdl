@@ -5,12 +5,12 @@ use board::arty_a7::A7_100T;
 use platform::Platform;
 use shitty_hdl::prelude::*;
 
-#[derive(Domain)]
-pub struct Sync;
-
 fn main() {
     shitty_hdl::cli!(A7_100T, gcd);
 }
+
+#[derive(Domain)]
+pub struct Clk;
 
 const A: u128 = 1071;
 const B: u128 = 462;
@@ -23,7 +23,7 @@ const B: u128 = 462;
 /// three bits of the result (0b101 = 5).
 #[module]
 pub fn gcd(platform: Platform) {
-    let clk = platform.clock::<Sync>();
+    let clk = platform.clock::<Clk>();
 
     let start = platform.button.take(0).input(clk);
     let mut busy_led = platform.led.take(0).output(clk);
@@ -33,8 +33,8 @@ pub fn gcd(platform: Platform) {
         platform.led.take(3).output(clk),
     ];
 
-    let mut x = Reg::new(clk, Uint::<32>::zero());
-    let mut y = Reg::new(clk, Uint::<32>::zero());
+    let mut x = Reg::new(clk, uint!(32:0));
+    let mut y = Reg::new(clk, uint!(32:0));
     let mut busy = Reg::new(clk, false);
     let mut done = Reg::new(clk, false);
 

@@ -71,6 +71,19 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
                     <#ty as #crate_::ops::Bits>::pack(result))
             }
 
+            fn mul<D: #crate_::domain::Domain>(
+                lhs: #crate_::value::Value<D, Self>,
+                rhs: #crate_::value::Value<D, Self>,
+            ) -> #crate_::value::Value<D, Self> {
+                let lhs = <#ty as #crate_::ops::Bits>::unpack(
+                    <Self as #crate_::ops::Bits>::pack(lhs));
+                let rhs = <#ty as #crate_::ops::Bits>::unpack(
+                    <Self as #crate_::ops::Bits>::pack(rhs));
+                let result = <#ty as #crate_::ops::Arith>::mul(lhs, rhs);
+                <Self as #crate_::ops::Bits>::unpack(
+                    <#ty as #crate_::ops::Bits>::pack(result))
+            }
+
             fn from_u128<D: #crate_::domain::Domain>(value: u128) -> #crate_::value::Value<D, Self> {
                 let result = <#ty as #crate_::ops::Arith>::from_u128(value);
                 <Self as #crate_::ops::Bits>::unpack(

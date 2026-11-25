@@ -4,12 +4,12 @@
 use shitty_hdl::board::arty_a7::A7_100T;
 use shitty_hdl::prelude::*;
 
-#[derive(Domain)]
-pub struct Clk;
-
 fn main() {
     shitty_hdl::cli!(A7_100T, top);
 }
+
+#[derive(Domain)]
+pub struct Clk;
 
 const DUTY_CYCLE: u64 = 3;
 const DUTY_CYCLE_PERIOD: u64 = 10;
@@ -17,6 +17,7 @@ const DUTY_CYCLE_PERIOD: u64 = 10;
 #[module]
 fn top(platform: Platform) {
     let clk = platform.clock::<Clk>();
+
     let mut timer = Reg::new(clk, uint!(32:0));
     let mut led = platform.led.take(0).output(clk);
 

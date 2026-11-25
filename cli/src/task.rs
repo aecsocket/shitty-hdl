@@ -1,15 +1,19 @@
 use std::{
     fs, mem,
     path::{Path, PathBuf},
+    process::Command,
 };
 
 use anyhow::{Context as _, Result, anyhow, ensure};
 use front::elab;
 use toolchain_api::{Binding, Bindings, BitstreamInput, Toolchain};
-use toolchain_bsc::EmitVerilog;
+use toolchain_bsc::{EmitBluesim, EmitVerilog};
 use tracing::info;
 
 use crate::{Context, START};
+
+const RESET_PREFIX: &str = "RST_N";
+const SIM_WRAPPER_MODULE: &str = "mkSimWrapper";
 
 pub fn check(mut cx: Context) -> Result<()> {
     let GenVerilog {
@@ -20,6 +24,47 @@ pub fn check(mut cx: Context) -> Result<()> {
     info!("generated Verilog in {:.2?}", START.elapsed());
     info!("- BSV output to {bsv_path:?}");
     info!("- Verilog output to {verilog_path:?}");
+    Ok(())
+}
+
+pub fn simulate(mut cx: Context) -> Result<()> {
+    let GenBsv {
+        module_name,
+        bsv_path,
+        sim_wrapper_path,
+        ..
+    } = gen_bsv(&mut cx)?;
+    info!("generated BSV in {:.2?}", START.elapsed());
+    info!("- BSV output to {bsv_path:?}");
+    info!("- simulation wrapper output to {sim_wrapper_path:?}");
+
+    let sim_dir = cx.out_dir.join("bluesim");
+    fs::create_dir_all(&sim_dir).with_context(|| anyhow!("creating {sim_dir:?}"))?;
+
+    info!("compiling simulation");
+    let exe_path = cx
+        .bsc
+        .emit_bluesim(EmitBluesim {
+            bsv_path: &sim_wrapper_path,
+            module: SIM_WRAPPER_MODULE,
+            exe_path: &sim_dir.join(&module_name),
+            bluespec_dir: &cx.out_dir.join("bluespec"),
+            sim_dir: &sim_dir,
+        })
+        .context("compiling Bluesim simulation")?;
+    info!("compiled simulation in {:.2?}", START.elapsed());
+    info!("- simulation binary at {exe_path:?}");
+
+    info!("running simulation");
+    let status = Command::new(&exe_path)
+        .current_dir(&sim_dir)
+        .status()
+        .with_context(|| anyhow!("running {exe_path:?}"))?;
+    ensure!(
+        status.success(),
+        "simulation {exe_path:?} failed with {status}"
+    );
+    info!("simulation finished in {:.2?}", START.elapsed());
     Ok(())
 }
 
@@ -82,6 +127,13 @@ fn program_bitstream(cx: &Context, bitstream_path: &Path) -> Result<()> {
     Ok(())
 }
 
+struct GenBsv {
+    bindings: Bindings,
+    module_name: String,
+    bsv_path: PathBuf,
+    sim_wrapper_path: PathBuf,
+}
+
 struct GenVerilog {
     bindings: Bindings,
     module_name: String,
@@ -90,13 +142,9 @@ struct GenVerilog {
     verilog_library_dirs: Vec<PathBuf>,
 }
 
-fn gen_verilog(cx: &mut Context) -> Result<GenVerilog> {
-    const RESET_PREFIX: &str = "RST_N";
-
+fn gen_bsv(cx: &mut Context) -> Result<GenBsv> {
     let bluespec_dir = cx.out_dir.join("bluespec");
-    let verilog_dir = cx.out_dir.join("verilog");
     fs::create_dir_all(&bluespec_dir).with_context(|| anyhow!("creating {bluespec_dir:?}"))?;
-    fs::create_dir_all(&verilog_dir).with_context(|| anyhow!("creating {verilog_dir:?}"))?;
 
     let platform = platform::from_board(cx.board);
     let storage = elab::Bump::new();
@@ -184,20 +232,44 @@ fn gen_verilog(cx: &mut Context) -> Result<GenVerilog> {
     fs::write(&bsv_path, package.to_string())
         .with_context(|| anyhow!("writing BSV to {bsv_path:?}"))?;
 
+    let sim_wrapper_path = bluespec_dir.join(format!("{}_sim.bsv", package.name));
+    let sim_wrapper =
+        bsv::sim_wrapper_source(&package, &module).context("generating simulation wrapper")?;
+    fs::write(&sim_wrapper_path, sim_wrapper)
+        .with_context(|| anyhow!("writing simulation wrapper to {sim_wrapper_path:?}"))?;
+
+    Ok(GenBsv {
+        bindings,
+        module_name: module.name.to_string(),
+        bsv_path,
+        sim_wrapper_path,
+    })
+}
+
+fn gen_verilog(cx: &mut Context) -> Result<GenVerilog> {
+    let GenBsv {
+        bindings,
+        module_name,
+        bsv_path,
+        ..
+    } = gen_bsv(cx)?;
+
+    let verilog_dir = cx.out_dir.join("verilog");
+    fs::create_dir_all(&verilog_dir).with_context(|| anyhow!("creating {verilog_dir:?}"))?;
     let verilog_path = cx
         .bsc
         .emit_verilog(EmitVerilog {
             bsv_path: &bsv_path,
-            module: module.name,
+            module: &module_name,
             reset_prefix: RESET_PREFIX,
-            bluespec_dir: &bluespec_dir,
+            bluespec_dir: &cx.out_dir.join("bluespec"),
             verilog_dir: &verilog_dir,
         })
         .context("lowering BSV to Verilog")?;
 
     Ok(GenVerilog {
         bindings,
-        module_name: module.name.to_string(),
+        module_name,
         bsv_path,
         verilog_path,
         verilog_library_dirs: vec![verilog_dir, cx.bsc.verilog_library_dir()?],

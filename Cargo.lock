@@ -441,6 +441,7 @@ version = "0.1.0"
 name = "shitty-hdl-bsv"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bumpalo",
  "shitty-hdl-air",
 ]

@@ -60,6 +60,7 @@ pub fn from_air<'out>(
 struct Lower<'o, 'm, 's> {
     arena: &'o Bump,
     module: &'m source::Module<'s>,
+    root: &'m source::Module<'s>,
     typedefs: Vec<Typedef<'o>>,
     interfaces: Vec<Interface<'o>>,
     named: Vec<(&'s source::NamedType<'s>, bool)>,
@@ -80,6 +81,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
         Self {
             arena,
             module,
+            root: module,
             typedefs: vec![],
             interfaces: vec![],
             named: vec![],
@@ -451,7 +453,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
         }
     }
     fn reset(&self, domain: &source::Domain<'s>) -> Result<Option<&'o str>> {
-        if self.clock(domain)?.is_none() {
+        if self.clock(domain)?.is_none() || !same(self.module, self.root) {
             return Ok(None);
         }
         let index = self
@@ -1580,6 +1582,7 @@ impl<'o, 'm, 's> Lower<'o, 'm, 's> {
             }
         }
         self.discover()?;
+        self.import("Clocks");
         let reset_bindings = self.reset_bindings()?;
         let mut names = vec!["bsv_default_clock", "bsv_default_reset", "bsv_result"];
         names.extend(reset_bindings.iter().map(|binding| binding.name));

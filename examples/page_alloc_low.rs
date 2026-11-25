@@ -148,6 +148,7 @@ fn top(platform: Platform) {
     let mut page3 = Reg::<PageAddr>::uninit(clk);
 
     Rule::when(state == State::Idle).define_as(|| {
+        display!("idle!");
         pages.alloc.req.call(());
         state <<= State::Alloc1Wait;
     });
@@ -179,6 +180,10 @@ fn top(platform: Platform) {
         display!("page3 = {page3}");
         state <<= State::Alloc3Done;
         led <<= !led;
+    });
+
+    Rule::when(state == State::Alloc3Done).define_as(|| {
+        state <<= State::Idle;
     });
 }
 

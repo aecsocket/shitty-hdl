@@ -5,6 +5,8 @@ pub use air::*;
 
 pub mod fmt;
 
+use std::fmt::Write as _;
+
 #[derive(Debug, Clone, Copy)]
 pub enum Type<'a> {
     Inferred,
@@ -106,6 +108,55 @@ pub enum Parameter<'a> {
     Value(Field<'a>),
     Interface { name: &'a str, ty: &'a str },
     Clock { name: &'a str, port: &'a str },
+}
+
+pub fn sim_wrapper_source(package: &Package<'_>, module: &Module<'_>) -> anyhow::Result<String> {
+    let mut s = String::new();
+    writeln!(s, "package {}_sim;", package.name)?;
+    writeln!(s, "import Clocks::*;")?;
+    writeln!(s, "import {}::*;", package.name)?;
+    writeln!(s)?;
+    writeln!(s, "module mkSimWrapper({});", module.interface)?;
+
+    let mut arguments = Vec::new();
+    for parameter in module.parameters {
+        match parameter {
+            Parameter::Clock { port, .. } => {
+                writeln!(s, "    Clock sim_{port} <- exposeCurrentClock;")?;
+                arguments.push(format!("sim_{port}"));
+            }
+            Parameter::Value(field) => {
+                let default = match field.ty {
+                    Type::Bool => "False".to_string(),
+                    Type::Bit(_) | Type::UInt(_) | Type::Int(_) => "0".to_string(),
+                    ty => {
+                        return Err(anyhow::anyhow!(
+                            "no default value for simulation wrapper parameter {:?} of type {ty:?}",
+                            field.name
+                        ));
+                    }
+                };
+                arguments.push(default);
+            }
+            Parameter::Interface { name, .. } => {
+                return Err(anyhow::anyhow!(
+                    "cannot simulate a top module with interface parameter {name:?}"
+                ));
+            }
+        }
+    }
+
+    writeln!(
+        s,
+        "    let dut <- {}({});",
+        module.name,
+        arguments.join(", ")
+    )?;
+    writeln!(s, "    return dut;")?;
+    writeln!(s, "endmodule")?;
+    writeln!(s)?;
+    writeln!(s, "endpackage")?;
+    Ok(s)
 }
 #[derive(Debug, Clone, Copy)]
 pub struct Declaration<'a> {

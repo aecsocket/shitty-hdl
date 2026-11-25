@@ -5,7 +5,7 @@ use std::{
     thread,
 };
 
-use crate::{BluespecCompiler, EmitVerilog};
+use crate::{BluespecCompiler, EmitBluesim, EmitVerilog};
 use anyhow::{Context, Result, anyhow, ensure};
 use tracing::{debug, warn};
 
@@ -66,30 +66,75 @@ impl BluespecCompiler for SystemBluespec {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         debug!("spawning {command:?}");
-
-        let mut child = command
-            .spawn()
-            .with_context(|| anyhow!("spawning {command:?}"))?;
-        let stdout = child.stdout.take().expect("`stdout` is `Stdio::piped()`");
-        let stderr = child.stderr.take().expect("`stderr` is `Stdio::piped()`");
-
-        thread::scope(|scope| {
-            scope.spawn(move || {
-                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                    debug!("bsc: {line}");
-                }
-            });
-
-            scope.spawn(move || {
-                for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                    warn!("bsc: {line}");
-                }
-            });
-        });
-
-        let status = child.wait().context("waiting for bsc to finish")?;
-        ensure!(status.success(), "bsc failed");
+        run_bsc(command)?;
 
         Ok(verilog_dir.join(format!("{module}.v")))
     }
+
+    fn emit_bluesim(
+        &self,
+        EmitBluesim {
+            bsv_path,
+            module,
+            exe_path,
+            bluespec_dir,
+            sim_dir,
+        }: EmitBluesim<'_>,
+    ) -> Result<PathBuf> {
+        let bin = &self.bin;
+
+        let mut compile = Command::new(bin);
+        compile
+            .arg("-sim")
+            .arg("-u")
+            .args(["-g", module])
+            .args([Path::new("-bdir"), bluespec_dir])
+            .args([Path::new("-simdir"), sim_dir])
+            .arg(bsv_path)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        debug!("spawning {compile:?}");
+        run_bsc(compile)?;
+
+        let mut link = Command::new(bin);
+        link.arg("-sim")
+            .args(["-e", module])
+            .args([Path::new("-bdir"), bluespec_dir])
+            .args([Path::new("-simdir"), sim_dir])
+            .args(["-o"])
+            .arg(exe_path)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        debug!("spawning {link:?}");
+        run_bsc(link)?;
+
+        Ok(exe_path.to_path_buf())
+    }
+}
+
+fn run_bsc(mut command: Command) -> Result<()> {
+    let mut child = command
+        .spawn()
+        .with_context(|| anyhow!("spawning {command:?}"))?;
+    let stdout = child.stdout.take().expect("`stdout` is `Stdio::piped()`");
+    let stderr = child.stderr.take().expect("`stderr` is `Stdio::piped()`");
+
+    thread::scope(|scope| {
+        scope.spawn(move || {
+            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                debug!("bsc: {line}");
+            }
+        });
+
+        scope.spawn(move || {
+            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                warn!("bsc: {line}");
+            }
+        });
+    });
+
+    let status = child.wait().context("waiting for bsc to finish")?;
+    ensure!(status.success(), "bsc failed");
+
+    Ok(())
 }

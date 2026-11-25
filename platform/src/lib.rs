@@ -89,7 +89,9 @@ impl<T> Resources<T> {
     }
 }
 
-#[must_use]
-pub fn from_board(board: Board) -> Platform {
-    slop::from_board(board)
+impl Platform {
+    #[must_use]
+    pub fn from_board(board: Board) -> Self {
+        slop::from_board(board)
+    }
 }

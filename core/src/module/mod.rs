@@ -6,6 +6,6 @@ pub use control::*;
 pub use domain::*;
 pub use signal::*;
 
-pub trait Module {
+pub trait Module: 'static {
     const NAME: &'static str;
 }

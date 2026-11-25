@@ -24,7 +24,7 @@ where
     type Words = Quot<Sum<N, U63>, U64>;
 }
 
-pub trait Shape: Sized {
+pub trait Shape: Sized + 'static {
     const WIDTH: ShapeSize;
     type View: Copy;
     const SIGNED: bool = false;

@@ -5,17 +5,13 @@ edition.workspace = true
 
 [workspace]
 resolver = "3"
-members = [".", "board/", "front/", "cli/", "core/", "derive/", "irt/", "nir/", "pir/", "platform/", "rtlil/"]
+members = [".", "board/", "front/", "cli/", "derive/", "platform/"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-irt = { package = "shitty-hdl-irt", path = "irt/" }
-nir = { package = "shitty-hdl-nir", path = "nir/" }
-pir = { package = "shitty-hdl-pir", path = "pir/" }
-rtlil = { package = "shitty-hdl-rtlil", path = "rtlil/" }
 front = { package = "shitty-hdl-front", path = "front/" }
 board = { package = "shitty-hdl-board", path = "board/" }
 cli = { package = "shitty-hdl-cli", path = "cli/" }
@@ -37,6 +33,7 @@ smallvec = { version = "2.0.0-beta.4" }
 syn = { version = "3.0.9" }
 tracing = { version = "0.1.44" }
 typenum = { version = "1.20.1" }
+variadics_please = { version = "2.0.0" }
 
 [workspace.lints.clippy]
 absolute_paths = "warn"
@@ -51,4 +48,4 @@ similar_names = "allow"
 board = { workspace = true }
 cli = { workspace = true }
 front = { workspace = true }
-platform = { workspace = true }
+# platform = { workspace = true }

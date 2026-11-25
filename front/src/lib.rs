@@ -1,18 +1,17 @@
 #![doc = include_str!("../README.md")]
+#![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
 
-pub mod control;
-pub mod domain;
-pub mod elab;
-pub mod port;
-pub mod signal;
+pub mod core;
+pub mod module;
+pub mod reg;
 pub mod value;
 pub mod prelude {
-    pub use crate::control::if_;
-    pub use crate::domain::{Clock, Domain, DomainLabel};
-    pub use crate::port::{In, Out};
-    pub use crate::signal::Signal;
+    pub use crate::core::Bit;
+    pub use crate::module::Action;
+    pub use crate::reg::Reg;
     pub use crate::value::{IntoValue, Shape, Value};
+    pub use derive::{Shape, module};
 }
 
 pub use derive::*;
-pub use pir;

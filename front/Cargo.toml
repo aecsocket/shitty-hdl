@@ -4,10 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-pir = { workspace = true }
-bumpalo = { workspace = true }
 derive = { workspace = true }
-derive_more = { workspace = true, features = ["debug"] }
+variadics_please = { workspace = true }
 
 [lints]
 workspace = true

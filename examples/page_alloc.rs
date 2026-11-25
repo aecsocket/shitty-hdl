@@ -1,138 +1,14 @@
-use std::{marker::PhantomData, ops::Deref};
+use shitty_hdl::prelude::*;
 
-// util
-
-pub trait Shape {
-    type Value;
-}
-impl Shape for () {
-    type Value = ();
-}
-
-pub struct Value<T: Shape>(PhantomData<T>);
-pub trait IntoValue {
-    type Out;
-}
-impl<T: Shape> IntoValue for T {
-    type Out = T;
-}
-impl<T: Shape> IntoValue for Value<T> {
-    type Out = T;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Bit<const N: usize>();
-impl<const N: usize> Shape for Bit<N> {
-    type Value = Value<Self>;
-}
-
-pub fn zext<const TO: usize>(v: impl IntoValue) -> Value<Bit<TO>> {
-    todo!();
-}
-
-macro_rules! bit {
-    ($lit:literal) => {
-        Bit()
-    };
-    // it's like `'1` to say "all ones"
-    // but we can't use `'` so we have to use an alternative
-    (: $lit:literal) => {
-        Bit()
-    };
-}
-
-macro_rules! sim_assert {
-    ($expr:expr) => {};
-    ($expr:expr, $msg:literal) => {};
-}
-
-pub struct U<const N: usize>();
-impl<const N: usize> Shape for U<N> {
-    type Value = Value<Self>;
-}
-
-macro_rules! u {
-    ($lit:literal) => {
-        U()
-    };
-    // it's like `'1` to say "all ones"
-    // but we can't use `'` so we have to use an alternative
-    (: $lit:literal) => {
-        U()
-    };
-}
-
-pub struct Action<In, Out>(PhantomData<(In, Out)>);
-pub struct Define<In, Out>(PhantomData<(In, Out)>);
-
-impl<In: Shape, Out: Shape> Action<In, Out> {
-    pub fn define_as(f: impl AsyncFnOnce(In::Value) -> Out::Value) -> Define<In, Out> {
-        todo!();
-    }
-}
-
-pub trait Interface {
-    type Define;
-}
-
-pub struct Reg<T: Shape>(Value<T>);
-
-impl<T: Shape> Reg<T> {
-    pub fn new(init: T) -> Self {
-        todo!();
-    }
-}
-impl<T: Shape> Deref for Reg<T> {
-    type Target = Value<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-async fn join<A, B>((a, b): (impl Future<Output = A>, impl Future<Output = B>)) -> (A, B) {
-    todo!();
-}
-
-pub struct Bram<Addr: Shape, Data: Shape> {
-    _phantom: PhantomData<(Addr, Data)>,
-    // read_req: Action<Addr, ()>,
-    // read_out: Action<(), Data>,
-    // req_write: Action<(Addr, Data), ()>,
-}
-
-impl<Addr: Shape, Data: Shape> Bram<Addr, Data> {
-    pub async fn read(&self, addr: impl IntoValue<Out = Addr>) -> Value<Data> {
-        todo!();
-    }
-
-    pub async fn write(&self, addr: impl IntoValue<Out = Addr>, data: impl IntoValue<Out = Data>) {
-        todo!();
-    }
-
-    // pub fn read_req(&self, addr: Addr) {}
-    // pub fn read_out(&self) -> Value<Data> {
-    //   todo!();
-    // }
-}
-
-// logic
-
+#[derive(Debug, Clone, Copy, Shape)]
 pub struct Word(pub Bit<64>);
-impl Shape for Word {
-    type Value = Value<Self>;
-}
 
+#[derive(Debug, Clone, Copy, Shape)]
 pub struct Addr(pub Bit<45>);
-impl Shape for Addr {
-    type Value = Value<Self>;
-}
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Shape)]
 pub struct PageAddr(pub Bit<40>);
-impl Shape for PageAddr {
-    type Value = Value<Self>;
-}
+
 impl PageAddr {
     pub const ZERO: Self = Self(bit!(0));
     pub const INVALID: Self = Self(bit!(:1));

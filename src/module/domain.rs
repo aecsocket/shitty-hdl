@@ -36,7 +36,7 @@
 ///     clk.on(|| count <<= count + 1);
 /// }
 /// ```
-pub fn comb(f: impl FnMut()) {}
+pub fn comb(f: impl FnOnce()) {}
 
 /// Signal which consistently raises and lowers over time, following a period.
 ///
@@ -64,8 +64,8 @@ impl Domain for Clock {}
 pub trait Domain {}
 
 pub trait DomainExt: Domain {
-    fn on(&mut self, f: impl FnMut());
+    fn on(&mut self, f: impl FnOnce());
 }
 impl<D: Domain> DomainExt for D {
-    fn on(&mut self, f: impl FnMut()) {}
+    fn on(&mut self, f: impl FnOnce()) {}
 }

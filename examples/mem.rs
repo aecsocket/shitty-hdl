@@ -61,7 +61,7 @@ pub fn heap(
 }
 
 impl heap {
-    pub async fn read(&mut self, addr: impl IntoValue<Addr>) -> Value<Word> {
+    pub async fn read(&mut self, addr: impl IntoExpr<Out = Addr>) -> Value<Word> {
         let read_data = capture(self.read_data);
         comb(|| {
             self.do_read <<= true;
@@ -70,7 +70,11 @@ impl heap {
         read_data
     }
 
-    pub async fn write(&mut self, addr: impl IntoValue<Addr>, data: impl IntoValue<Word>) {
+    pub async fn write(
+        &mut self,
+        addr: impl IntoExpr<Out = Addr>,
+        data: impl IntoExpr<Out = Word>,
+    ) {
         comb(|| {
             self.do_write <<= true;
             self.write_addr <<= addr;
@@ -82,7 +86,7 @@ impl heap {
 #[module]
 pub async fn top() {
     let mut heap = heap().capacity(8).call();
-    let mut iters = Signal::<u32>::new(0);
+    let mut iters = Signal::<Uint<32>>::new(0);
 
     let x = heap.read(Addr(4)).await;
     let y = heap.read(Addr(5)).await;

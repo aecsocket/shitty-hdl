@@ -144,15 +144,20 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             .collect();
         let output = match out_ty {
             Type::Tuple(tuple) if tuple.elems.is_empty() => quote! {},
-            ty => quote! { -> #crate_::value::Value<#ty> },
+            ty => quote! { -> <#ty as #crate_::value::IntoValues>::Values },
         };
         let name = &field.ident;
         let vis = &field.vis;
         methods.push(quote! {
             #[allow(clippy::future_not_send, clippy::unused_async_trait_impl)]
             #vis async fn #name(&self, #(#names: impl #crate_::value::IntoValue<Out = #inputs>),*) #output {
-                let _ = (#(#names,)*);
-                ::core::todo!()
+                let method = &self.#name;
+                #crate_::method::call_async(
+                    &method.req,
+                    &method.out,
+                    &[#(#crate_::value::IntoValue::into_value(#names).handle(),)*],
+                )
+                .await
             }
         });
     }

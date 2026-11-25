@@ -76,6 +76,21 @@ pub(crate) fn register<T: Shape>(clock: Clock, init: Option<T>) -> (RegisterHand
     (handle, Value::from_handle(value))
 }
 
+pub(crate) fn read_register<T: Shape>(handle: RegisterHandle) -> Value<T> {
+    with_context(|cx| {
+        cx.check_design(handle.design_id);
+        let (register, owner) = cx.register_handles[handle.index];
+        assert_eq!(owner, cx.id, "cannot read a register from another module");
+        let ty = cx.ty::<T>();
+        assert!(ptr::eq(register.ty, ty), "register read type mismatch");
+        let expr = cx.alloc(air::Expr {
+            ty,
+            kind: air::ExprKind::Register(register),
+        });
+        Value::from_handle(cx.push_expr(expr))
+    })
+}
+
 pub(crate) fn write_register<T: Shape>(handle: RegisterHandle, value: Value<T>) {
     with_context(|cx| {
         cx.check_design(handle.design_id);

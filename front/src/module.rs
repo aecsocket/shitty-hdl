@@ -1,7 +1,15 @@
-use std::{marker::PhantomData, mem, thread};
+use std::{
+    future::Future,
+    marker::PhantomData,
+    mem,
+    pin::Pin,
+    task::{Context as TaskContext, Poll},
+    thread,
+};
 
 use crate::{
     air, elab,
+    reg::Reg,
     value::{IntoValue, IntoValues, Shape, Value},
 };
 
@@ -46,6 +54,10 @@ impl Rule {
 
     pub fn define_as(f: impl FnOnce()) {
         elab::define_rule(None, f);
+    }
+
+    pub fn define_async_as<'a>(f: impl AsyncFnOnce() + 'a) {
+        elab::define_async_rule(f);
     }
 }
 
@@ -161,3 +173,57 @@ impl<R: IntoValues> Drop for If<R> {
         }
     }
 }
+
+pub struct AsyncIf<'a, R: IntoValues> {
+    cond: Value<bool>,
+    then: Option<Pin<Box<dyn Future<Output = R> + 'a>>>,
+    else_: Option<Pin<Box<dyn Future<Output = R> + 'a>>>,
+    result: Option<elab::RegisterHandle>,
+    lowered: bool,
+    phantom: PhantomData<fn() -> R>,
+}
+
+impl<'a, R: IntoValues> AsyncIf<'a, R> {
+    #[must_use]
+    pub fn new(
+        cond: impl IntoValue<Out = bool>,
+        then: impl AsyncFnOnce() -> R + 'a,
+        else_: impl AsyncFnOnce() -> R + 'a,
+    ) -> Self {
+        Self {
+            cond: cond.into_value(),
+            then: Some(Box::pin(then())),
+            else_: Some(Box::pin(else_())),
+            result: None,
+            lowered: false,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, R: IntoValues> Future for AsyncIf<'a, R> {
+    type Output = R::Values;
+
+    fn poll(self: Pin<&mut Self>, _: &mut TaskContext<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        if this.lowered {
+            return Poll::Ready(match this.result {
+                Some(handle) => R::Out::make_values(elab::read_register::<R::Out>(handle)),
+                None => R::Out::make_values(Value::from_handle(elab::unit_value())),
+            });
+        }
+        this.lowered = true;
+        let then = this
+            .then
+            .take()
+            .expect("async if branch was already lowered");
+        let else_ = this
+            .else_
+            .take()
+            .expect("async if branch was already lowered");
+        this.result = elab::lower_async_if(this.cond, then, else_);
+        Poll::Pending
+    }
+}
+
+impl<'a, R: IntoValues> Unpin for AsyncIf<'a, R> {}

@@ -1,7 +1,13 @@
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context as TaskContext, Poll},
+};
+
 use crate::{
     air, elab,
     module::{Action, Interface},
-    value::Shape,
+    value::{IntoValue, IntoValues, Shape, Value},
 };
 
 pub struct Method<In: Shape, Out: Shape> {
@@ -45,8 +51,56 @@ impl<In: Shape, Out: Shape> Method<In, Out> {
         Self { req, out }
     }
 
-    pub fn define_as(f: impl AsyncFnOnce(In::Values) -> Out::Values) -> Self {
-        drop(f);
-        todo!();
+    pub fn define_as<'a>(f: impl AsyncFnOnce(In::Values) -> Out::Values + 'a) -> Self {
+        let (req, out) = elab::define_async_method(f);
+        Self::new(req, out)
     }
+
+    pub fn define_async_as<'a>(f: impl AsyncFnOnce(In::Values) -> Out::Values + 'a) -> Self {
+        Self::define_as(f)
+    }
+}
+
+pub struct Call<Out: Shape> {
+    issue: Option<Box<dyn FnOnce()>>,
+    out: Action<(), Out>,
+}
+
+impl<Out: Shape> Call<Out> {
+    #[must_use]
+    pub fn new(out: Action<(), Out>, issue: impl FnOnce() + 'static) -> Self {
+        Self {
+            issue: Some(Box::new(issue)),
+            out,
+        }
+    }
+}
+
+impl<Out: Shape> Future for Call<Out> {
+    type Output = Out::Values;
+
+    fn poll(mut self: Pin<&mut Self>, _: &mut TaskContext<'_>) -> Poll<Self::Output> {
+        match self.issue.take() {
+            Some(issue) => {
+                issue();
+                Poll::Pending
+            }
+            None => Poll::Ready(elab::call_action::<(), Out>(self.out.handle(), ())),
+        }
+    }
+}
+
+impl<Out: Shape> Unpin for Call<Out> {}
+
+pub fn call_async<In: Shape, Out: Shape>(
+    req: &Action<In, ()>,
+    out: &Action<(), Out>,
+    args: &[elab::ExprHandle],
+) -> Call<Out> {
+    let input = elab::pack_input::<In>(args);
+    let req = req.handle();
+    let out = out.handle();
+    Call::new(Action::from_handle(out), move || {
+        elab::call_action::<In, ()>(req, In::make_values(Value::from_handle(input)));
+    })
 }

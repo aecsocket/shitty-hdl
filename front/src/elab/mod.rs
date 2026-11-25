@@ -2,6 +2,7 @@ mod body;
 pub(crate) mod context;
 mod design;
 mod expr;
+mod fsm;
 pub(crate) mod handle;
 mod interface;
 pub(crate) mod io;
@@ -14,7 +15,7 @@ use scoped_tls_hkt::scoped_thread_local;
 use std::cell::RefCell;
 
 pub(crate) use body::{
-    call_action, capture_branch, define_action, define_rule, finish_if, run_ready,
+    call_action, capture_branch, define_action, define_rule, finish_if, pack_input, run_ready,
 };
 pub(crate) use context::Context;
 pub(crate) use design::DesignId;
@@ -22,12 +23,13 @@ pub(crate) use expr::{
     assert, binary, cast, compare, display, literal, shift, shift_resize, tuple, tuple_element,
     uint_from_u128, unary,
 };
+pub(crate) use fsm::{define_async_method, define_async_rule, lower_async_if, unit_value};
 pub(crate) use handle::{
     ActionHandle, BranchHandle, ClockHandle, ExprHandle, InterfaceHandle, RegisterHandle,
 };
 pub(crate) use interface::{input_interface, interface_action, module, subinterface};
 pub(crate) use primitive::bram;
-pub(crate) use state::{clock_input, register, write_register};
+pub(crate) use state::{clock_input, read_register, register, write_register};
 
 scoped_thread_local!(static CURRENT: for<'scope> &'scope (dyn ActiveContext + 'scope));
 

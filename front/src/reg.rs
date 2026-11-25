@@ -8,7 +8,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Reg<T: Shape> {
-    id: elab::RegisterHandle,
+    pub(crate) id: elab::RegisterHandle,
     value: Value<T>,
 }
 

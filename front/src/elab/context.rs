@@ -74,6 +74,7 @@ pub struct Context<'dsn> {
     pub(crate) frames: Vec<Frame<'dsn>>,
     scope_parents: Vec<usize>,
     pub(crate) branches: Vec<Branch<'dsn>>,
+    pub(crate) async_flow: Option<super::fsm::Flow>,
 }
 
 macro_rules! record {
@@ -125,6 +126,7 @@ impl<'dsn> Context<'dsn> {
             frames: Vec::new(),
             scope_parents: vec![0],
             branches: Vec::new(),
+            async_flow: None,
         }
     }
 
@@ -246,7 +248,8 @@ impl<'dsn> Context<'dsn> {
         }
         assert!(
             target == 0 || scope == target,
-            "HDL expression escaped its action or branch scope"
+            "HDL expression escaped its action or branch scope (target={target}, current={})",
+            self.current_scope(),
         );
         expr
     }

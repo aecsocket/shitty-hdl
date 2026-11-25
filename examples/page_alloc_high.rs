@@ -1,7 +1,9 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
-use front::data::Bram;
+use board::arty_a7::A7_100T;
+use front::data::{Bram, bram};
+use platform::Platform;
 use shitty_hdl::prelude::*;
 
 #[derive(Debug, Clone, Shape, Bits, Arith)]
@@ -54,7 +56,7 @@ pub fn page_alloc(clk: Clock, heap: Heap) -> PageAlloc {
             next_clean.read()
         } else {
             // reallocate from free list
-            sim_assert!(free_count > 0);
+            sim_assert!(free_count > 0u64);
 
             let next_free_head = heap.read(Addr::from_page(free_head)).await;
             free_head <<= next_free_head.repack_trunc::<PageAddr>();
@@ -76,4 +78,29 @@ pub fn page_alloc(clk: Clock, heap: Heap) -> PageAlloc {
     PageAlloc { alloc, free }
 }
 
-fn main() {}
+#[module]
+fn top(platform: Platform) {
+    let clk = platform.default_clock().expect("requires default clock");
+    let mut led = platform.led.take(0);
+
+    let heap = bram::<Addr, Word>().clk(clk).depth(32 * 1024).call();
+    let mut pages = page_alloc(clk, heap);
+
+    Rule::define_as(async || {
+        display!("idle!");
+
+        let page1 = pages.alloc().await;
+        display!("page1 = {page1}");
+        led <<= !led;
+        pages.free(page1).await;
+
+        let page2 = pages.alloc().await;
+        display!("page2 = {page2}");
+        led <<= !led;
+        pages.free(page2).await;
+    });
+}
+
+fn main() {
+    shitty_hdl::cli!(A7_100T, top);
+}

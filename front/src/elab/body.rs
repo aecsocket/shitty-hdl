@@ -188,6 +188,20 @@ pub(crate) fn call_action<In: Shape, Out: Shape>(
     Out::make_values(Value::from_handle(result))
 }
 
+pub(crate) fn pack_input<In: Shape>(args: &[super::ExprHandle]) -> super::ExprHandle {
+    with_context(|cx| {
+        let ty = cx.ty::<In>();
+        let exprs: Vec<_> = args.iter().map(|handle| cx.expr(*handle)).collect();
+        let kind = match ty {
+            air::Type::Unit => air::ExprKind::Unit,
+            air::Type::Tuple(_) => air::ExprKind::Tuple(cx.alloc_slice(exprs)),
+            _ => exprs[0].kind,
+        };
+        let expr = cx.alloc(air::Expr { ty, kind });
+        cx.push_expr(expr)
+    })
+}
+
 fn split_input<'dsn>(
     cx: &Context<'dsn>,
     input: &'dsn air::Expr<'dsn>,

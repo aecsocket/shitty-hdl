@@ -31,6 +31,7 @@ pub(crate) fn rewrite(block: &mut Block, crate_: &Path) -> Result<()> {
     let mut rewriter = Rewriter {
         crate_,
         errors: Vec::new(),
+        async_depth: 0,
     };
     rewriter.visit_block_mut(block);
     let mut errors = rewriter.errors.into_iter();
@@ -46,6 +47,7 @@ pub(crate) fn rewrite(block: &mut Block, crate_: &Path) -> Result<()> {
 struct Rewriter<'a> {
     crate_: &'a Path,
     errors: Vec<syn::Error>,
+    async_depth: usize,
 }
 
 fn has_let(expr: &Expr) -> bool {
@@ -56,6 +58,14 @@ fn has_let(expr: &Expr) -> bool {
         }
         Expr::Paren(paren) => has_let(&paren.expr),
         Expr::Group(group) => has_let(&group.expr),
+        _ => false,
+    }
+}
+
+const fn is_async_closure(expr: &Expr) -> bool {
+    match expr {
+        Expr::Async(_) => true,
+        Expr::Closure(closure) => closure.asyncness.is_some(),
         _ => false,
     }
 }
@@ -104,6 +114,42 @@ impl Rewriter<'_> {
             }
         }
         parse_quote! { #(#attrs)* { ::core::mem::drop(#chain); } }
+    }
+    fn async_if(&mut self, if_: &mut ExprIf) -> Expr {
+        self.visit_expr_mut(&mut if_.cond);
+        self.branch(&mut if_.then_branch);
+        let crate_ = self.crate_;
+        let else_: syn::Expr = match if_.else_branch.take() {
+            Some((_, branch)) => match *branch {
+                Expr::If(else_if) if !has_let(&else_if.cond) => {
+                    let mut else_if = else_if;
+                    let nested = self.async_if(&mut else_if);
+                    parse_quote! { async || #nested }
+                }
+                mut branch => {
+                    BranchControlFlow {
+                        errors: &mut self.errors,
+                    }
+                    .visit_expr_mut(&mut branch);
+                    self.visit_expr_mut(&mut branch);
+                    parse_quote! { async || #branch }
+                }
+            },
+            None => parse_quote! { async || {} },
+        };
+        let cond = &if_.cond;
+        let then = &if_.then_branch;
+        let attrs = &if_.attrs;
+        parse_quote! {
+            #(#attrs)* {
+                #crate_::module::AsyncIf::new(
+                    #crate_::value::IntoValue::into_value(#cond),
+                    async || #then,
+                    #else_,
+                )
+                .await
+            }
+        }
     }
 }
 
@@ -157,12 +203,37 @@ impl VisitMut for Rewriter<'_> {
     }
 
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
+        match expr {
+            Expr::MethodCall(call) if call.method == "define_as" => {
+                if call.args.iter().any(is_async_closure) {
+                    call.method = syn::Ident::new("define_async_as", call.method.span());
+                }
+            }
+            Expr::Call(call) => {
+                if let Expr::Path(path) = &mut *call.func
+                    && let Some(segment) = path.path.segments.last_mut()
+                    && segment.ident == "define_as"
+                    && call.args.iter().any(is_async_closure)
+                {
+                    segment.ident = syn::Ident::new("define_async_as", segment.ident.span());
+                }
+            }
+            _ => {}
+        }
+        if is_async_closure(expr) {
+            self.async_depth += 1;
+            syn::visit_mut::visit_expr_mut(self, expr);
+            self.async_depth -= 1;
+            return;
+        }
         if let Expr::If(if_) = expr {
             if has_let(&if_.cond) {
                 self.visit_block_mut(&mut if_.then_branch);
                 if let Some((_, branch)) = &mut if_.else_branch {
                     self.visit_expr_mut(branch);
                 }
+            } else if self.async_depth > 0 {
+                *expr = self.async_if(if_);
             } else {
                 *expr = self.hardware_if(if_);
             }

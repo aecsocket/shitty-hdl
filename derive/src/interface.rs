@@ -54,8 +54,11 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
                 return Err(syn::Error::new_spanned(ty, "expected Action<D, In, Out>"));
             };
             let arguments: Vec<_> = arguments.args.iter().collect();
-            let [GenericArgument::Type(domain_ty), GenericArgument::Type(in_ty), GenericArgument::Type(out_ty)] =
-                arguments.as_slice()
+            let [
+                GenericArgument::Type(domain_ty),
+                GenericArgument::Type(in_ty),
+                GenericArgument::Type(out_ty),
+            ] = arguments.as_slice()
             else {
                 return Err(syn::Error::new_spanned(ty, "expected Action<D, In, Out>"));
             };
@@ -121,8 +124,11 @@ fn derive_(input: TokenStream) -> Result<TokenStream> {
             ));
         };
         let arguments: Vec<_> = arguments.args.iter().collect();
-        let [GenericArgument::Type(domain_ty), GenericArgument::Type(in_ty), GenericArgument::Type(out_ty)] =
-            arguments.as_slice()
+        let [
+            GenericArgument::Type(domain_ty),
+            GenericArgument::Type(in_ty),
+            GenericArgument::Type(out_ty),
+        ] = arguments.as_slice()
         else {
             return Err(syn::Error::new_spanned(
                 &field.ty,

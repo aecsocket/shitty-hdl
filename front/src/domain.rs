@@ -1,4 +1,4 @@
-use std::{any::TypeId, marker::PhantomData};
+use std::{any::TypeId, marker::PhantomData, num::NonZero};
 
 use crate::elab;
 
@@ -9,23 +9,11 @@ use crate::elab;
 /// exactly one clock (enforced during elaboration).
 pub trait Domain: 'static {}
 
-/// Conversion into a [`Clock`] of domain `D`. Implemented for `Clock<D>`
-/// itself and for clock wrappers such as the platform's `BoardClock<D>`,
-/// so APIs can accept either form.
-pub trait IntoClock<D: Domain> {
-    fn into_clock(self) -> Clock<D>;
-}
-
-impl<D: Domain> IntoClock<D> for Clock<D> {
-    fn into_clock(self) -> Self {
-        self
-    }
-}
-
 /// A clock in the domain `D`.
 #[derive(Debug)]
 pub struct Clock<D: Domain> {
     pub(crate) handle: Option<elab::ClockHandle>,
+    pub hz: NonZero<u64>,
     _brand: PhantomData<D>,
 }
 
@@ -41,9 +29,10 @@ impl<D: Domain> Clock<D> {
     /// Declares the clock input of domain `D`. Elaboration asserts that
     /// `D` is only ever bound to one clock.
     #[must_use]
-    pub fn input(name: &str) -> Self {
+    pub fn input(name: &str, hz: NonZero<u64>) -> Self {
         Self {
             handle: Some(elab::clock_input::<D>(name)),
+            hz,
             _brand: PhantomData,
         }
     }

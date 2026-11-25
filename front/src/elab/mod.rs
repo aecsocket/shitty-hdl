@@ -15,7 +15,7 @@ use scoped_tls_hkt::scoped_thread_local;
 use std::cell::RefCell;
 
 pub(crate) use body::{
-    call_action, capture_branch, define_action, define_rule, finish_if, pack_input, run_ready,
+    call_action, capture_branch, define_action, define_rule, finish_if, pack_input,
 };
 pub(crate) use context::Context;
 pub(crate) use design::DesignId;

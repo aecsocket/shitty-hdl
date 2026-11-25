@@ -6,9 +6,9 @@ use std::{
 
 use crate::{
     air,
-    domain::{Domain, IntoClock},
+    domain::{Clock, Domain},
     elab,
-    module::{Action, Interface},
+    module::{Action, AsyncCx, Interface},
     value::{IntoValues, Shape, Value},
 };
 
@@ -57,19 +57,12 @@ impl<D: Domain, In: Shape, Out: Shape> Method<D, In, Out> {
     /// brands the method's interface, so calls and results are checked
     /// against it.
     pub fn define_as<'a>(
-        clock: impl IntoClock<D>,
-        f: impl AsyncFnOnce(In::Values<D>) -> Out::Values<D> + 'a,
+        clk: Clock<D>,
+        f: impl AsyncFnOnce(AsyncCx, In::Values<D>) -> Out::Values<D> + 'a,
     ) -> Self {
-        let _ = clock.into_clock();
+        let _ = clk;
         let (req, out) = elab::define_async_method::<D, In, Out, _>(f);
         Self::new(req, out)
-    }
-
-    pub fn define_async_as<'a>(
-        clock: impl IntoClock<D>,
-        f: impl AsyncFnOnce(In::Values<D>) -> Out::Values<D> + 'a,
-    ) -> Self {
-        Self::define_as(clock, f)
     }
 }
 

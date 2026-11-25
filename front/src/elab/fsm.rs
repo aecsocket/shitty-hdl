@@ -8,7 +8,7 @@ use crate::{
     air,
     domain::Domain,
     elab,
-    module::Action,
+    module::{Action, AsyncCx},
     value::{IntoValues, Shape, U, Value},
 };
 
@@ -172,7 +172,7 @@ pub fn define_async_method<'a, D: Domain, In, Out, F>(
 where
     In: Shape,
     Out: Shape,
-    F: AsyncFnOnce(In::Values<D>) -> Out::Values<D> + 'a,
+    F: AsyncFnOnce(AsyncCx, In::Values<D>) -> Out::Values<D> + 'a,
 {
     let state = StateReg::new();
     let (in_unit, out_unit) = with_context(|cx| {
@@ -190,14 +190,17 @@ where
 
     let req = Action::from_handle(super::define_action::<D, In, ()>(
         Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0)).handle()),
-        |args_in| {
+        |_cx, args_in| {
             if let Some(id) = args {
                 super::write_register::<D, In>(id, In::pack_values(args_in));
                 state.write(state_value(1));
                 with_flow(|flow| flow.current = 1);
             } else {
                 let f = body.take().expect("async method body was already consumed");
-                let mut future = Box::pin(f(In::make_values(Value::from_handle(unit_value()))));
+                let mut future = Box::pin(f(
+                    AsyncCx::new(),
+                    In::make_values(Value::from_handle(unit_value())),
+                ));
                 match poll_segment(future.as_mut()) {
                     Poll::Pending => {}
                     Poll::Ready(value) => {
@@ -220,9 +223,12 @@ where
     let mut future = match slot.take() {
         Some(future) => future,
         None => Box::pin(
-            body.take().expect("async method body was already consumed")(In::make_values(
-                elab::read_register::<D, In>(args.expect("args register missing")),
-            )),
+            body.take().expect("async method body was already consumed")(
+                AsyncCx::new(),
+                In::make_values(elab::read_register::<D, In>(
+                    args.expect("args register missing"),
+                )),
+            ),
         ),
     };
     drive(&mut future, |value| {
@@ -240,7 +246,7 @@ where
     let done = with_flow(|flow| flow.done.expect("async method body did not complete"));
     let out = Action::from_handle(super::define_action::<D, (), Out>(
         Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(done)).handle()),
-        |()| {
+        |_cx, ()| {
             state.write(state_value(0));
             match result {
                 Some(id) => Out::make_values(elab::read_register::<D, Out>(id)),
@@ -255,7 +261,7 @@ where
 
 pub fn define_async_rule<'a, F, R>(f: F)
 where
-    F: AsyncFnOnce() -> R + 'a,
+    F: AsyncFnOnce(AsyncCx) -> R + 'a,
 {
     let state = StateReg::new();
     begin_flow(state);
@@ -264,8 +270,8 @@ where
 
     super::define_rule(
         Some(elab::compare(air::BinaryOp::Equal, state.read(), state_value(0)).handle()),
-        || {
-            let mut future = Box::pin(f());
+        |_cx| {
+            let mut future = Box::pin(f(AsyncCx::new()));
             match poll_segment(future.as_mut()) {
                 Poll::Pending => {}
                 Poll::Ready(_) => {

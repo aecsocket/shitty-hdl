@@ -148,7 +148,7 @@ fn top(platform: Platform) {
         Free3Done,
     }
 
-    let clk = platform.clock::<Sync>().clock;
+    let clk = platform.clock::<Sync>();
     let mut led = platform.led.take(0).output(clk);
 
     let heap = bram::<Sync, Addr, Word>().clk(clk).depth(32 * 1024).call();

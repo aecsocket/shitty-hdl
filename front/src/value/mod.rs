@@ -33,7 +33,7 @@ pub type ShapeSize = u32;
 #[derive(Debug)]
 pub struct Value<D: Domain, T: Shape> {
     handle: ExprHandle,
-    _brand: PhantomData<(D, T)>,
+    _brand: PhantomData<fn() -> (D, T)>,
 }
 
 impl<D: Domain, T: Shape> Value<D, T> {

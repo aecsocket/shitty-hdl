@@ -24,7 +24,7 @@ pub fn sync_flop<D1: Domain, D2: Domain>(
     let first = Reg::new(clk_d2, false);
     let mut second = Reg::new(clk_d2, false);
 
-    Rule::define_as(|| {
+    Rule::define_as(|_cx| {
         elab::write_register::<D2, bool>(first.id, Value::from_handle(input.handle()));
         second.write(first.read());
     });

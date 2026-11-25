@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, ShlAssign};
 
 use crate::{
-    domain::{Domain, IntoClock},
+    domain::{Clock, Domain},
     elab,
     ops::Arith,
     value::{IntoValue, IntoValues, Shape, Value},
@@ -41,8 +41,8 @@ impl<D: Domain, T: Shape> Copy for Reg<D, T> {}
 
 impl<D: Domain, T: Shape> Reg<D, T> {
     #[must_use]
-    pub fn new(domain: impl IntoClock<D>, init: T) -> Self {
-        let (id, value) = elab::register(domain.into_clock(), Some(init));
+    pub fn new(clk: Clock<D>, init: T) -> Self {
+        let (id, value) = elab::register(clk, Some(init));
         Self {
             id,
             value,
@@ -51,8 +51,8 @@ impl<D: Domain, T: Shape> Reg<D, T> {
     }
 
     #[must_use]
-    pub fn uninit(domain: impl IntoClock<D>) -> Self {
-        let (id, value) = elab::register(domain.into_clock(), None);
+    pub fn uninit(domain: Clock<D>) -> Self {
+        let (id, value) = elab::register(domain, None);
         Self {
             id,
             value,

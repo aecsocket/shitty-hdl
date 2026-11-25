@@ -73,6 +73,12 @@ const fn is_async_closure(expr: &Expr) -> bool {
 }
 
 impl Rewriter<'_> {
+    fn prepend_cx(arg: &mut Expr) {
+        if let Expr::Closure(closure) = arg {
+            closure.inputs.insert(0, parse_quote! { __rule_cx });
+        }
+    }
+
     fn branch(&mut self, block: &mut Block) {
         BranchControlFlow {
             errors: &mut self.errors,
@@ -89,7 +95,7 @@ impl Rewriter<'_> {
         let then = &if_.then_branch;
         let attrs = &if_.attrs;
         let mut chain = quote! {
-            #crate_::module::if_(#crate_::value::IntoValue::into_value(#cond), async || #then)
+            __rule_cx.if_(#crate_::value::IntoValue::into_value(#cond), || #then)
         };
         let mut next = &mut if_.else_branch;
         while let Some((_, branch)) = next {
@@ -100,7 +106,7 @@ impl Rewriter<'_> {
                     let cond = &else_if.cond;
                     let then = &else_if.then_branch;
                     chain = quote! {
-                        #chain.else_if_cond(|| #crate_::value::IntoValue::into_value(#cond)).then(async || #then)
+                        #chain.else_if_cond(|| #crate_::value::IntoValue::into_value(#cond)).then(|| #then)
                     };
                     next = &mut else_if.else_branch;
                 } else {
@@ -112,7 +118,7 @@ impl Rewriter<'_> {
                 }
                 .visit_expr_mut(branch);
                 self.visit_expr_mut(branch);
-                return parse_quote! { #(#attrs)* { #chain.else_(async || { #branch }) } };
+                return parse_quote! { #(#attrs)* { #chain.else_(|| { #branch }) } };
             }
         }
         parse_quote! { #(#attrs)* { ::core::mem::drop(#chain); } }
@@ -144,11 +150,11 @@ impl Rewriter<'_> {
         let attrs = &if_.attrs;
         parse_quote! {
             #(#attrs)* {
-                #crate_::module::AsyncIf::new(
+                __rule_cx.if_(
                     #crate_::value::IntoValue::into_value(#cond),
                     async || #then,
-                    #else_,
                 )
+                .else_(#else_)
                 .await
             }
         }
@@ -206,18 +212,26 @@ impl VisitMut for Rewriter<'_> {
 
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
         match expr {
-            Expr::MethodCall(call) if call.method == "define_as" => {
-                if call.args.iter().any(is_async_closure) {
-                    call.method = syn::Ident::new("define_async_as", call.method.span());
+            Expr::Call(call) => {
+                let is_define_as = matches!(&*call.func, Expr::Path(path) if
+                    path.path.segments.last().is_some_and(|s| s.ident == "define_as"));
+                if is_define_as {
+                    for arg in &mut call.args {
+                        Self::prepend_cx(arg);
+                    }
+                    if let Expr::Path(path) = &mut *call.func
+                        && path.path.segments.len() == 2
+                        && path.path.segments[0].ident == "Rule"
+                        && call.args.iter().any(is_async_closure)
+                    {
+                        path.path.segments[1].ident =
+                            syn::Ident::new("define_async_as", path.path.segments[1].ident.span());
+                    }
                 }
             }
-            Expr::Call(call) => {
-                if let Expr::Path(path) = &mut *call.func
-                    && let Some(segment) = path.path.segments.last_mut()
-                    && segment.ident == "define_as"
-                    && call.args.iter().any(is_async_closure)
-                {
-                    segment.ident = syn::Ident::new("define_async_as", segment.ident.span());
+            Expr::MethodCall(call) if call.method == "define_as" => {
+                for arg in &mut call.args {
+                    Self::prepend_cx(arg);
                 }
             }
             _ => {}

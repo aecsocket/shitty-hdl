@@ -2,12 +2,12 @@ pub use board;
 
 use board::Board;
 use front::{
-    domain::{Clock, Domain, IntoClock},
+    domain::{Clock, Domain},
     io,
     io::Output,
     value::Value,
 };
-use std::{cell::RefCell, num::NonZero, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug, Clone, Default)]
 pub struct Bindings {
@@ -33,9 +33,9 @@ struct ResourceContext {
 }
 
 impl ResourceContext {
-    fn clock<D: Domain>(&self) -> Option<(Clock<D>, NonZero<u64>)> {
+    fn clock<D: Domain>(&self) -> Option<Clock<D>> {
         let resource = self.clock?;
-        let clock = Clock::input("clk");
+        let clock = Clock::input("clk", resource.hz);
         let mut bindings = self.bindings.borrow_mut();
         if !bindings.clock.iter().any(|binding| binding.name == "clk") {
             bindings.clock.push(Binding {
@@ -51,7 +51,7 @@ impl ResourceContext {
                 name: "reset".into(),
             });
         }
-        Some((clock, resource.hz))
+        Some(clock)
     }
 }
 
@@ -96,9 +96,9 @@ impl Led {
     /// Creates the output register driving this pin in the given clock
     /// domain.
     #[must_use]
-    pub fn output<D: Domain>(&self, clock: impl IntoClock<D>) -> Output<D> {
+    pub fn output<D: Domain>(&self, clock: Clock<D>) -> Output<D> {
         Output::new(
-            clock.into_clock(),
+            clock,
             &self.name,
             self.resource.active_on == board::ActiveOn::Low,
         )
@@ -149,34 +149,14 @@ impl Button {
     /// Creates the two-register synchronizer for this pin in the given
     /// clock domain.
     #[must_use]
-    pub fn input<D: Domain>(&self, clock: impl IntoClock<D>) -> Value<D, bool> {
+    pub fn input<D: Domain>(&self, clock: Clock<D>) -> Value<D, bool> {
         io::input(
-            clock.into_clock(),
+            clock,
             &self.name,
             self.resource.active_on == board::ActiveOn::Low,
         )
     }
 }
-
-#[derive(Debug)]
-pub struct BoardClock<D: Domain> {
-    pub clock: Clock<D>,
-    pub hz: NonZero<u64>,
-}
-
-impl<D: Domain> Clone for BoardClock<D> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<D: Domain> IntoClock<D> for BoardClock<D> {
-    fn into_clock(self) -> Clock<D> {
-        self.clock
-    }
-}
-
-impl<D: Domain> Copy for BoardClock<D> {}
 
 #[derive(Debug, Clone)]
 pub struct Platform {
@@ -188,14 +168,13 @@ pub struct Platform {
 
 impl Platform {
     #[must_use]
-    pub fn clock<D: Domain>(&self) -> BoardClock<D> {
+    pub fn clock<D: Domain>(&self) -> Clock<D> {
         self.try_clock().expect("board has no default clock")
     }
 
     #[must_use]
-    pub fn try_clock<D: Domain>(&self) -> Option<BoardClock<D>> {
-        let (clock, hz) = self.context.clock::<D>()?;
-        Some(BoardClock { clock, hz })
+    pub fn try_clock<D: Domain>(&self) -> Option<Clock<D>> {
+        self.context.clock::<D>()
     }
 
     #[must_use]

@@ -5,12 +5,11 @@ use crate::{
     elab,
     method::Method,
     ops::Bits,
-    value::Shape,
 };
 
 #[derive(Interface)]
 #[interface(crate = crate)]
-pub struct Bram<D: Domain, Addr: Shape, Data: Shape> {
+pub struct Bram<D: Domain, Addr: Bits, Data: Bits> {
     pub read: Method<D, Addr, Data>,
     pub write: Method<D, (Addr, Data), ()>,
 }

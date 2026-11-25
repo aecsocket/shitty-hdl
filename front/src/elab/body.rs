@@ -1,11 +1,10 @@
 use std::ptr;
-use std::{
-    future::Future,
-    pin::pin,
-    task::{Context as TaskContext, Poll, Waker},
-};
 
-use crate::{domain::Domain, value::{IntoValues, Shape, Value}};
+use crate::{
+    domain::Domain,
+    module::SyncCx,
+    value::{IntoValues, Shape, Value},
+};
 
 use super::context::Branch;
 use super::{ActionHandle, BranchHandle, Context, DesignId, ExprHandle, with_context};
@@ -41,20 +40,9 @@ impl Drop for BodyScope {
     }
 }
 
-pub fn run_ready<F: Future>(future: F) -> F::Output {
-    let mut future = pin!(future);
-    let mut task = TaskContext::from_waker(Waker::noop());
-    match future.as_mut().poll(&mut task) {
-        Poll::Ready(value) => value,
-        Poll::Pending => panic!(
-            "async suspension is not allowed inside an atomic action; async Method lowering is not implemented"
-        ),
-    }
-}
-
 pub fn define_action<D: Domain, In: Shape, Out: Shape>(
     guard: Option<ExprHandle>,
-    f: impl FnOnce(In::Values<D>) -> Out::Values<D>,
+    f: impl FnOnce(SyncCx, In::Values<D>) -> Out::Values<D>,
 ) -> ActionHandle {
     let definition = with_context(|cx| {
         assert!(
@@ -89,7 +77,7 @@ pub fn define_action<D: Domain, In: Shape, Out: Shape>(
         let input = cx.alloc(air::Expr { ty: input_ty, kind });
         cx.push_expr(input)
     });
-    let result = f(In::make_values(Value::from_handle(input)));
+    let result = f(SyncCx::new(), In::make_values(Value::from_handle(input)));
     let result = Out::pack_values(result).handle();
     let handle = with_context(|cx| {
         let result = cx.typed_expr::<Out>(result);
@@ -114,7 +102,7 @@ pub fn define_action<D: Domain, In: Shape, Out: Shape>(
     handle
 }
 
-pub fn define_rule(guard: Option<ExprHandle>, f: impl FnOnce()) {
+pub fn define_rule(guard: Option<ExprHandle>, f: impl FnOnce(SyncCx)) {
     with_context(|cx| {
         assert!(
             cx.frames.is_empty(),
@@ -122,7 +110,7 @@ pub fn define_rule(guard: Option<ExprHandle>, f: impl FnOnce()) {
         );
     });
     let mut scope = BodyScope::begin();
-    f();
+    f(SyncCx::new());
     with_context(|cx| {
         let body = cx.end_body();
         let guard = guard.map(|handle| cx.typed_expr::<bool>(handle));

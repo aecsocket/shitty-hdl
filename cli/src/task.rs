@@ -1,6 +1,9 @@
-use std::{fs, mem, path::PathBuf};
+use std::{
+    fs, mem,
+    path::{Path, PathBuf},
+};
 
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, ensure};
 use front::elab;
 use toolchain_api::{Binding, Bindings, BitstreamInput, Toolchain};
 use toolchain_bsc::EmitVerilog;
@@ -20,7 +23,7 @@ pub fn check(mut cx: Context) -> Result<()> {
     Ok(())
 }
 
-pub fn build(mut cx: Context, upload: bool) -> Result<()> {
+pub fn build(mut cx: Context, program: bool) -> Result<()> {
     let GenVerilog {
         bindings,
         module_name,
@@ -53,11 +56,30 @@ pub fn build(mut cx: Context, upload: bool) -> Result<()> {
     info!("- BSV output to {bsv_path:?}");
     info!("- Verilog output to {verilog_path:?}");
     info!("- Bitstream output to {bitstream_path:?}");
+
+    if program {
+        program_bitstream(&cx, &bitstream_path)?;
+    }
     Ok(())
 }
 
-pub fn upload(cx: Context) -> Result<()> {
-    todo!();
+pub fn program(mut cx: Context) -> Result<()> {
+    let GenVerilog { module_name, .. } = gen_verilog(&mut cx)?;
+    let bitstream_path = cx.out_dir.join("vivado").join(format!("{module_name}.bit"));
+    ensure!(
+        bitstream_path.exists(),
+        "bitstream {bitstream_path:?} does not exist; run `build` first"
+    );
+    program_bitstream(&cx, &bitstream_path)
+}
+
+fn program_bitstream(cx: &Context, bitstream_path: &Path) -> Result<()> {
+    info!("programming board");
+    toolchain_vivado::Vivado::default()
+        .program(cx.board, bitstream_path)
+        .context("programming board")?;
+    info!("programmed board in {:.2?}", START.elapsed());
+    Ok(())
 }
 
 struct GenVerilog {

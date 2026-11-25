@@ -25,12 +25,12 @@ enum Command {
     Check,
     /// Build a bitstream for the design
     Build {
-        /// Also uploads the design to the currently connected board
+        /// Also programs the design onto the currently connected board
         #[arg(long)]
-        upload: bool,
+        program: bool,
     },
-    /// Upload the built design to the currently connected board
-    Upload,
+    /// Program the built design onto the currently connected board
+    Program,
 }
 
 struct Context {
@@ -90,7 +90,7 @@ pub fn cli<R>(
     let cli = <Cli as clap::Parser>::parse();
     match cli.command {
         Command::Check => task::check(cx),
-        Command::Build { upload } => task::build(cx, upload),
-        Command::Upload => task::upload(cx),
+        Command::Build { program } => task::build(cx, program),
+        Command::Program => task::program(cx),
     }
 }

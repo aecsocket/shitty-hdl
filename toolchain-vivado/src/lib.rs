@@ -2,13 +2,13 @@ use std::{
     fmt::{self, Write as _},
     fs,
     io::{BufRead, BufReader},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     thread,
 };
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use toolchain_api::{Binding, Bindings, BitstreamInput, MakeBitstreamEvent, Toolchain};
+use toolchain_api::{Binding, Bindings, BitstreamInput, Board, MakeBitstreamEvent, Toolchain};
 use tracing::{debug, warn};
 
 pub struct Vivado {
@@ -93,7 +93,60 @@ impl Toolchain for Vivado {
         Ok(bitstream_path)
     }
 
-    fn program(&self) -> Result<()> {
+    fn program(&self, board: Board, bitstream: &Path) -> Result<()> {
+        const SCRIPT_PATH: &str = "program.tcl";
+        const SCRIPT_CONTENTS: &str = include_str!("program.tcl");
+
+        let out_dir = bitstream
+            .parent()
+            .with_context(|| anyhow!("bitstream {bitstream:?} has no parent directory"))?;
+
+        let board::Toolchain::Vivado(board::ToolchainVivado { part, .. }) = board.toolchain else {
+            bail!("board does not use Vivado toolchain");
+        };
+
+        debug!("programming part {part:?} with {bitstream:?}");
+
+        let script_path = out_dir.join(SCRIPT_PATH);
+        fs::write(&script_path, SCRIPT_CONTENTS)
+            .with_context(|| anyhow!("writing {script_path:?}"))?;
+
+        let vivado_bin = &self.bin;
+        let mut command = Command::new(vivado_bin);
+        command
+            .current_dir(out_dir)
+            .args(["-mode", "batch"])
+            .args(["-source", SCRIPT_PATH])
+            .arg("-tclargs")
+            .arg(bitstream)
+            .arg(part)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        debug!("spawning {command:?}");
+
+        let mut child = command
+            .spawn()
+            .with_context(|| anyhow!("spawning {command:?}"))?;
+        let stdout = child.stdout.take().expect("`stdout` is `Stdio::piped()`");
+        let stderr = child.stderr.take().expect("`stderr` is `Stdio::piped()`");
+
+        thread::scope(|scope| {
+            scope.spawn(move || {
+                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                    handle_program_stdout(&line);
+                }
+            });
+
+            scope.spawn(move || {
+                for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                    warn!("vivado: {line}");
+                }
+            });
+        });
+
+        let status = child.wait().context("waiting for vivado to finish")?;
+        ensure!(status.success(), "vivado failed");
+
         Ok(())
     }
 }
@@ -158,6 +211,14 @@ fn tcl_word(value: &str) -> String {
     }
     word.push('"');
     word
+}
+
+fn handle_program_stdout(line: &str) {
+    if line.trim() == "shitty_hdl:Programmed" {
+        debug!("device programmed");
+    } else {
+        debug!("vivado: {line}");
+    }
 }
 
 fn handle_stdout(line: &str, progress: &mut dyn FnMut(MakeBitstreamEvent)) {

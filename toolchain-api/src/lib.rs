@@ -2,9 +2,9 @@ use std::path::{Path, PathBuf};
 
 pub use anyhow;
 
-use anyhow::Result;
-use board::Board;
+pub use board::Board;
 
+use anyhow::Result;
 pub trait Toolchain {
     fn make_bitstream(
         &self,
@@ -12,7 +12,7 @@ pub trait Toolchain {
         progress: &mut (dyn FnMut(MakeBitstreamEvent) + Send),
     ) -> Result<PathBuf>;
 
-    fn program(&self) -> Result<()>;
+    fn program(&self, board: Board, bitstream: &Path) -> Result<()>;
 }
 
 const _ASSERT_DYN_COMPATIBLE: Option<&dyn Toolchain> = None;

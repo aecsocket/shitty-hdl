@@ -49,8 +49,7 @@ pub fn page_alloc(heap: Heap) -> PageAlloc {
             sim_assert!(free_count > 0);
 
             let next_free_head = heap.read(Addr::from_page(free_head)).await;
-            let next_free_head = next_free_head.pack().trunc().unpack_to::<PageAddr>();
-            free_head <<= next_free_head;
+            free_head <<= next_free_head.repack_trunc::<PageAddr>();
             free_count <<= free_count - 1;
             free_head
         }
@@ -60,11 +59,8 @@ pub fn page_alloc(heap: Heap) -> PageAlloc {
         sim_assert!(page != PageAddr::INVALID, "freeing invalid page");
         sim_assert!(free_count < PageAddr::INVALID, "freeing too many pages");
 
-        heap.write(
-            Addr::from_page(page),
-            free_head.pack().zext().unpack_to::<Word>(),
-        )
-        .await;
+        heap.write(Addr::from_page(page), free_head.repack_zext::<Word>())
+            .await;
         free_head <= page;
         free_count <= free_count + 1;
     });

@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-pub use irt::{Bits, Ident, Pattern, Shape, ShapeSize, Signal, SignalDef, Type, TypeDef};
+pub use irt::{Bits, Flow, Ident, Pattern, Shape, ShapeSize, Signal, SignalDef, Type, TypeDef};
 
 use derive_more::From;
 use irt::ptr_identity;
@@ -19,12 +19,6 @@ pub struct Port<'d> {
     pub name: Ident,
     pub flow: Flow,
     pub signal: Signal<'d>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Flow {
-    In,
-    Out,
 }
 
 #[derive(Debug, Clone, Copy)]

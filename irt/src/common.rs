@@ -29,3 +29,9 @@ pub struct SignalDef<'d> {
     pub ty: Type<'d>,
     pub init: &'d Bits,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Flow {
+    In,
+    Out,
+}

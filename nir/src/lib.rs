@@ -5,17 +5,51 @@ mod from_pir;
 
 #[cfg(feature = "from_pir")]
 pub use from_pir::from_pir;
-pub use irt::{Bits, Ident, Pattern, ShapeSize, Signal, SignalDef};
+pub use irt::{Bits, Flow, Ident, Pattern, ShapeSize, Signal, SignalDef};
 
+use derive_more::From;
 use irt::ptr_identity;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Netlist<'d> {
     pub top: Module<'d>,
-    pub modules: &'d [Module<'d>],
-    pub cells: &'d [Cell<'d>],
     pub connections: &'d [Connection<'d>],
     pub signals: &'d [SignalBinding<'d>],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Module<'d> {
+    pub name: Ident,
+    pub ports: &'d [Port<'d>],
+    pub cells: &'d [Cell<'d>],
+    pub children: &'d [Self],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Port<'d> {
+    pub name: Ident,
+    pub flow: Flow,
+    pub value: Value<'d>,
+}
+
+ptr_identity! {
+    pub struct CellRef<'d>(Cell<'d>);
+}
+
+#[derive(Debug, Clone, Copy, From)]
+pub enum Cell<'d> {
+    Input(Input),
+    Unary(Unary<'d>),
+    Binary(Binary<'d>),
+    Mux(Mux<'d>),
+    Match(Match<'d>),
+    AssignmentList(AssignList<'d>),
+    FlipFlop(FlipFlop<'d>),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Input {
+    pub width: ShapeSize,
 }
 
 ptr_identity! {
@@ -30,7 +64,7 @@ pub struct LateNetDef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Net<'d> {
     Const(bool),
-    Cell { cell: Cell<'d>, bit: u32 },
+    Cell { cell: CellRef<'d>, bit: ShapeSize },
     Late(LateNet<'d>),
 }
 
@@ -48,84 +82,11 @@ pub struct Connection<'d> {
     pub to: Net<'d>,
 }
 
-ptr_identity! {
-    pub struct Module<'d>(ModuleDef<'d>);
-}
-
-#[derive(Debug)]
-pub struct ModuleDef<'d> {
-    pub name: Ident,
-    pub parent: Option<Module<'d>>,
-    pub children: &'d [Module<'d>],
-    pub ports: &'d [Port<'d>],
-    pub cells: &'d [Cell<'d>],
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Port<'d> {
-    pub name: Ident,
-    pub flow: Flow,
-    pub value: Value<'d>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Flow {
-    In,
-    Out,
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct SignalBinding<'d> {
     pub module: Module<'d>,
     pub signal: Signal<'d>,
     pub value: Value<'d>,
-}
-
-#[derive(Debug)]
-pub struct CellDef<'d> {
-    pub module: Module<'d>,
-    pub kind: CellKind<'d>,
-}
-
-ptr_identity! {
-    pub struct Cell<'d>(CellDef<'d>);
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum CellKind<'d> {
-    Input { width: u32 },
-    Unary(Unary<'d>),
-    Binary(Binary<'d>),
-    Mux(Mux<'d>),
-    Match(Match<'d>),
-    AssignmentList(AssignmentList<'d>),
-    FlipFlop(FlipFlop<'d>),
-}
-
-impl CellKind<'_> {
-    #[must_use]
-    pub const fn output_width(self) -> usize {
-        match self {
-            Self::Input { width } => width as usize,
-            Self::Unary(unary) => match unary.op {
-                UnaryOp::Not | UnaryOp::Neg => unary.value.0.len(),
-                UnaryOp::Bool | UnaryOp::ReduceAnd | UnaryOp::ReduceOr | UnaryOp::ReduceXor => 1,
-            },
-            Self::Binary(binary) => match binary.op {
-                BinaryOp::Eq
-                | BinaryOp::Ne
-                | BinaryOp::Lt(_)
-                | BinaryOp::Le(_)
-                | BinaryOp::Gt(_)
-                | BinaryOp::Ge(_) => 1,
-                _ => binary.lhs.0.len(),
-            },
-            Self::Mux(mux) => mux.when_true.0.len(),
-            Self::Match(matcher) => matcher.arms.len(),
-            Self::AssignmentList(assignments) => assignments.default.0.len(),
-            Self::FlipFlop(flip_flop) => flip_flop.data.0.len(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -197,13 +158,13 @@ pub struct MatchArm<'d> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct AssignmentList<'d> {
+pub struct AssignList<'d> {
     pub default: Value<'d>,
-    pub assignments: &'d [Assignment<'d>],
+    pub assigns: &'d [Assign<'d>],
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Assignment<'d> {
+pub struct Assign<'d> {
     pub condition: Net<'d>,
     pub offset: ShapeSize,
     pub value: Value<'d>,
